@@ -1,0 +1,39 @@
+PSPLINK 0.1a README
+(c) TyRaNiD 2005
+
+PSPLINK is licensed under the BSD license, see LICENSE in PSPLINK root for details.
+
+NOTE: This is still a work in progress. Treat it as such :P
+
+-= What is this? =-
+
+PSPLINK is an attempt at producing a loader/development application to eliminate 
+the need to go back to the VSH everytime. It provides a shell over the SIO connection
+from which you can load new apps, dump useful system information and then reset the
+PSP to start another application. The program mounts the USB device so you can copy
+new executables onto the ms for execution. It also eliminates some of the boilerplate
+code necessary for executables, it installs stdio and kprintf handlers for tty output
+as well as providing a built in exception handler. Almost all applications can now
+be run in user mode only without having to resort to ugly kernel mode hacks.
+
+-= Installation =-
+
+From source type 'make release' to build a release directory. Now copy the 
+files appropriate for your firmware revision.
+
+-= Usage =-
+
+Setup a serial terminal at 115200 baud 8N1. Run psplink from the VSH and in a few 
+seconds a shell prompt should be printed. When this happens you can now type commands.
+
+To get a list of available commands type 'help'. To get a slightly more detailed 
+description of a command type 'help command'.
+
+To get started quickly in order to run a new pspsdk compiled application copy the ELF 
+to the memory stick (say in the root directory) and type 'exec ms0:/program.elf' replacing
+program.elf with the name of the app. The application should now run, the shell 
+however should still be accessible to type new commands such as listing the current
+threads (the 'thlist' command). When you are done with the current app then either 
+type 'reset' to reset the system or just run another application. If you want to 
+rerun the current application then type 'exec' with no filename, this will automatically
+reboot the psp and rerun your the last application.

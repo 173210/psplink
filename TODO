@@ -1,0 +1,6 @@
+Fix the GDB stub so it actually works.
+Disable Kprintf when doing certain system calls on 1.5 firmware (to eliminate spam)
+Add screenshot code.
+Add patching for things like exitgame so if an app calls it it resets psplink.
+Make it buildable in a bootstrap mode.
+Otherstuff I can't rememeber.
