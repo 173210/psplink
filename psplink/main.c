@@ -369,7 +369,8 @@ void shell()
 			case 4  : Kprintf("\nExiting Shell\n");
 					  exit_shell = 1;
 					  break;
-			case 8  : if(g_cli_pos > 0)
+			case 8  : // Backspace
+	                case 127: if(g_cli_pos > 0)
 					  {
 						  g_cli_pos--;
 						  g_cli[g_cli_pos] = 0;
@@ -796,7 +797,8 @@ int load_start_module(const char *name)
 	modid = sceKernelLoadModule(name, 0, NULL);
 	if(modid >= 0)
 	{
-		modid = sceKernelStartModule(modid, 0, NULL, &status, NULL);
+		Kprintf("lsm: using name '%s'\n",name);
+		modid = sceKernelStartModule(modid, strlen(name) + 1, (void *)name, &status, NULL);
 	}
 
 	return modid;
@@ -830,7 +832,8 @@ int load_start_module_debug(const char *name)
 			set_swbp(info.entry_addr);
 			sceKernelDcacheWBinvAll();
 			sceKernelIcacheClearAll();
-			modid = sceKernelStartModule(modid, 0, NULL, &status, NULL);
+			Kprintf("lsmd: using name '%s'\n",name);
+			modid = sceKernelStartModule(modid, strlen(name) + 1, (void *)name, &status, NULL);
 
 			sceKernelWaitEventFlag(g_eventflag, EVENT_RESUMESH, 0x100, &result, NULL);
 		}
