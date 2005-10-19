@@ -18,6 +18,7 @@
 #include <string.h>
 #include <pspusb.h>
 #include <pspusbstor.h>
+#include "memoryUID.h"
 #include "psplink.h"
 
 PSP_MODULE_INFO("PSPLINK", 0x1000, 1, 1);
@@ -102,7 +103,7 @@ static int evlist_cmd(void);
 static int evinfo_cmd(void);
 static int smlist_cmd(void);
 static int sminfo_cmd(void);
-//static int uidlist_cmd(void);
+static int uidlist_cmd(void);
 static int modlist_cmd(void);
 static int modinfo_cmd(void);
 static int modstop_cmd(void);
@@ -138,7 +139,7 @@ struct sh_command commands[] = {
 	{ "evinfo", "ei", evinfo_cmd, "Print info about an event flag", "ei uid" },
 	{ "smlist", "sl", smlist_cmd, "List the semaphores in the system", "sl [v]" },
 	{ "sminfo", "si", sminfo_cmd, "Print info about a semaphore", "si uid" },
-//{ "uidlist","ul", uidlist_cmd,"List the system UIDS", "ul" },
+    { "uidlist","ul", uidlist_cmd,"List the system UIDS", "ul" },
 	{ "modlist","ml", modlist_cmd,"List the currently loaded modules", "ml [v]" },
 	{ "modinfo","mi", modinfo_cmd,"Print info about a module", "mi uid" },
 	{ "modstop","ms", modstop_cmd,"Stop a running module", "ms uid" },
@@ -566,14 +567,12 @@ static int sminfo_cmd(void)
 	return threadmaninfo_cmd("Semaphore", print_semainfo);
 }
 
-#if 0
 static int uidlist_cmd(void)
 {
 	printUIDList();
 
 	return CMD_OK;
 }
-#endif 
 
 static int print_modinfo(SceUID uid, int verbose)
 {
