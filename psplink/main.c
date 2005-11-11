@@ -18,6 +18,7 @@
 #include <string.h>
 #include <pspusb.h>
 #include <pspusbstor.h>
+#include <pspumd.h>
 #include "memoryUID.h"
 #include "psplink.h"
 
@@ -54,6 +55,8 @@ static int g_loaderthid = 0;
 static char g_execfile[256];
 /* Inidicates whether a file has already been executed */
 static int  g_inexec = 0;
+/* Indicates the current directory */
+static char g_currdir[1024];
 
 extern int g_debuggermode;
 void set_swbp(u32 addr);
@@ -115,6 +118,9 @@ static int ldstart_cmd(void);
 static int exec_cmd(void);
 static int debug_cmd(void);
 static int reset_cmd(void);
+static int ls_cmd(void);
+static int chdir_cmd(void);
+static int pwd_cmd(void);
 
 /* Return values for the commands */
 #define CMD_EXITSHELL 	1
@@ -150,6 +156,9 @@ struct sh_command commands[] = {
 	{ "ldstart","ld", ldstart_cmd, "Load and start a module", "ld path" },
 	{ "exec", "e", exec_cmd, "Execute a new program (under psplink)", "exec [path]" },
 	{ "debug", "d", debug_cmd, "Debug an executable (need to switch to gdb)", "debug path" },
+	{ "ls",  "dir", ls_cmd,    "List the files in a directory", "ls [path]" },
+	{ "chdir", "cd", chdir_cmd,"Change the current directory", "cd path" },
+	{ "pwd",   NULL, pwd_cmd, "Print the current working directory", "pwd" },
 	{ "exit", "ex", exit_cmd, "Exit the shell", "exit" },
 	{ "reset", "r", reset_cmd, "Reset", "r" },
 	{ "help", "?", help_cmd, "Help (Obviously)", "help [command]" },
@@ -1007,6 +1016,263 @@ static int debug_cmd(void)
 	return ret;
 }
 
+static int list_dir(const char *name)
+{
+	int dfd;
+	static SceIoDirent dir;
+
+	dfd = sceIoDopen(name);
+	if(dfd >= 0)
+	{
+		memset(&dir, 0, sizeof(dir));
+		while(sceIoDread(dfd, &dir) > 0)
+		{
+			int ploop;
+
+			if(dir.d_stat.st_attr & FIO_SO_IFDIR)
+			{
+				Kprintf("d");
+			}
+			else
+			{
+				Kprintf("-");
+			}
+
+			for(ploop = 0; ploop < 3; ploop++)
+			{
+				int bits;
+
+				bits = (dir.d_stat.st_mode >> (ploop * 3)) & 0x7;
+				if(bits & 4)
+				{
+					Kprintf("r");
+				}
+				else
+				{
+					Kprintf("-");
+				}
+
+				if(bits & 2)
+				{
+					Kprintf("w");
+				}
+				else
+				{
+					Kprintf("-");
+				}
+
+				if(bits & 1)
+				{
+					Kprintf("x");
+				}
+				else
+				{
+					Kprintf("-");
+				}
+			}
+
+			Kprintf(" %8d ", (int) dir.d_stat.st_size);
+			Kprintf("%02d-%02d-%04d %02d:%02d ", dir.d_stat.st_mtime.day, 
+					dir.d_stat.st_mtime.month, dir.d_stat.st_mtime.year,
+					dir.d_stat.st_mtime.hour, dir.d_stat.st_mtime.minute);
+			Kprintf("%s\n", dir.d_name);
+			memset(&dir, 0, sizeof(dir));
+		}
+
+		sceIoDclose(dfd);
+	}
+	else
+	{
+		Kprintf("Could not open directory '%s'\n", name);
+		return CMD_ERROR;
+	}
+
+	return CMD_OK;
+}
+
+int is_aspace(int ch)
+{
+	if((ch == ' ') || (ch == '\t') || (ch == '\n') || (ch == '\r'))
+	{
+		return 1;
+	}
+
+	return 0;
+}
+
+/* Normalise the path, remove . and .. directories, will ignore anything at the end with no dir slash */
+static int normalize_path(char *path)
+{
+	char *last_dir = NULL;
+	char *curr_pos;
+	int ret = 1;
+
+	/* Can't start with an absolute path */
+	if(*path == '/')
+	{
+		ret = 0;
+	}
+	else
+	{
+		curr_pos = strchr(path, '/');
+		while(curr_pos != NULL)
+		{
+			if(last_dir != NULL)
+			{
+				if(strncmp(last_dir, "/.", curr_pos - last_dir) == 0)
+				{
+					strcpy(last_dir, curr_pos);
+					curr_pos = last_dir;
+				}
+				else if(strncmp(last_dir, "/..", curr_pos - last_dir) == 0)
+				{
+					char *last_pos;
+					/* Find the last directory slash from last_dir */
+					last_pos = last_dir - 1;
+					while(last_pos > path)
+					{
+						if(*last_pos == '/')
+						{
+							break;
+						}
+						last_pos--;
+					}
+
+					if(last_pos > path)
+					{
+						last_dir = last_pos;
+					}
+
+					strcpy(last_dir, curr_pos);
+					curr_pos = last_dir;
+				}
+				else
+				{
+					/* Ignore */
+				}
+			}
+
+			last_dir = curr_pos;
+			curr_pos = strchr(curr_pos + 1, '/');
+		}
+	}
+
+	return ret;
+}
+
+static int ls_cmd(void)
+{
+	char *dir;
+
+	/* Get remainder of string */
+	dir = strtok(NULL, "\000");
+	if(dir == NULL)
+	{
+		dir = g_currdir;
+	}
+	else
+	{
+		/* Strip whitespace and append a final slash */
+		int len;
+
+		len = strlen(dir);
+		while((len > 0) && (is_aspace(dir[len-1])))
+		{
+			dir[len-1] = 0;
+			len--;
+		}
+
+		/* Very unsafe, but still */
+		if(dir[len-1] != '/')
+		{
+			dir[len] = '/';
+			dir[len+1] = 0;
+		}
+	}
+
+	Kprintf("Listing directory %s\n", dir);
+
+	return list_dir(dir);
+}
+
+static int chdir_cmd(void)
+{
+	char *dir;
+	int ret = CMD_ERROR;
+	char path[1024];
+
+	/* Get remainder of string */
+	dir = strtok(NULL, "\000");
+	if(dir != NULL)
+	{
+		/* Strip whitespace and append a final slash */
+		int len;
+		int dfd;
+
+		path[0] = 0;
+		if(strchr(dir, ':') == NULL)
+		{
+			if(dir[0] == '/')
+			{
+				int currdir_pos = 0;
+				int path_pos = 0;
+				while(g_currdir[currdir_pos] != 0)
+				{
+					path[path_pos] = g_currdir[currdir_pos];
+					if(g_currdir[currdir_pos] == ':')
+					{
+						path[path_pos + 1] = 0;
+						break;
+					}
+					currdir_pos++;
+					path_pos++;
+				}
+			}
+			else
+			{
+				/* relative directory */
+				strcpy(path, g_currdir);
+			}
+		}
+
+		strcat(path, dir);
+		len = strlen(path);
+		while((len > 0) && (is_aspace(path[len-1])))
+		{
+			path[len-1] = 0;
+			len--;
+		}
+
+		/* Very unsafe, but still */
+		if(path[len-1] != '/')
+		{
+			path[len] = '/';
+			path[len+1] = 0;
+		}
+
+		if((normalize_path(path) == 0) || ((dfd = sceIoDopen(path)) < 0))
+		{
+			Kprintf("'%s' not a valid directory\n");
+		}
+		else
+		{
+			sceIoDclose(dfd);
+			strcpy(g_currdir, path);
+			ret = CMD_OK;
+		}
+
+	}
+
+	return ret;
+}
+
+static int pwd_cmd(void)
+{
+	Kprintf("%s\n", g_currdir);
+
+	return CMD_OK;
+}
+
 static int exit_cmd(void)
 {
 	return CMD_EXITSHELL;
@@ -1062,15 +1328,16 @@ static int help_cmd(void)
 
 static void map_firmwarerev(void)
 {
-    if(sceKernelDevkitVersion() == 0x01050001)
-	{
-		g_QueryModuleInfo = sceKernelQueryModuleInfo;
-		g_GetModuleIdList = sceKernelGetModuleIdList;
-	}
-	else
+	/* Special case for version 1 firmware */
+    if((sceKernelDevkitVersion() & 0xFFFF0000) == 0x01000000)
 	{
 		g_QueryModuleInfo = pspSdkQueryModuleInfoV1;
 		g_GetModuleIdList = pspSdkGetModuleIdList;
+	}
+	else
+	{
+		g_QueryModuleInfo = sceKernelQueryModuleInfo;
+		g_GetModuleIdList = sceKernelGetModuleIdList;
 	}
 }
 
@@ -1227,6 +1494,7 @@ int main_thread(SceSize args, void *argp)
 {
 	DEBUG_START;
 	DEBUG_PRINTF("Starting PSPLINK kernel module\n");
+	strcpy(g_currdir, "ms0:/");
 	map_firmwarerev();
 	g_eventflag = sceKernelCreateEventFlag("SioShellEvent", 0, 0, 0);
 	pspDebugSioInit();
@@ -1234,6 +1502,7 @@ int main_thread(SceSize args, void *argp)
 	pspDebugInstallStdoutHandler(pspDebugSioPutText);
 	pspDebugInstallStderrHandler(pspDebugSioPutText);
 	pspDebugSioInstallKprintf();
+	sceUmdActivate(1, "disc0:");
 	parse_args(args, argp);
 	DEBUG_PRINTF("Bootfile %s threadid %08X execfile %s\n", g_bootfile, g_loaderthid,
 			g_execfile[0] == 0 ? "NULL" : g_execfile);

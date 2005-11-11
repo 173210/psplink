@@ -14,7 +14,7 @@ ASFLAGS = $(CFLAGS)
 
 LIBDIR =
 
-LIBS = -lpspusb_driver -lpspusbstor
+LIBS = -lpspusb_driver -lpspusbstor -lpspumd
 
 PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build_prx.mak
