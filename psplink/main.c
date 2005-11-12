@@ -21,6 +21,7 @@
 #include <pspumd.h>
 #include "memoryUID.h"
 #include "psplink.h"
+#include "parse_args.h"
 
 PSP_MODULE_INFO("PSPLINK", 0x1000, 1, 1);
 
@@ -83,44 +84,33 @@ int intr_handler(void *arg)
 	return -1;
 }
 
-/* Make the character upper case */
-static char upcase(char ch)
-{
-	if((ch >= 'a') && (ch <= 'z'))
-	{
-		ch ^= (1 << 5);
-	}
-
-	return ch;
-}
-
 int stop_usb(void);
 void sceKernelDcacheWBinvAll(void);
 void sceKernelIcacheClearAll(void);
 
-static int exit_cmd(void);
-static int help_cmd(void);
-static int thlist_cmd(void);
-static int thinfo_cmd(void);
-static int evlist_cmd(void);
-static int evinfo_cmd(void);
-static int smlist_cmd(void);
-static int sminfo_cmd(void);
-static int uidlist_cmd(void);
-static int modlist_cmd(void);
-static int modinfo_cmd(void);
-static int modstop_cmd(void);
-static int modunld_cmd(void);
-static int modstart_cmd(void);
-static int modload_cmd(void);
-static int modexec_cmd(void);
-static int ldstart_cmd(void);
-static int exec_cmd(void);
-static int debug_cmd(void);
-static int reset_cmd(void);
-static int ls_cmd(void);
-static int chdir_cmd(void);
-static int pwd_cmd(void);
+static int exit_cmd(int argc, char **argv);
+static int help_cmd(int argc, char **argv);
+static int thlist_cmd(int argc, char **argv);
+static int thinfo_cmd(int argc, char **argv);
+static int evlist_cmd(int argc, char **argv);
+static int evinfo_cmd(int argc, char **argv);
+static int smlist_cmd(int argc, char **argv);
+static int sminfo_cmd(int argc, char **argv);
+static int uidlist_cmd(int argc, char **argv);
+static int modlist_cmd(int argc, char **argv);
+static int modinfo_cmd(int argc, char **argv);
+static int modstop_cmd(int argc, char **argv);
+static int modunld_cmd(int argc, char **argv);
+static int modstart_cmd(int argc, char **argv);
+static int modload_cmd(int argc, char **argv);
+static int modexec_cmd(int argc, char **argv);
+static int ldstart_cmd(int argc, char **argv);
+static int exec_cmd(int argc, char **argv);
+static int debug_cmd(int argc, char **argv);
+static int reset_cmd(int argc, char **argv);
+static int ls_cmd(int argc, char **argv);
+static int chdir_cmd(int argc, char **argv);
+static int pwd_cmd(int argc, char **argv);
 
 /* Return values for the commands */
 #define CMD_EXITSHELL 	1
@@ -132,37 +122,38 @@ struct sh_command
 {
 	const char *name;		/* Normal name of the command */
 	const char *syn;		/* Synonym of the command */
-	int (*func)(void);		/* Pointer to the command function */
+	int (*func)(int argc, char **argv);		/* Pointer to the command function */
+	int min_args;
 	const char *desc;		/* Textual description */
 	const char *help;		/* Command usage */
 };
 
 /* Define the list of commands */
 struct sh_command commands[] = {
-	{ "thlist", "tl", thlist_cmd, "List the threads in the system", "tl [v]" },
-	{ "thinfo", "ti", thinfo_cmd, "Print info about a thread", "ti uid" },
-	{ "evlist", "el", evlist_cmd, "List the event flags in the system", "el [v]" },
-	{ "evinfo", "ei", evinfo_cmd, "Print info about an event flag", "ei uid" },
-	{ "smlist", "sl", smlist_cmd, "List the semaphores in the system", "sl [v]" },
-	{ "sminfo", "si", sminfo_cmd, "Print info about a semaphore", "si uid" },
-    { "uidlist","ul", uidlist_cmd,"List the system UIDS", "ul" },
-	{ "modlist","ml", modlist_cmd,"List the currently loaded modules", "ml [v]" },
-	{ "modinfo","mi", modinfo_cmd,"Print info about a module", "mi uid" },
-	{ "modstop","ms", modstop_cmd,"Stop a running module", "ms uid" },
-	{ "modunld","mu", modunld_cmd,"Unload a module (must be stopped)", "mu uid" },
-	{ "modload","md", modload_cmd,"Load a module", "md path" },
-	{ "modstar","mt", modstart_cmd,"Start a module", "mt uid" },
-	{ "modexec","me", modexec_cmd, "LoadExec a module", "me path" },
-	{ "ldstart","ld", ldstart_cmd, "Load and start a module", "ld path" },
-	{ "exec", "e", exec_cmd, "Execute a new program (under psplink)", "exec [path]" },
-	{ "debug", "d", debug_cmd, "Debug an executable (need to switch to gdb)", "debug path" },
-	{ "ls",  "dir", ls_cmd,    "List the files in a directory", "ls [path]" },
-	{ "chdir", "cd", chdir_cmd,"Change the current directory", "cd path" },
-	{ "pwd",   NULL, pwd_cmd, "Print the current working directory", "pwd" },
-	{ "exit", "ex", exit_cmd, "Exit the shell", "exit" },
-	{ "reset", "r", reset_cmd, "Reset", "r" },
-	{ "help", "?", help_cmd, "Help (Obviously)", "help [command]" },
-	{ NULL, NULL, NULL, NULL }
+	{ "thlist", "tl", thlist_cmd, 0, "List the threads in the system", "tl [v]" },
+	{ "thinfo", "ti", thinfo_cmd, 1, "Print info about a thread", "ti uid" },
+	{ "evlist", "el", evlist_cmd, 0, "List the event flags in the system", "el [v]" },
+	{ "evinfo", "ei", evinfo_cmd, 1, "Print info about an event flag", "ei uid" },
+	{ "smlist", "sl", smlist_cmd, 0, "List the semaphores in the system", "sl [v]" },
+	{ "sminfo", "si", sminfo_cmd, 1, "Print info about a semaphore", "si uid" },
+    { "uidlist","ul", uidlist_cmd, 0, "List the system UIDS", "ul" },
+	{ "modlist","ml", modlist_cmd, 0, "List the currently loaded modules", "ml [v]" },
+	{ "modinfo","mi", modinfo_cmd, 1, "Print info about a module", "mi uid" },
+	{ "modstop","ms", modstop_cmd, 1, "Stop a running module", "ms uid" },
+	{ "modunld","mu", modunld_cmd, 1, "Unload a module (must be stopped)", "mu uid" },
+	{ "modload","md", modload_cmd, 1, "Load a module", "md path" },
+	{ "modstar","mt", modstart_cmd, 1, "Start a module", "mt uid" },
+	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me path" },
+	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path" },
+	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path]" },
+	{ "debug", "d", debug_cmd, 1, "Debug an executable (need to switch to gdb)", "debug path" },
+	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "ls [path]" },
+	{ "chdir", "cd", chdir_cmd, 1, "Change the current directory", "cd path" },
+	{ "pwd",   NULL, pwd_cmd, 0, "Print the current working directory", "pwd" },
+	{ "exit", "ex", exit_cmd, 0, "Exit the shell", "exit" },
+	{ "reset", "r", reset_cmd, 0, "Reset", "r" },
+	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command]" },
+	{ NULL, NULL, NULL, 0, NULL, NULL }
 };
 
 /* Find a command from the command list */
@@ -232,6 +223,8 @@ static int process_cli()
 {
 	int ret = CMD_OK;
 	char *cmd;
+	int argc;
+	char *argv[16];
 
     pspDebugSioPutchar(13);
     pspDebugSioPutchar(10);
@@ -240,17 +233,21 @@ static int process_cli()
 	g_lastcli_pos = (g_lastcli_pos + 1) % CLI_HISTSIZE;
 	g_currcli_pos = g_lastcli_pos;
 
-	cmd = strtok(g_cli, " ");
+	if(parse_args(g_cli, &argc, argv, 16) == 0)
+	{
+		Kprintf("Error parsing cli\n");
+		return CMD_ERROR;
+	}
 
-	if(cmd != NULL)
+	if(argc > 0)
 	{
 		struct sh_command *found_cmd;
 
+		cmd = argv[0];
 		found_cmd = find_command(cmd);
 		if(found_cmd)
 		{
-			ret = found_cmd->func();
-			if(ret == CMD_ERROR)
+			if((found_cmd->min_args > (argc - 1)) || ((ret = found_cmd->func(argc-1, &argv[1])) == CMD_ERROR))
 			{
 				Kprintf("Usage: %s\n", found_cmd->help);
 			}
@@ -412,19 +409,20 @@ void shell()
 
 typedef int (*threadmanprint_func)(SceUID uid, int verbose);
 
-static int threadmanlist_cmd(enum SceKernelIdListType type, const char *name, threadmanprint_func pinfo)
+static int threadmanlist_cmd(int argc, char **argv, enum SceKernelIdListType type, const char *name, threadmanprint_func pinfo)
 {
 	SceUID ids[100];
 	int ret;
 	int count;
 	int i;
-	char *arg;
 	int verbose = 0;
 
-	arg = strtok(NULL, " ");
-	if((arg != NULL) && (strcmp(arg, "v") == 0))
+	if(argc > 0)
 	{
-		verbose = 1;
+		if(strcmp(argv[0], "v"))
+		{
+			verbose = 1;
+		}
 	}
 
 	memset(ids, 0, 100 * sizeof(SceUID));
@@ -444,30 +442,27 @@ static int threadmanlist_cmd(enum SceKernelIdListType type, const char *name, th
 	return CMD_OK;
 }
 
-static int threadmaninfo_cmd(const char *name, threadmanprint_func pinfo)
+static int threadmaninfo_cmd(int argc, char **argv, const char *name, threadmanprint_func pinfo)
 {
 	SceUID uid;
 	char *suid;
 	int ret = CMD_ERROR;
+	char *endp;
 
-	suid = strtok(NULL, " \t");
-	if(suid != NULL)
+	suid = argv[0];
+	uid = strtoul(suid, &endp, 16);
+	if(*endp == 0)
 	{
-		char *endp;
-		uid = strtoul(suid, &endp, 16);
-		if(*endp == 0)
+		if(pinfo(uid, 1) < 0)
 		{
-			if(pinfo(uid, 1) < 0)
-			{
-				Kprintf("ERROR: Unknown %s %08X\n", name, uid);
-			}
+			Kprintf("ERROR: Unknown %s %08X\n", name, uid);
+		}
 
-			ret = CMD_OK;
-		}
-		else
-		{
-			Kprintf("ERROR: Invalid hex argument %s\n", suid);
-		}
+		ret = CMD_OK;
+	}
+	else
+	{
+		Kprintf("ERROR: Invalid hex argument %s\n", suid);
 	}
 
 	return ret;
@@ -502,14 +497,14 @@ static int print_threadinfo(SceUID uid, int verbose)
 	return ret;
 }
 
-static int thlist_cmd(void)
+static int thlist_cmd(int argc, char **argv)
 {
-	return threadmanlist_cmd(SCE_KERNEL_TMID_Thread, "Thread", print_threadinfo);
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_Thread, "Thread", print_threadinfo);
 }
 
-static int thinfo_cmd(void)
+static int thinfo_cmd(int argc, char **argv)
 {
-	return threadmaninfo_cmd("Thread", print_threadinfo);
+	return threadmaninfo_cmd(argc, argv, "Thread", print_threadinfo);
 }
 
 static int print_eventinfo(SceUID uid, int verbose)
@@ -534,14 +529,14 @@ static int print_eventinfo(SceUID uid, int verbose)
 	return ret;
 }
 
-static int evlist_cmd(void)
+static int evlist_cmd(int argc, char **argv)
 {
-	return threadmanlist_cmd(SCE_KERNEL_TMID_EventFlag, "EventFlag", print_eventinfo);
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_EventFlag, "EventFlag", print_eventinfo);
 }
 
-static int evinfo_cmd(void)
+static int evinfo_cmd(int argc, char **argv)
 {
-	return threadmaninfo_cmd("EventFlag", print_eventinfo);
+	return threadmaninfo_cmd(argc, argv, "EventFlag", print_eventinfo);
 }
 
 static int print_semainfo(SceUID uid, int verbose)
@@ -566,17 +561,17 @@ static int print_semainfo(SceUID uid, int verbose)
 	return ret;
 }
 
-static int smlist_cmd(void)
+static int smlist_cmd(int argc, char **argv)
 {
-	return threadmanlist_cmd(SCE_KERNEL_TMID_Semaphore, "Semaphore", print_semainfo);
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_Semaphore, "Semaphore", print_semainfo);
 }
 
-static int sminfo_cmd(void)
+static int sminfo_cmd(int argc, char **argv)
 {
-	return threadmaninfo_cmd("Semaphore", print_semainfo);
+	return threadmaninfo_cmd(argc, argv, "Semaphore", print_semainfo);
 }
 
-static int uidlist_cmd(void)
+static int uidlist_cmd(int argc, char **argv)
 {
 	printUIDList();
 
@@ -607,48 +602,46 @@ static int print_modinfo(SceUID uid, int verbose)
 	return ret;
 }
 
-static int modinfo_cmd(void)
+static int modinfo_cmd(int argc, char **argv)
 {
 	SceUID uid;
 	char *suid;
 	int ret = CMD_ERROR;
+	char *endp;
 
-	suid = strtok(NULL, " \t");
-	if(suid != NULL)
+	suid = argv[0];
+	uid = strtoul(suid, &endp, 16);
+	if(*endp == 0)
 	{
-		char *endp;
-		uid = strtoul(suid, &endp, 16);
-		if(*endp == 0)
+		if(print_modinfo(uid, 1) < 0)
 		{
-			if(print_modinfo(uid, 1) < 0)
-			{
-				Kprintf("ERROR: Unknown module %08X\n", uid);
-			}
+			Kprintf("ERROR: Unknown module %08X\n", uid);
+		}
 
-			ret = CMD_OK;
-		}
-		else
-		{
-			Kprintf("ERROR: Invalid hex argument %s\n", suid);
-		}
+		ret = CMD_OK;
+	}
+	else
+	{
+		Kprintf("ERROR: Invalid hex argument %s\n", suid);
 	}
 
 	return ret;
 }
 
-static int modlist_cmd(void)
+static int modlist_cmd(int argc, char **argv)
 {
 	SceUID ids[100];
 	int ret;
 	int count;
 	int i;
-	char *arg;
 	int verbose = 0;
 
-	arg = strtok(NULL, " ");
-	if((arg != NULL) && (strcmp(arg, "v") == 0))
+	if(argc > 0)
 	{
-		verbose = 1;
+		if(strcmp(argv[0], "v") == 0)
+		{
+			verbose = 1;
+		}
 	}
 
 	memset(ids, 0, 100 * sizeof(SceUID));
@@ -665,136 +658,115 @@ static int modlist_cmd(void)
 	return CMD_OK;
 }
 
-static int modstop_cmd(void)
+static int modstop_cmd(int argc, char **argv)
 {
 	SceUID uid;
 	char *suid;
 	int ret = CMD_ERROR;
+	char *endp;
 
-	suid = strtok(NULL, " \t");
-	if(suid != NULL)
+	suid = argv[0];
+	uid = strtoul(suid, &endp, 16);
+	if(*endp == 0)
 	{
-		char *endp;
-		uid = strtoul(suid, &endp, 16);
-		if(*endp == 0)
-		{
-			SceUID uid_ret;
-			int status;
+		SceUID uid_ret;
+		int status;
 
-			uid_ret = sceKernelStopModule(uid, 0, NULL, &status, NULL);
-			Kprintf("Module Stop %08X Status %08X\n", uid_ret, status);
-
-			ret = CMD_OK;
-		}
-		else
-		{
-			Kprintf("ERROR: Invalid hex argument %s\n", suid);
-		}
-	}
-
-	return ret;
-}
-
-static int modunld_cmd(void)
-{
-
-	SceUID uid;
-	char *suid;
-	int ret = CMD_ERROR;
-
-	suid = strtok(NULL, " \t");
-	if(suid != NULL)
-	{
-		char *endp;
-		uid = strtoul(suid, &endp, 16);
-		if(*endp == 0)
-		{
-			SceUID uid_ret;
-
-			uid_ret = sceKernelUnloadModule(uid);
-			Kprintf("Module Unload %08X\n", uid_ret);
-
-			ret = CMD_OK;
-		}
-		else
-		{
-			Kprintf("ERROR: Invalid hex argument %s\n", suid);
-		}
-	}
-
-	return ret;
-
-}
-
-static int modstart_cmd(void)
-{
-	SceUID uid;
-	char *suid;
-	int ret = CMD_ERROR;
-
-	suid = strtok(NULL, " \t");
-	if(suid != NULL)
-	{
-		char *endp;
-		uid = strtoul(suid, &endp, 16);
-		if(*endp == 0)
-		{
-			SceUID uid_ret;
-			int status;
-
-			uid_ret = sceKernelStartModule(uid, 0, NULL, &status, NULL);
-			Kprintf("Module Start %08X Status %08X\n", uid_ret, status);
-
-			ret = CMD_OK;
-		}
-		else
-		{
-			Kprintf("ERROR: Invalid hex argument %s\n", suid);
-		}
-	}
-
-	return ret;
-}
-
-static int modload_cmd(void)
-{
-	char *modname;
-	int ret = CMD_ERROR;
-
-	modname = strtok(NULL, " \t");
-	if(modname != NULL)
-	{
-		SceUID modid;
-
-		modid = sceKernelLoadModule(modname, 0, NULL);
-		Kprintf("Module Load '%s' UID: %08X\n", modname, modid);
-		ret = CMD_OK;
-	}
-
-	return ret;
-}
-
-static int modexec_cmd(void)
-{
-	char *modname;
-	int ret = CMD_ERROR;
-
-	modname = strtok(NULL, " \t");
-	if(modname != NULL)
-	{
-		struct SceKernelLoadExecParam le;
-
-		le.size = sizeof(le);
-		le.args = strlen(modname) + 1;
-		le.argp = modname;
-		le.key = NULL;
-
-		sceKernelLoadExec(modname, &le);
+		uid_ret = sceKernelStopModule(uid, 0, NULL, &status, NULL);
+		Kprintf("Module Stop %08X Status %08X\n", uid_ret, status);
 
 		ret = CMD_OK;
 	}
+	else
+	{
+		Kprintf("ERROR: Invalid hex argument %s\n", suid);
+	}
 
 	return ret;
+}
+
+static int modunld_cmd(int argc, char **argv)
+{
+
+	SceUID uid;
+	char *suid;
+	int ret = CMD_ERROR;
+	char *endp;
+
+	suid = argv[0];
+	uid = strtoul(suid, &endp, 16);
+	if(*endp == 0)
+	{
+		SceUID uid_ret;
+
+		uid_ret = sceKernelUnloadModule(uid);
+		Kprintf("Module Unload %08X\n", uid_ret);
+
+		ret = CMD_OK;
+	}
+	else
+	{
+		Kprintf("ERROR: Invalid hex argument %s\n", suid);
+	}
+
+	return ret;
+
+}
+
+static int modstart_cmd(int argc, char **argv)
+{
+	SceUID uid;
+	char *suid;
+	int ret = CMD_ERROR;
+	char *endp;
+
+	suid = argv[0];
+	uid = strtoul(suid, &endp, 16);
+	if(*endp == 0)
+	{
+		SceUID uid_ret;
+		int status;
+
+		uid_ret = sceKernelStartModule(uid, 0, NULL, &status, NULL);
+		Kprintf("Module Start %08X Status %08X\n", uid_ret, status);
+
+		ret = CMD_OK;
+	}
+	else
+	{
+		Kprintf("ERROR: Invalid hex argument %s\n", suid);
+	}
+
+	return ret;
+}
+
+static int modload_cmd(int argc, char **argv)
+{
+	char *modname;
+	SceUID modid;
+
+	modname = argv[0];
+
+	modid = sceKernelLoadModule(modname, 0, NULL);
+	Kprintf("Module Load '%s' UID: %08X\n", modname, modid);
+	return CMD_OK;
+}
+
+static int modexec_cmd(int argc, char **argv)
+{
+	char *modname;
+	struct SceKernelLoadExecParam le;
+
+	modname = argv[0];
+
+	le.size = sizeof(le);
+	le.args = strlen(modname) + 1;
+	le.argp = modname;
+	le.key = NULL;
+
+	sceKernelLoadExec(modname, &le);
+
+	return CMD_OK;
 }
 
 int load_start_module(const char *name)
@@ -850,12 +822,12 @@ int load_start_module_debug(const char *name)
 	return modid;
 }
 
-static int ldstart_cmd(void)
+static int ldstart_cmd(int argc, char **argv)
 {
 	char *modname;
 	int ret = CMD_ERROR;
 
-	modname = strtok(NULL, " \t");
+	modname = argv[0];
 	if(modname != NULL)
 	{
 		SceUID modid;
@@ -905,39 +877,54 @@ void psplinkReset(void)
 	sceKernelLoadExec(g_bootfile, &le);
 }
 
-static int reset_cmd(void)
+static int reset_cmd(int argc, char **argv)
 {
 	psplinkReset();
 
 	return CMD_OK;
 }
 
-static int exec_cmd(void)
+static int exec_cmd(int argc, char **argv)
 {
 	struct SceKernelLoadExecParam le;
 	char args[512];
-	char *file;
 	int size;
 	int ret = CMD_ERROR;
+	char file[1024];
+	char *exe;
 
 	do
 	{
-		file = strtok(NULL, " ");
+		if(g_inexec)
+		{
+			exe = g_execfile;
+		}
+		else
+		{
+			if(argc > 0)
+			{
+				exe = argv[0];
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		if(strchr(exe, ':') != NULL)
+		{
+			strcpy(file, exe);
+		}
+		else
+		{
+			strcpy(file, g_currdir);
+			strcat(file, exe);
+		}
+
+		Kprintf("Exec '%s'\n", file);
 
 		if(g_inexec)
 		{
-			if(file == NULL)
-			{
-				if(g_execfile[0] != 0)
-				{
-					file = (char *) g_execfile;
-				}
-				else
-				{
-					break;
-				}
-			}
-
 			size = build_args(args, g_bootfile, file);
 
 			stop_usb();
@@ -952,10 +939,6 @@ static int exec_cmd(void)
 		else
 		{
 			SceUID modid;
-			if(file == NULL)
-			{
-				break;
-			}
 
 			modid = load_start_module(file);
 			if(modid >= 0)
@@ -976,34 +959,26 @@ static int exec_cmd(void)
 	return ret;
 }
 
-static int debug_cmd(void)
+static int debug_cmd(int argc, char **argv)
 {
 	char *file;
-	int ret = CMD_ERROR;
 
 	do
 	{
-		file = strtok(NULL, " ");
+		file = argv[0];
 
 		if(g_inexec)
 		{
 			Kprintf("ERROR: Reset before going into debug mode\n");
-			ret = CMD_OK;
-			break;
 		}
 		else
 		{
 			SceUID modid;
-			if(file == NULL)
-			{
-				break;
-			}
 
 			modid = load_start_module_debug(file);
 			if(modid >= 0)
 			{
 				Kprintf("Load/Start module UID: %08X\n", modid);
-				ret = CMD_OK;
 			}
 			else
 			{
@@ -1013,7 +988,7 @@ static int debug_cmd(void)
 	}
 	while(0);
 
-	return ret;
+	return CMD_OK;
 }
 
 static int list_dir(const char *name)
@@ -1160,133 +1135,130 @@ static int normalize_path(char *path)
 	return ret;
 }
 
-static int ls_cmd(void)
+static int ls_cmd(int argc, char **argv)
 {
-	char *dir;
+	char path[1024];
 
-	/* Get remainder of string */
-	dir = strtok(NULL, "\000");
-	if(dir == NULL)
+	if(argc == 0)
 	{
-		dir = g_currdir;
+		Kprintf("Listing directory %s\n", g_currdir);
+		list_dir(g_currdir);
 	}
 	else
 	{
+		int loop;
 		/* Strip whitespace and append a final slash */
 		int len;
 
-		len = strlen(dir);
-		while((len > 0) && (is_aspace(dir[len-1])))
+		for(loop = 0; loop < argc; loop++)
 		{
-			dir[len-1] = 0;
-			len--;
-		}
+			strcpy(path, argv[loop]);
+			len = strlen(path);
+			while((len > 0) && (is_aspace(path[len-1])))
+			{
+				path[len-1] = 0;
+				len--;
+			}
 
-		/* Very unsafe, but still */
-		if(dir[len-1] != '/')
-		{
-			dir[len] = '/';
-			dir[len+1] = 0;
+			/* Very unsafe, but still */
+			if(path[len-1] != '/')
+			{
+				path[len] = '/';
+				path[len+1] = 0;
+			}
+			Kprintf("Listing directory %s\n", path);
+			list_dir(path);
 		}
 	}
 
-	Kprintf("Listing directory %s\n", dir);
-
-	return list_dir(dir);
+	return CMD_OK;
 }
 
-static int chdir_cmd(void)
+static int chdir_cmd(int argc, char **argv)
 {
 	char *dir;
 	int ret = CMD_ERROR;
 	char path[1024];
+	int len;
+	int dfd;
 
 	/* Get remainder of string */
-	dir = strtok(NULL, "\000");
-	if(dir != NULL)
+	dir = argv[0];
+	/* Strip whitespace and append a final slash */
+
+	path[0] = 0;
+	if(strchr(dir, ':') == NULL)
 	{
-		/* Strip whitespace and append a final slash */
-		int len;
-		int dfd;
-
-		path[0] = 0;
-		if(strchr(dir, ':') == NULL)
+		if(dir[0] == '/')
 		{
-			if(dir[0] == '/')
+			int currdir_pos = 0;
+			int path_pos = 0;
+			while(g_currdir[currdir_pos] != 0)
 			{
-				int currdir_pos = 0;
-				int path_pos = 0;
-				while(g_currdir[currdir_pos] != 0)
+				path[path_pos] = g_currdir[currdir_pos];
+				if(g_currdir[currdir_pos] == ':')
 				{
-					path[path_pos] = g_currdir[currdir_pos];
-					if(g_currdir[currdir_pos] == ':')
-					{
-						path[path_pos + 1] = 0;
-						break;
-					}
-					currdir_pos++;
-					path_pos++;
+					path[path_pos + 1] = 0;
+					break;
 				}
+				currdir_pos++;
+				path_pos++;
 			}
-			else
-			{
-				/* relative directory */
-				strcpy(path, g_currdir);
-			}
-		}
-
-		strcat(path, dir);
-		len = strlen(path);
-		while((len > 0) && (is_aspace(path[len-1])))
-		{
-			path[len-1] = 0;
-			len--;
-		}
-
-		/* Very unsafe, but still */
-		if(path[len-1] != '/')
-		{
-			path[len] = '/';
-			path[len+1] = 0;
-		}
-
-		if((normalize_path(path) == 0) || ((dfd = sceIoDopen(path)) < 0))
-		{
-			Kprintf("'%s' not a valid directory\n");
 		}
 		else
 		{
-			sceIoDclose(dfd);
-			strcpy(g_currdir, path);
-			ret = CMD_OK;
+			/* relative directory */
+			strcpy(path, g_currdir);
 		}
+	}
 
+	strcat(path, dir);
+	len = strlen(path);
+	while((len > 0) && (is_aspace(path[len-1])))
+	{
+		path[len-1] = 0;
+		len--;
+	}
+
+	/* Very unsafe, but still */
+	if(path[len-1] != '/')
+	{
+		path[len] = '/';
+		path[len+1] = 0;
+	}
+
+	if((normalize_path(path) == 0) || ((dfd = sceIoDopen(path)) < 0))
+	{
+		Kprintf("'%s' not a valid directory\n");
+	}
+	else
+	{
+		sceIoDclose(dfd);
+		strcpy(g_currdir, path);
+		ret = CMD_OK;
 	}
 
 	return ret;
 }
 
-static int pwd_cmd(void)
+static int pwd_cmd(int argc, char **argv)
 {
 	Kprintf("%s\n", g_currdir);
 
 	return CMD_OK;
 }
 
-static int exit_cmd(void)
+static int exit_cmd(int argc, char **argv)
 {
 	return CMD_EXITSHELL;
 }
 
 /* Help command */
-static int help_cmd(void)
+static int help_cmd(int argc, char **argv)
 {
 	int cmd_loop;
-	char *cmd;
 
-	cmd = strtok(NULL, " \t");
-
-	if(cmd == NULL)
+	if(argc < 1)
 	{
 		Kprintf("Command Help\n\n");
 		for(cmd_loop = 0; commands[cmd_loop].name; cmd_loop++)
@@ -1297,9 +1269,8 @@ static int help_cmd(void)
 				char ch;
 				Kprintf("Press any key to continue, or q to quit\n");
 
-				//while((ch = pspDebugSioGetchar()) == -1);
 				while((ch = GetChar()) == -1);
-				ch = upcase(ch);
+				ch = toupper(ch);
 				if(ch == 'Q')
 				{
 					break;
@@ -1311,7 +1282,7 @@ static int help_cmd(void)
 	{
 		struct sh_command* found_cmd;
 
-		found_cmd = find_command(cmd);
+		found_cmd = find_command(argv[0]);
 		if(found_cmd != NULL)
 		{
 			Kprintf("%s\t - %s\n", found_cmd->name, found_cmd->desc);
@@ -1432,7 +1403,7 @@ int unload_loader(void)
 
 #define MAX_ARGS 16
 
-void parse_args(SceSize args, void *argp)
+void parse_sceargs(SceSize args, void *argp)
 {
 	int  loc = 0;
 	char *ptr = argp;
@@ -1503,7 +1474,7 @@ int main_thread(SceSize args, void *argp)
 	pspDebugInstallStderrHandler(pspDebugSioPutText);
 	pspDebugSioInstallKprintf();
 	sceUmdActivate(1, "disc0:");
-	parse_args(args, argp);
+	parse_sceargs(args, argp);
 	DEBUG_PRINTF("Bootfile %s threadid %08X execfile %s\n", g_bootfile, g_loaderthid,
 			g_execfile[0] == 0 ? "NULL" : g_execfile);
 
