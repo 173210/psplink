@@ -19,6 +19,7 @@
 #include <pspusb.h>
 #include <pspusbstor.h>
 #include <pspumd.h>
+#include <psputilsforkernel.h>
 #include "memoryUID.h"
 #include "psplink.h"
 #include "parse_args.h"
@@ -58,6 +59,8 @@ static char g_execfile[256];
 static int  g_inexec = 0;
 /* Indicates the current directory */
 static char g_currdir[1024];
+/* The two instruction pre-amble from the original exitgame function */
+static u32 g_exitgame[2];
 
 extern int g_debuggermode;
 void set_swbp(u32 addr);
@@ -85,8 +88,6 @@ int intr_handler(void *arg)
 }
 
 int stop_usb(void);
-void sceKernelDcacheWBinvAll(void);
-void sceKernelIcacheClearAll(void);
 
 static int exit_cmd(int argc, char **argv);
 static int help_cmd(int argc, char **argv);
@@ -212,6 +213,7 @@ static int GetChar(void)
 	{
 		sceKernelEnableIntr(PSP_HPREMOTE_INT);
 		sceKernelWaitEventFlag(g_eventflag, EVENT_SIO, 0x21, &result, NULL);
+
 		ch = pspDebugSioGetchar();
 	}
 
@@ -810,8 +812,8 @@ int load_start_module_debug(const char *name)
 			pspDebugGdbStubInit();
 
 			set_swbp(info.entry_addr);
-			sceKernelDcacheWBinvAll();
-			sceKernelIcacheClearAll();
+			sceKernelDcacheWritebackAll();
+			sceKernelIcacheInvalidateAll();
 			Kprintf("lsmd: using name '%s'\n",name);
 			modid = sceKernelStartModule(modid, strlen(name) + 1, (void *)name, &status, NULL);
 
@@ -1013,7 +1015,7 @@ static int list_dir(const char *name)
 				Kprintf("-");
 			}
 
-			for(ploop = 0; ploop < 3; ploop++)
+			for(ploop = 2; ploop >= 0; ploop--)
 			{
 				int bits;
 
@@ -1458,7 +1460,45 @@ void load_psplink_user(const char *bootfile)
 	}
 }
 
-int fdprintf(int fd, const char *fmt, ...);
+void exit_reset(void)
+{
+	Kprintf("sceKernelExitGame caught!\n");
+}
+
+/* Do some kernel patching */
+void patch_kernel(void)
+{
+	u32 *jump;
+	u32 *patch;
+
+	jump = (u32 *) sceKernelExitGame;
+	patch = (u32 *) (0x80000000 | ((*jump & 0x03FFFFFF) << 2));
+
+	g_exitgame[0] = patch[0];
+	g_exitgame[1] = patch[1];
+
+	/* Patch in a jump to the reset function */
+	patch[0] = 0x08000000 | ((((u32) exit_reset) & 0x0FFFFFFF) >> 2);
+	patch[1] = 0;
+	sceKernelDcacheWritebackAll();
+	sceKernelIcacheInvalidateAll();
+}
+
+/* Do some kernel patching */
+void unpatch_kernel(void)
+{
+	u32 *jump;
+	u32 *patch;
+
+	jump = (u32 *) sceKernelExitGame;
+	patch = (u32 *) (0x80000000 | ((*jump & 0x03FFFFFF) << 2));
+
+	patch[0] = g_exitgame[0];
+	patch[1] = g_exitgame[1];
+
+	sceKernelDcacheWritebackAll();
+	sceKernelIcacheInvalidateAll();
+}
 
 /* Simple thread */
 int main_thread(SceSize args, void *argp)
@@ -1477,6 +1517,7 @@ int main_thread(SceSize args, void *argp)
 	parse_sceargs(args, argp);
 	DEBUG_PRINTF("Bootfile %s threadid %08X execfile %s\n", g_bootfile, g_loaderthid,
 			g_execfile[0] == 0 ? "NULL" : g_execfile);
+	patch_kernel();
 
 	sceKernelWaitThreadEnd(g_loaderthid, NULL);
 	unload_loader();
@@ -1509,6 +1550,7 @@ int main_thread(SceSize args, void *argp)
 
 	shell();
 
+	unpatch_kernel();
 	sceKernelExitGame();
 
 	return 0;

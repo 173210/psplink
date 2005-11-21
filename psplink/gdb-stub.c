@@ -15,6 +15,7 @@
 
 #include <pspkernel.h>
 #include <pspdebug.h>
+#include <psputilsforkernel.h>
 #include <string.h>
 #include <signal.h>
 #include "psplink.h"
@@ -90,17 +91,16 @@ char getDebugChar(void)
 	return ch;
 }
 
-void sceKernelDcacheWBinvAll(void);
-void sceKernelIcacheClearAll(void);
-
+/*
 static void dump_command()
 {
 }
+*/
 
 void _gdbSupportLibFlushCaches(void)
 {
-	sceKernelDcacheWBinvAll();
-	sceKernelIcacheClearAll();
+	sceKernelDcacheWritebackAll();
+	sceKernelIcacheInvalidateAll();
 }
 
 int _gdbSupportLibReadByte(unsigned char *address, unsigned char *dest)

@@ -18,6 +18,7 @@
 #define EVENT_SIO       0x01
 #define EVENT_INIT      0x10
 #define EVENT_RESUMESH  0x100
+#define EVENT_RESET     0x200
 
 #ifdef DEBUG
 #define DEBUG_START { int fd; fd = sceIoOpen("ms0:/debug.txt", PSP_O_WRONLY | PSP_O_CREAT | PSP_O_TRUNC, 0666); sceIoClose(fd); }
@@ -29,6 +30,7 @@
 	sceIoClose(fd); \
 }
 #else
+#define DEBUG_START
 #define DEBUG_PRINTF(fmt, ...)
 #endif
 
