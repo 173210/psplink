@@ -17,6 +17,8 @@ PSP_EXPORT_FUNC(pspDebugSioPutchar)
 PSP_EXPORT_FUNC(pspDebugSioGetchar)
 PSP_EXPORT_FUNC(Kprintf)
 PSP_EXPORT_FUNC(sceKernelRegisterDefaultExceptionHandler)
+PSP_EXPORT_FUNC(sceIoAddDrv)
+PSP_EXPORT_FUNC(sceIoDelDrv)
 PSP_EXPORT_END
 
 PSP_END_EXPORTS

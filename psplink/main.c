@@ -22,6 +22,7 @@
 #include <psputilsforkernel.h>
 #include "memoryUID.h"
 #include "psplink.h"
+#include "psplinkcnf.h"
 #include "parse_args.h"
 
 PSP_MODULE_INFO("PSPLINK", 0x1000, 1, 1);
@@ -36,6 +37,14 @@ PSP_MODULE_INFO("PSPLINK", 0x1000, 1, 1);
 #define CLI_MAX			128
 /* Maximum history */
 #define CLI_HISTSIZE	8
+
+enum UsbStates 
+{
+	USB_NOSTART = 0,
+	USB_ON      = 1,
+	USB_OFF     = 2
+};
+
 /* Last command line (history) */
 static char g_lastcli[CLI_HISTSIZE][CLI_MAX];
 /* Current command line */
@@ -61,6 +70,8 @@ static int  g_inexec = 0;
 static char g_currdir[1024];
 /* The two instruction pre-amble from the original exitgame function */
 static u32 g_exitgame[2];
+/* Indicates whether the usb drivers have been loaded */
+static enum UsbStates g_usbstate = USB_NOSTART;
 
 extern int g_debuggermode;
 void set_swbp(u32 addr);
@@ -87,7 +98,27 @@ int intr_handler(void *arg)
 	return -1;
 }
 
+int init_usb(void);
 int stop_usb(void);
+
+struct psplink_config
+{
+	const char *name;
+	int   isnum;
+	void (*handler)(const char *szVal, unsigned int iVal);
+};
+
+static void config_usb(const char *szVal, unsigned int iVal);
+static void config_baud(const char *szVal, unsigned int iVal);
+static void config_modload(const char *szVal, unsigned int iVal);
+
+struct psplink_config config_names[] = {
+	{ "usb", 1, config_usb },
+	{ "baud", 1, config_baud },
+	{ "modload", 0, config_modload },
+	{ NULL, 0, NULL }
+};
+
 
 static int exit_cmd(int argc, char **argv);
 static int help_cmd(int argc, char **argv);
@@ -112,6 +143,8 @@ static int reset_cmd(int argc, char **argv);
 static int ls_cmd(int argc, char **argv);
 static int chdir_cmd(int argc, char **argv);
 static int pwd_cmd(int argc, char **argv);
+static int usbon_cmd(int argc, char **argv);
+static int usboff_cmd(int argc, char **argv);
 
 /* Return values for the commands */
 #define CMD_EXITSHELL 	1
@@ -151,7 +184,9 @@ struct sh_command commands[] = {
 	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "ls [path]" },
 	{ "chdir", "cd", chdir_cmd, 1, "Change the current directory", "cd path" },
 	{ "pwd",   NULL, pwd_cmd, 0, "Print the current working directory", "pwd" },
-	{ "exit", "ex", exit_cmd, 0, "Exit the shell", "exit" },
+	{ "usbon", "un", usbon_cmd, 0, "Enable USB mass storage device", "usbon" },
+	{ "usboff", "uf", usboff_cmd, 0, "Disable USB mass storage device", "usboff" },
+	{ "exit", "quit", exit_cmd, 0, "Exit the shell", "exit" },
 	{ "reset", "r", reset_cmd, 0, "Reset", "r" },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command]" },
 	{ NULL, NULL, NULL, 0, NULL, NULL }
@@ -779,8 +814,12 @@ int load_start_module(const char *name)
 	modid = sceKernelLoadModule(name, 0, NULL);
 	if(modid >= 0)
 	{
-		Kprintf("lsm: using name '%s'\n",name);
 		modid = sceKernelStartModule(modid, strlen(name) + 1, (void *)name, &status, NULL);
+		Kprintf("lsm: name '%s' ret %08X\n",name, modid);
+	}
+	else
+	{
+		Kprintf("lsm: Error loading module %s %08X\n", name, modid);
 	}
 
 	return modid;
@@ -1250,6 +1289,20 @@ static int pwd_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int usbon_cmd(int argc, char **argv)
+{
+	(void) init_usb();
+
+	return CMD_OK;
+}
+
+static int usboff_cmd(int argc, char **argv)
+{
+	(void) stop_usb();
+
+	return CMD_OK;
+}
+
 static int exit_cmd(int argc, char **argv)
 {
 	return CMD_EXITSHELL;
@@ -1265,7 +1318,7 @@ static int help_cmd(int argc, char **argv)
 		Kprintf("Command Help\n\n");
 		for(cmd_loop = 0; commands[cmd_loop].name; cmd_loop++)
 		{
-			Kprintf("%s\t- %s\n", commands[cmd_loop].name, commands[cmd_loop].desc);
+			Kprintf("%10s - %s\n", commands[cmd_loop].name, commands[cmd_loop].desc);
 			if((cmd_loop % 24) == 20)
 			{
 				char ch;
@@ -1321,11 +1374,20 @@ int init_usb(void)
 
 	do
 	{
-		load_start_module("flash0:/kd/semawm.prx");
-		load_start_module("flash0:/kd/usbstor.prx");
-		load_start_module("flash0:/kd/usbstormgr.prx");
-		load_start_module("flash0:/kd/usbstorms.prx");
-		load_start_module("flash0:/kd/usbstorboot.prx");
+		if(g_usbstate == USB_ON)
+		{
+			retVal = 0;
+			break;
+		}
+
+		if(g_usbstate == USB_NOSTART)
+		{
+			load_start_module("flash0:/kd/semawm.prx");
+			load_start_module("flash0:/kd/usbstor.prx");
+			load_start_module("flash0:/kd/usbstormgr.prx");
+			load_start_module("flash0:/kd/usbstorms.prx");
+			load_start_module("flash0:/kd/usbstorboot.prx");
+		}
 
 		retVal = sceUsbStart(PSP_USBBUS_DRIVERNAME, 0, 0);
 		if (retVal != 0) {
@@ -1347,6 +1409,11 @@ int init_usb(void)
 		}
 
 		retVal = sceUsbActivate(0x1c8);
+
+		if(retVal == 0)
+		{
+			g_usbstate = USB_ON;
+		}
 	}
 	while(0);
 
@@ -1356,6 +1423,11 @@ int init_usb(void)
 int stop_usb(void)
 {
 	int retVal;
+
+	if(g_usbstate != USB_ON)
+	{
+		return 0;
+	}
 
 	retVal = sceUsbDeactivate();
 	if (retVal != 0) {
@@ -1372,6 +1444,8 @@ int stop_usb(void)
     if (retVal != 0) {
 		Kprintf("Error stopping USB BUS driver (0x%08X)\n", retVal);
 	}
+
+	g_usbstate = USB_OFF;
 
 	return 0;
 }
@@ -1500,6 +1574,102 @@ void unpatch_kernel(void)
 	sceKernelIcacheInvalidateAll();
 }
 
+static void config_usb(const char *szVal, unsigned int iVal)
+{
+	if(iVal != 0)
+	{
+		init_usb();
+	}
+}
+
+static void config_baud(const char *szVal, unsigned int iVal)
+{
+	int valid = 0;
+
+	switch(iVal)
+	{
+		case 4800:
+		case 9600:
+		case 19200:
+		case 38400:
+		case 57600:
+		case 115200: valid = 1;
+					 break;
+		default: break;
+	};
+
+	if(valid)
+	{
+		Kprintf("Setting baud to %d\n", iVal);
+		pspDebugSioSetBaud(iVal);
+	}
+	else
+	{
+		/* Might never be seen :) */
+		Kprintf("Invalid baud rate %d\n", iVal);
+	}
+}
+
+static void config_modload(const char *szVal, unsigned int iVal)
+{
+	(void) load_start_module(szVal);
+}
+
+void load_config(const char *bootfile)
+{
+	char cnf_path[256];
+	char *path;
+	struct ConfigFile cnf;
+
+	path = strrchr(bootfile, '/');
+	if(path != NULL)
+	{
+		memcpy(cnf_path, bootfile, path - bootfile + 1);
+		cnf_path[path - bootfile + 1] = 0;
+		strcat(cnf_path, "psplink.ini");
+		Kprintf("Config Path %s\n", cnf_path);
+		if(psplinkConfigOpen(cnf_path, &cnf))
+		{
+			const char *name;
+			const char *val;
+
+			while((val = psplinkConfigReadNext(&cnf, &name)))
+			{
+				int config;
+
+				//Kprintf("Setting %s - %s\n", cnf.str_buf, val);
+
+				config = 0;
+				while(config_names[config].name)
+				{
+					if(strcmp(config_names[config].name, name) == 0)
+					{
+						unsigned int iVal = 0;
+						if(config_names[config].isnum)
+						{
+							char *endp;
+
+							iVal = strtoul(val, &endp, 10);
+							if(*endp != 0)
+							{
+								Kprintf("Error, line %d value should be a number\n", cnf.line); 
+								break;
+							}
+						}
+
+						config_names[config].handler(val, iVal);
+					}
+					config++;
+				}
+
+				/* Ignore anything we don't care about */
+			}
+
+			psplinkConfigClose(&cnf);
+		}
+	}
+}
+
 /* Simple thread */
 int main_thread(SceSize args, void *argp)
 {
@@ -1522,9 +1692,8 @@ int main_thread(SceSize args, void *argp)
 	sceKernelWaitThreadEnd(g_loaderthid, NULL);
 	unload_loader();
 
+	load_config(g_bootfile);
 	load_psplink_user(g_bootfile);
-
-	init_usb();
 
 	if(g_execfile[0] != 0)
 	{

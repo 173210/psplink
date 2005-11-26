@@ -1,5 +1,5 @@
 TARGET = psplink
-OBJS = main.o memoryUID.o exception.o gdb-stub.o parse_args.o exports.o
+OBJS = main.o memoryUID.o exception.o gdb-stub.o parse_args.o psplinkcnf.o exports.o
 
 # Use the kernel's small inbuilt libc
 USE_KERNEL_LIBC = 1
