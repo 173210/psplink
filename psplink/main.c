@@ -191,18 +191,18 @@ struct sh_command commands[] = {
 	{ "modstop","ms", modstop_cmd, 1, "Stop a running module", "ms uid" },
 	{ "modunld","mu", modunld_cmd, 1, "Unload a module (must be stopped)", "mu uid" },
 	{ "modload","md", modload_cmd, 1, "Load a module", "md path" },
-	{ "modstart","mt", modstart_cmd, 1, "Start a module", "mt uid" },
-	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me path" },
-	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path" },
-	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path]" },
+	{ "modstart","mt", modstart_cmd, 1, "Start a module", "mt uid [args]" },
+	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me path [args]" },
+	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path [args]" },
+	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path] [args]" },
 	{ "debug", "d", debug_cmd, 1, "Debug an executable (need to switch to gdb)", "debug path" },
 	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "ls [path]" },
 	{ "chdir", "cd", chdir_cmd, 1, "Change the current directory", "cd path" },
 	{ "cp",  "copy", cp_cmd, 2, "Copy a file", "cp source destination" },
 	{ "mkdir", "md", mkdir_cmd, 1, "Make a Directory", "mkdir dir" },
-	{ "rm", "delete", rm_cmd, 1, "Removes a File", "rm file" },
-	{ "rmdir", NULL, rmdir_cmd, 1, "Removes a Director", "rmdir dir" },
-	{ "rename", NULL, rename_cmd, 2, "Renames a File", "rename src dst" },
+	{ "rm", "del", rm_cmd, 1, "Removes a File", "rm file" },
+	{ "rmdir", "rd", rmdir_cmd, 1, "Removes a Director", "rmdir dir" },
+	{ "rename", "ren", rename_cmd, 2, "Renames a File", "rename src dst" },
 	{ "pwd",   NULL, pwd_cmd, 0, "Print the current working directory", "pwd" },
 	{ "usbon", "un", usbon_cmd, 0, "Enable USB mass storage device", "usbon" },
 	{ "usboff", "uf", usboff_cmd, 0, "Disable USB mass storage device", "usboff" },
@@ -1585,7 +1585,7 @@ void load_psplink_user(const char *bootfile)
 
 void exit_reset(void)
 {
-	Kprintf("sceKernelExitGame caught!\n");
+	Kprintf("\nsceKernelExitGame caught!\n");
 }
 
 /* Do some kernel patching */
@@ -1685,8 +1685,6 @@ void load_config(const char *bootfile)
 			while((val = psplinkConfigReadNext(&cnf, &name)))
 			{
 				int config;
-
-				//Kprintf("Setting %s - %s\n", cnf.str_buf, val);
 
 				config = 0;
 				while(config_names[config].name)
