@@ -6,6 +6,7 @@
  * main.c - PSPLINK kernel module main code.
  *
  * Copyright (c) 2005 James F <tyranid@gmail.com>
+ * Copyright (c) 2005 Julian T <lovely@crm114.net>
  *
  * $HeadURL$
  * $Id$
@@ -24,6 +25,7 @@
 #include "psplink.h"
 #include "psplinkcnf.h"
 #include "parse_args.h"
+#include "util.h"
 
 PSP_MODULE_INFO("PSPLINK", 0x1000, 1, 1);
 
@@ -32,6 +34,8 @@ PSP_MODULE_INFO("PSPLINK", 0x1000, 1, 1);
 #define SHELL_PROMPT	"psplink> "
 
 #define BOOTLOADER_NAME "PSPLINKLOADER"
+
+#define MAXPATHLEN      1024
 
 /* Maximum command line */
 #define CLI_MAX			128
@@ -62,7 +66,6 @@ static const char *g_bootfile = NULL;
 /* The thread ID of the loader */
 static int g_loaderthid = 0;
 /* The program to execute */
-//static const char *g_execfile = NULL;
 static char g_execfile[256];
 /* Inidicates whether a file has already been executed */
 static int  g_inexec = 0;
@@ -145,6 +148,11 @@ static int chdir_cmd(int argc, char **argv);
 static int pwd_cmd(int argc, char **argv);
 static int usbon_cmd(int argc, char **argv);
 static int usboff_cmd(int argc, char **argv);
+static int cp_cmd(int argc, char **argv);
+static int mkdir_cmd(int argc, char **argv);
+static int rm_cmd(int argc, char **argv);
+static int rmdir_cmd(int argc, char **argv);
+static int rename_cmd(int argc, char **argv);
 
 /* Return values for the commands */
 #define CMD_EXITSHELL 	1
@@ -183,6 +191,11 @@ struct sh_command commands[] = {
 	{ "debug", "d", debug_cmd, 1, "Debug an executable (need to switch to gdb)", "debug path" },
 	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "ls [path]" },
 	{ "chdir", "cd", chdir_cmd, 1, "Change the current directory", "cd path" },
+	{ "cp",  "copy", cp_cmd, 2, "Copy a file", "cp source destination" },
+	{ "mkdir", "md", mkdir_cmd, 1, "Make a Directory", "mkdir dir" },
+	{ "rm", "delete", rm_cmd, 1, "Removes a File", "rm file" },
+	{ "rmdir", NULL, rmdir_cmd, 1, "Removes a Director", "rmdir dir" },
+	{ "rename", NULL, rename_cmd, 2, "Renames a File", "rename src dst" },
 	{ "pwd",   NULL, pwd_cmd, 0, "Print the current working directory", "pwd" },
 	{ "usbon", "un", usbon_cmd, 0, "Enable USB mass storage device", "usbon" },
 	{ "usboff", "uf", usboff_cmd, 0, "Disable USB mass storage device", "usboff" },
@@ -791,17 +804,21 @@ static int modload_cmd(int argc, char **argv)
 
 static int modexec_cmd(int argc, char **argv)
 {
-	char *modname;
+	char path[1024];
 	struct SceKernelLoadExecParam le;
 
-	modname = argv[0];
+	if(argc > 0)
+	{
+		if(handlepath(g_currdir, argv[0], path, TYPE_FILE, 1))
+		{
+			le.size = sizeof(le);
+			le.args = strlen(path) + 1;
+			le.argp = path;
+			le.key = NULL;
 
-	le.size = sizeof(le);
-	le.args = strlen(modname) + 1;
-	le.argp = modname;
-	le.key = NULL;
-
-	sceKernelLoadExec(modname, &le);
+			sceKernelLoadExec(path, &le);
+		}
+	}
 
 	return CMD_OK;
 }
@@ -829,6 +846,8 @@ void psplinkResumeSh(void)
 {
 	sceKernelSetEventFlag(g_eventflag, EVENT_RESUMESH);
 }
+
+void sceKernelIcacheInvalidateAll();
 
 int load_start_module_debug(const char *name)
 {
@@ -865,43 +884,34 @@ int load_start_module_debug(const char *name)
 
 static int ldstart_cmd(int argc, char **argv)
 {
-	char *modname;
+	char path[1024];
 	int ret = CMD_ERROR;
 
-	modname = argv[0];
-	if(modname != NULL)
+	if(argc > 0)
 	{
 		SceUID modid;
 
-		modid = load_start_module(modname);
-		if(modid >= 0)
+		if(handlepath(g_currdir, argv[0], path, TYPE_FILE, 1))
 		{
-			Kprintf("Load/Start module UID: %08X\n", modid);
+			modid = load_start_module(path);
+			if(modid >= 0)
+			{
+				Kprintf("Load/Start module UID: %08X\n", modid);
+			}
+			else
+			{
+				Kprintf("Failed to Load/Start module '%s' Error: %08X\n", path, modid);
+			}
+
+			ret = CMD_OK;
 		}
 		else
 		{
-			Kprintf("Failed to Load/Start module '%s' Error: %08X\n", modname, modid);
+			Kprintf("Error invalid file %s\n", path);
 		}
-
-		ret = CMD_OK;
 	}
 
 	return ret;
-}
-
-int build_args(char *args, const char *bootfile, const char *execfile)
-{
-	int loc = 0;
-
-	strcpy(args, bootfile);
-	loc += strlen(bootfile) + 1;
-	if(execfile != NULL)
-	{
-		strcpy(&args[loc], execfile);
-		loc += strlen(execfile) + 1;
-	}
-
-	return loc;
 }
 
 void psplinkReset(void)
@@ -936,7 +946,7 @@ static int exec_cmd(int argc, char **argv)
 
 	do
 	{
-		if(g_inexec)
+		if((g_inexec) && (argc == 0))
 		{
 			exe = g_execfile;
 		}
@@ -952,14 +962,10 @@ static int exec_cmd(int argc, char **argv)
 			}
 		}
 
-		if(strchr(exe, ':') != NULL)
+		if(handlepath(g_currdir, exe, file, TYPE_FILE, 1) == 0)
 		{
-			strcpy(file, exe);
-		}
-		else
-		{
-			strcpy(file, g_currdir);
-			strcat(file, exe);
+			Kprintf("Error, invalid file %s\n", file);
+			break;
 		}
 
 		Kprintf("Exec '%s'\n", file);
@@ -1106,76 +1112,6 @@ static int list_dir(const char *name)
 	return CMD_OK;
 }
 
-int is_aspace(int ch)
-{
-	if((ch == ' ') || (ch == '\t') || (ch == '\n') || (ch == '\r'))
-	{
-		return 1;
-	}
-
-	return 0;
-}
-
-/* Normalise the path, remove . and .. directories, will ignore anything at the end with no dir slash */
-static int normalize_path(char *path)
-{
-	char *last_dir = NULL;
-	char *curr_pos;
-	int ret = 1;
-
-	/* Can't start with an absolute path */
-	if(*path == '/')
-	{
-		ret = 0;
-	}
-	else
-	{
-		curr_pos = strchr(path, '/');
-		while(curr_pos != NULL)
-		{
-			if(last_dir != NULL)
-			{
-				if(strncmp(last_dir, "/.", curr_pos - last_dir) == 0)
-				{
-					strcpy(last_dir, curr_pos);
-					curr_pos = last_dir;
-				}
-				else if(strncmp(last_dir, "/..", curr_pos - last_dir) == 0)
-				{
-					char *last_pos;
-					/* Find the last directory slash from last_dir */
-					last_pos = last_dir - 1;
-					while(last_pos > path)
-					{
-						if(*last_pos == '/')
-						{
-							break;
-						}
-						last_pos--;
-					}
-
-					if(last_pos > path)
-					{
-						last_dir = last_pos;
-					}
-
-					strcpy(last_dir, curr_pos);
-					curr_pos = last_dir;
-				}
-				else
-				{
-					/* Ignore */
-				}
-			}
-
-			last_dir = curr_pos;
-			curr_pos = strchr(curr_pos + 1, '/');
-		}
-	}
-
-	return ret;
-}
-
 static int ls_cmd(int argc, char **argv)
 {
 	char path[1024];
@@ -1189,26 +1125,14 @@ static int ls_cmd(int argc, char **argv)
 	{
 		int loop;
 		/* Strip whitespace and append a final slash */
-		int len;
 
 		for(loop = 0; loop < argc; loop++)
 		{
-			strcpy(path, argv[loop]);
-			len = strlen(path);
-			while((len > 0) && (is_aspace(path[len-1])))
+			if(handlepath(g_currdir, argv[loop], path, TYPE_DIR, 1))
 			{
-				path[len-1] = 0;
-				len--;
+				Kprintf("Listing directory %s\n", path);
+				list_dir(path);
 			}
-
-			/* Very unsafe, but still */
-			if(path[len-1] != '/')
-			{
-				path[len] = '/';
-				path[len+1] = 0;
-			}
-			Kprintf("Listing directory %s\n", path);
-			list_dir(path);
 		}
 	}
 
@@ -1220,61 +1144,17 @@ static int chdir_cmd(int argc, char **argv)
 	char *dir;
 	int ret = CMD_ERROR;
 	char path[1024];
-	int len;
-	int dfd;
 
 	/* Get remainder of string */
 	dir = argv[0];
 	/* Strip whitespace and append a final slash */
 
-	path[0] = 0;
-	if(strchr(dir, ':') == NULL)
-	{
-		if(dir[0] == '/')
-		{
-			int currdir_pos = 0;
-			int path_pos = 0;
-			while(g_currdir[currdir_pos] != 0)
-			{
-				path[path_pos] = g_currdir[currdir_pos];
-				if(g_currdir[currdir_pos] == ':')
-				{
-					path[path_pos + 1] = 0;
-					break;
-				}
-				currdir_pos++;
-				path_pos++;
-			}
-		}
-		else
-		{
-			/* relative directory */
-			strcpy(path, g_currdir);
-		}
-	}
-
-	strcat(path, dir);
-	len = strlen(path);
-	while((len > 0) && (is_aspace(path[len-1])))
-	{
-		path[len-1] = 0;
-		len--;
-	}
-
-	/* Very unsafe, but still */
-	if(path[len-1] != '/')
-	{
-		path[len] = '/';
-		path[len+1] = 0;
-	}
-
-	if((normalize_path(path) == 0) || ((dfd = sceIoDopen(path)) < 0))
+	if(handlepath(g_currdir, dir, path, TYPE_DIR, 1) == 0)
 	{
 		Kprintf("'%s' not a valid directory\n");
 	}
 	else
 	{
-		sceIoDclose(dfd);
 		strcpy(g_currdir, path);
 		ret = CMD_OK;
 	}
@@ -1299,6 +1179,122 @@ static int usbon_cmd(int argc, char **argv)
 static int usboff_cmd(int argc, char **argv)
 {
 	(void) stop_usb();
+
+	return CMD_OK;
+}
+
+static int rename_cmd(int argc, char **argv)
+{
+	char asrc[MAXPATHLEN], adst[MAXPATHLEN];
+	char *src, *dst;
+
+	src = argv[0];
+	dst = argv[1];
+
+	if( !handlepath(g_currdir, src, asrc, TYPE_FILE, 1) )
+		return CMD_ERROR;
+
+	if( !handlepath(g_currdir, dst, adst, TYPE_FILE, 0) )
+		return CMD_ERROR;
+
+	if( sceIoRename(asrc, adst) < 0)
+		return CMD_ERROR;
+
+	printf("rename %s -> %s\n", asrc, adst);
+
+	return CMD_OK;
+}
+
+static int rm_cmd(int argc, char **argv)
+{
+	char *file, afile[MAXPATHLEN];
+
+	file = argv[0];
+
+	if( !handlepath(g_currdir, file, afile, TYPE_FILE, 1) )
+		return CMD_ERROR;
+
+	if( sceIoRemove(afile) < 0 )
+		return CMD_ERROR;
+
+	printf("rm %s\n", afile);
+
+	return CMD_OK;
+}
+
+static int mkdir_cmd(int argc, char **argv)
+{
+	char *file, afile[MAXPATHLEN];
+
+	file = argv[0];
+
+	if( !handlepath(g_currdir, file, afile, TYPE_FILE, 0) )
+		return CMD_ERROR;
+
+	if( sceIoMkdir(afile, 0777) == -1 )
+		return CMD_ERROR;
+
+	printf("mkdir %s\n", afile);
+
+	return CMD_OK;
+}
+
+static int rmdir_cmd(int argc, char **argv)
+{
+	char *file, afile[MAXPATHLEN];
+
+	file = argv[0];
+
+	if( !handlepath(g_currdir, file, afile, TYPE_DIR, 1) )
+		return CMD_ERROR;
+
+	if( sceIoRmdir(afile) == -1 )
+		return CMD_ERROR;
+
+	printf("rmdir %s\n", afile);
+
+	return CMD_OK;
+}
+
+static int cp_cmd(int argc, char **argv)
+{
+	int in, out;
+	int n;
+	char *source;
+	char *destination;
+
+	char fsrc[MAXPATHLEN];
+	char fdst[MAXPATHLEN];
+	char buff[2048];
+
+	source = argv[0];
+	destination = argv[1];
+
+	if( !handlepath(g_currdir, source, fsrc, TYPE_FILE, 1) )
+		return CMD_ERROR;
+	
+	if( !handlepath(g_currdir, destination, fdst, TYPE_ETHER, 0) )
+		return CMD_ERROR;
+
+	printf("cp %s -> %s\n", fsrc, fdst);
+
+	in = sceIoOpen(fsrc, PSP_O_RDONLY, 0777);
+	out = sceIoOpen(fdst, PSP_O_WRONLY | PSP_O_CREAT | PSP_O_TRUNC, 0777);
+
+	if(in < 0 || out < 0)
+		return CMD_ERROR;
+
+	while(1) {
+		n = sceIoRead(in, buff, 2048);
+
+		if(n == 0)
+			break;
+		
+		write(out, buff, n);
+	}
+	
+	sceIoClose(in);
+	sceIoClose(out);
 
 	return CMD_OK;
 }
