@@ -37,6 +37,8 @@ PSP_MODULE_INFO("PSPLINK", 0x1000, 1, 1);
 
 #define MAXPATHLEN      1024
 
+#define MAX_ARGS 16
+
 /* Maximum command line */
 #define CLI_MAX			128
 /* Maximum history */
@@ -67,6 +69,10 @@ static const char *g_bootfile = NULL;
 static int g_loaderthid = 0;
 /* The program to execute */
 static char g_execfile[256];
+/* Arguments for auto exec */
+static int  g_execargc = 0;
+static char *g_execargv[MAX_ARGS+1];
+static char g_execargs[1024];
 /* Inidicates whether a file has already been executed */
 static int  g_inexec = 0;
 /* Indicates the current directory */
@@ -103,6 +109,7 @@ int intr_handler(void *arg)
 
 int init_usb(void);
 int stop_usb(void);
+void save_execargs(int argc, char **argv);
 
 struct psplink_config
 {
@@ -184,7 +191,7 @@ struct sh_command commands[] = {
 	{ "modstop","ms", modstop_cmd, 1, "Stop a running module", "ms uid" },
 	{ "modunld","mu", modunld_cmd, 1, "Unload a module (must be stopped)", "mu uid" },
 	{ "modload","md", modload_cmd, 1, "Load a module", "md path" },
-	{ "modstar","mt", modstart_cmd, 1, "Start a module", "mt uid" },
+	{ "modstart","mt", modstart_cmd, 1, "Start a module", "mt uid" },
 	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me path" },
 	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path" },
 	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path]" },
@@ -769,6 +776,8 @@ static int modstart_cmd(int argc, char **argv)
 	char *suid;
 	int ret = CMD_ERROR;
 	char *endp;
+	char args[1024];
+	int  len;
 
 	suid = argv[0];
 	uid = strtoul(suid, &endp, 16);
@@ -777,7 +786,16 @@ static int modstart_cmd(int argc, char **argv)
 		SceUID uid_ret;
 		int status;
 
-		uid_ret = sceKernelStartModule(uid, 0, NULL, &status, NULL);
+		if(argc > 1)
+		{
+			len = build_args(args, argv[1], argc - 2, &argv[2]);
+		}
+		else
+		{
+			len = build_args(args, "unknown", 0, NULL);
+		}
+
+		uid_ret = sceKernelStartModule(uid, len, args, &status, NULL);
 		Kprintf("Module Start %08X Status %08X\n", uid_ret, status);
 
 		ret = CMD_OK;
@@ -792,28 +810,37 @@ static int modstart_cmd(int argc, char **argv)
 
 static int modload_cmd(int argc, char **argv)
 {
-	char *modname;
 	SceUID modid;
+	char path[1024];
 
-	modname = argv[0];
+	if(handlepath(g_currdir, argv[0], path, TYPE_FILE, 1))
+	{
+		modid = sceKernelLoadModule(path, 0, NULL);
+		Kprintf("Module Load '%s' UID: %08X\n", path, modid);
+	}
+	else
+	{
+		Kprintf("Error invalid file %s\n", path);
+	}
 
-	modid = sceKernelLoadModule(modname, 0, NULL);
-	Kprintf("Module Load '%s' UID: %08X\n", modname, modid);
 	return CMD_OK;
 }
 
 static int modexec_cmd(int argc, char **argv)
 {
 	char path[1024];
+	char args[1024];
+	int  len;
 	struct SceKernelLoadExecParam le;
 
 	if(argc > 0)
 	{
 		if(handlepath(g_currdir, argv[0], path, TYPE_FILE, 1))
 		{
+			len = build_args(args, argv[1], argc - 1, &argv[1]);
 			le.size = sizeof(le);
-			le.args = strlen(path) + 1;
-			le.argp = path;
+			le.args = len;
+			le.argp = args;
 			le.key = NULL;
 
 			sceKernelLoadExec(path, &le);
@@ -823,15 +850,18 @@ static int modexec_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
-int load_start_module(const char *name)
+int load_start_module(const char *name, int argc, char **argv)
 {
 	SceUID modid;
 	int status;
+	char args[1024];
+	int len;
 
 	modid = sceKernelLoadModule(name, 0, NULL);
 	if(modid >= 0)
 	{
-		modid = sceKernelStartModule(modid, strlen(name) + 1, (void *)name, &status, NULL);
+		len = build_args(args, name, argc, argv);
+		modid = sceKernelStartModule(modid, len, (void *) args, &status, NULL);
 		Kprintf("lsm: name '%s' ret %08X\n",name, modid);
 	}
 	else
@@ -893,7 +923,7 @@ static int ldstart_cmd(int argc, char **argv)
 
 		if(handlepath(g_currdir, argv[0], path, TYPE_FILE, 1))
 		{
-			modid = load_start_module(path);
+			modid = load_start_module(path, argc-1, &argv[1]);
 			if(modid >= 0)
 			{
 				Kprintf("Load/Start module UID: %08X\n", modid);
@@ -972,7 +1002,14 @@ static int exec_cmd(int argc, char **argv)
 
 		if(g_inexec)
 		{
-			size = build_args(args, g_bootfile, file);
+			if(argc == 0)
+			{
+				size = build_bootargs(args, g_bootfile, file, g_execargc, g_execargv);
+			}
+			else
+			{
+				size = build_bootargs(args, g_bootfile, file, argc-1, &argv[1]);
+			}
 
 			stop_usb();
 
@@ -987,12 +1024,13 @@ static int exec_cmd(int argc, char **argv)
 		{
 			SceUID modid;
 
-			modid = load_start_module(file);
+			modid = load_start_module(file, argc-1, &argv[1]);
 			if(modid >= 0)
 			{
 				Kprintf("Load/Start module UID: %08X\n", modid);
 				strcpy(g_execfile, file);
 				g_inexec = 1;
+				save_execargs(argc-1, &argv[1]);
 				ret = CMD_OK;
 			}
 			else
@@ -1378,11 +1416,11 @@ int init_usb(void)
 
 		if(g_usbstate == USB_NOSTART)
 		{
-			load_start_module("flash0:/kd/semawm.prx");
-			load_start_module("flash0:/kd/usbstor.prx");
-			load_start_module("flash0:/kd/usbstormgr.prx");
-			load_start_module("flash0:/kd/usbstorms.prx");
-			load_start_module("flash0:/kd/usbstorboot.prx");
+			load_start_module("flash0:/kd/semawm.prx", 0, NULL);
+			load_start_module("flash0:/kd/usbstor.prx", 0, NULL);
+			load_start_module("flash0:/kd/usbstormgr.prx", 0, NULL);
+			load_start_module("flash0:/kd/usbstorms.prx", 0, NULL);
+			load_start_module("flash0:/kd/usbstorboot.prx", 0, NULL);
 		}
 
 		retVal = sceUsbStart(PSP_USBBUS_DRIVERNAME, 0, 0);
@@ -1473,7 +1511,21 @@ int unload_loader(void)
 	return 0;
 }
 
-#define MAX_ARGS 16
+void save_execargs(int argc, char **argv)
+{
+	int i;
+	int loc = 0;
+
+	for(i = 0; i < (argc < MAX_ARGS ? argc : MAX_ARGS-1); i++)
+	{
+		strcpy(&g_execargs[loc], argv[i]);
+		g_execargv[i] = &g_execargs[loc];
+		loc += strlen(argv[i]) + 1;
+	}
+
+	argv[i] = NULL;
+	g_execargc = argc;
+}
 
 void parse_sceargs(SceSize args, void *argp)
 {
@@ -1512,6 +1564,7 @@ void parse_sceargs(SceSize args, void *argp)
 	if(argc > 2)
 	{
 		strcpy(g_execfile, argv[2]);
+		save_execargs(argc - 3, &argv[3]);
 	}
 }
 
@@ -1526,7 +1579,7 @@ void load_psplink_user(const char *bootfile)
 		memcpy(prx_path, bootfile, path - bootfile + 1);
 		prx_path[path - bootfile + 1] = 0;
 		strcat(prx_path, "psplink_user.prx");
-		load_start_module(prx_path);
+		load_start_module(prx_path, 0, NULL);
 	}
 }
 
@@ -1608,7 +1661,7 @@ static void config_baud(const char *szVal, unsigned int iVal)
 
 static void config_modload(const char *szVal, unsigned int iVal)
 {
-	(void) load_start_module(szVal);
+	(void) load_start_module(szVal, 0, NULL);
 }
 
 void load_config(const char *bootfile)
@@ -1693,15 +1746,8 @@ int main_thread(SceSize args, void *argp)
 
 	if(g_execfile[0] != 0)
 	{
-		SceUID modid;
-
-		modid = sceKernelLoadModule(g_execfile, 0, NULL);
-		Kprintf("ExecFile UID: %08X\n", modid);
-		if(modid >= 0)
+		if(load_start_module(g_execfile, g_execargc, g_execargv) >= 0)
 		{
-			int status;
-			modid = sceKernelStartModule(modid, strlen(g_execfile) + 1, (void*) g_execfile, &status, NULL);
-			Kprintf("ExecStart %08X\n", modid);
 			g_inexec = 1;
 		}
 	}

@@ -178,9 +178,10 @@ char upcase(char ch)
 	return ch;
 }
 
-int build_args(char *args, const char *bootfile, const char *execfile)
+int build_bootargs(char *args, const char *bootfile, const char *execfile, int argc, char **argv)
 {
 	int loc = 0;
+	int i;
 
 	strcpy(args, bootfile);
 	loc += strlen(bootfile) + 1;
@@ -188,6 +189,27 @@ int build_args(char *args, const char *bootfile, const char *execfile)
 	{
 		strcpy(&args[loc], execfile);
 		loc += strlen(execfile) + 1;
+		for(i = 0; i < argc; i++)
+		{
+			strcpy(&args[loc], argv[i]);
+			loc += strlen(argv[i]) + 1;
+		}
+	}
+
+	return loc;
+}
+
+int build_args(char *args, const char *execfile, int argc, char **argv)
+{
+	int loc = 0;
+	int i;
+
+	strcpy(args, execfile);
+	loc += strlen(execfile) + 1;
+	for(i = 0; i < argc; i++)
+	{
+		strcpy(&args[loc], argv[i]);
+		loc += strlen(argv[i]) + 1;
 	}
 
 	return loc;

@@ -70,9 +70,10 @@ void parse_args(SceSize args, void *argp)
 	g_argv[g_argc] = NULL;
 }
 
-int build_args(char *args, const char *bootfile, SceUID thid, const char *execfile)
+int build_args(char *args, const char *bootfile, SceUID thid, const char *execfile, int argc, char **argv)
 {
 	int loc = 0;
+	int i;
 
 	strcpy(args, bootfile);
 	loc += strlen(bootfile) + 1;
@@ -82,6 +83,11 @@ int build_args(char *args, const char *bootfile, SceUID thid, const char *execfi
 	{
 		strcpy(&args[loc], execfile);
 		loc += strlen(execfile) + 1;
+		for(i = 0; i < argc; i++)
+		{
+			strcpy(&args[loc], argv[i]);
+			loc += strlen(argv[i]) + 1;
+		}
 	}
 
 	return loc;
@@ -130,7 +136,7 @@ int main_thread(SceSize args, void *argp)
 		int size;
 		int status;
 
-		size = build_args(prx_args, g_argv[0], sceKernelGetThreadId(), g_argv[1]);
+		size = build_args(prx_args, g_argv[0], sceKernelGetThreadId(), g_argv[1], g_argc-2, &g_argv[2]);
 
 		ret = sceKernelStartModule(modid, size, prx_args, &status, NULL);
 	}
