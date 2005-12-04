@@ -1,5 +1,5 @@
 TARGET = psplink_user
-OBJS = main.o psplink.o exports.o
+OBJS = main.o psplink.o sdkbridge.o exports.o
 
 USE_PSPSDK_LIBC = 1
 

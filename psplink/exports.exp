@@ -11,7 +11,9 @@ PSP_EXPORT_END
 PSP_EXPORT_START(psplink, 0, 0x4001)
 PSP_EXPORT_FUNC(psplinkInitialised)
 PSP_EXPORT_FUNC(psplinkHandleException)
+PSP_EXPORT_END
 
+PSP_EXPORT_START(sdkbridge, 0, 0x4001)
 # Some kernel bridge functions
 PSP_EXPORT_FUNC(pspDebugSioPutchar)
 PSP_EXPORT_FUNC(pspDebugSioGetchar)
