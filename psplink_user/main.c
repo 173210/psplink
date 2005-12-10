@@ -18,6 +18,8 @@
 #include <string.h>
 
 PSP_MODULE_INFO("PSPLINK_USER", 0, 1, 1);
+PSP_MAIN_THREAD_PARAMS(0x20, 64, PSP_THREAD_ATTR_USER);
+PSP_MAIN_THREAD_NAME("PsplinkUser");
 
 int psplinkHandleException(PspDebugRegBlock *regs);
 void pspDebugResumeFromException(void);
@@ -36,26 +38,11 @@ void ExceptionHandler(PspDebugRegBlock *regs)
 }
 
 /* Simple thread */
-int main_thread(SceSize args, void *argp)
+int main(int argc, char **argv)
 {
 	pspDebugInstallErrorHandler(ExceptionHandler);
 	Kprintf("PSPLINKUSER loaded\n");
 	sceKernelSleepThread();
-
-	return 0;
-}
-
-/* Entry point */
-int module_start(SceSize args, void *argp)
-{
-	int thid;
-
-	/* Create a high priority thread */
-	thid = sceKernelCreateThread("PspLinkUser", main_thread, 0x20, 0x10000, PSP_THREAD_ATTR_USER, NULL);
-	if(thid >= 0)
-	{
-		sceKernelStartThread(thid, args, argp);
-	}
 
 	return 0;
 }
