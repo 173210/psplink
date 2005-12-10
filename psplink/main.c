@@ -81,6 +81,8 @@ static char g_currdir[1024];
 static u32 g_exitgame[2];
 /* Indicates whether the usb drivers have been loaded */
 static enum UsbStates g_usbstate = USB_NOSTART;
+/* Indicates whether to enable the psplink user module */
+static int  g_enableuser = 1;
 
 extern int g_debuggermode;
 void set_swbp(u32 addr);
@@ -121,11 +123,13 @@ struct psplink_config
 static void config_usb(const char *szVal, unsigned int iVal);
 static void config_baud(const char *szVal, unsigned int iVal);
 static void config_modload(const char *szVal, unsigned int iVal);
+static void config_pluser(const char *szVal, unsigned int iVal);
 
 struct psplink_config config_names[] = {
 	{ "usb", 1, config_usb },
 	{ "baud", 1, config_baud },
 	{ "modload", 0, config_modload },
+	{ "pluser", 1, config_pluser },
 	{ NULL, 0, NULL }
 };
 
@@ -1401,7 +1405,6 @@ static void map_firmwarerev(void)
 	}
 }
 
-
 int init_usb(void)
 {
 	int retVal;
@@ -1664,6 +1667,11 @@ static void config_modload(const char *szVal, unsigned int iVal)
 	(void) load_start_module(szVal, 0, NULL);
 }
 
+static void config_pluser(const char *szVal, unsigned int iVal)
+{
+	g_enableuser = iVal;
+}
+
 void load_config(const char *bootfile)
 {
 	char cnf_path[256];
@@ -1740,7 +1748,10 @@ int main_thread(SceSize args, void *argp)
 	unload_loader();
 
 	load_config(g_bootfile);
-	load_psplink_user(g_bootfile);
+	if(g_enableuser)
+	{
+		load_psplink_user(g_bootfile);
+	}
 
 	if(g_execfile[0] != 0)
 	{

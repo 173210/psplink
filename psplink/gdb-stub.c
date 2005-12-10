@@ -91,11 +91,7 @@ char getDebugChar(void)
 	return ch;
 }
 
-/*
-static void dump_command()
-{
-}
-*/
+void sceKernelIcacheInvalidateAll(void);
 
 void _gdbSupportLibFlushCaches(void)
 {
