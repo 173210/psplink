@@ -21,6 +21,7 @@
 #include <pspusbstor.h>
 #include <pspumd.h>
 #include <psputilsforkernel.h>
+#include <pspsysmem_kernel.h>
 #include "memoryUID.h"
 #include "psplink.h"
 #include "psplinkcnf.h"
@@ -150,6 +151,7 @@ static int modunld_cmd(int argc, char **argv);
 static int modstart_cmd(int argc, char **argv);
 static int modload_cmd(int argc, char **argv);
 static int modexec_cmd(int argc, char **argv);
+static int meminfo_cmd(int argc, char **argv);
 static int ldstart_cmd(int argc, char **argv);
 static int exec_cmd(int argc, char **argv);
 static int debug_cmd(int argc, char **argv);
@@ -197,6 +199,7 @@ struct sh_command commands[] = {
 	{ "modload","md", modload_cmd, 1, "Load a module", "md path" },
 	{ "modstart","mt", modstart_cmd, 1, "Start a module", "mt uid [args]" },
 	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me path [args]" },
+	{ "meminfo", "mf", meminfo_cmd, 0, "Print memory info", "mf [partitionid]" },
 	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path [args]" },
 	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path] [args]" },
 	{ "debug", "d", debug_cmd, 1, "Debug an executable (need to switch to gdb)", "debug path" },
@@ -297,6 +300,7 @@ static int process_cli()
 	if(parse_args(g_cli, &argc, argv, 16) == 0)
 	{
 		Kprintf("Error parsing cli\n");
+		g_cli_pos = 0;
 		return CMD_ERROR;
 	}
 
@@ -1337,6 +1341,42 @@ static int cp_cmd(int argc, char **argv)
 	
 	sceIoClose(in);
 	sceIoClose(out);
+
+	return CMD_OK;
+}
+
+static int meminfo_cmd(int argc, char **argv)
+{
+	int i;
+	int pid = 1;
+	int max = 5;
+
+	if(argc > 0)
+	{
+		pid = atoi(argv[0]);
+		Kprintf("pid: %d\n", pid);
+		if((pid <= 0) || (pid > 4))
+		{
+			Kprintf("Error, invalid partition number %d\n", pid);
+			return CMD_ERROR;
+		}
+		max = pid + 1;
+	}
+
+	for(i = pid; i < max; i++)
+	{
+		SceSize total;
+		SceSize free;
+		PspSysmemPartitionInfo info;
+
+		free = sceKernelPartitionMaxFreeMemSize(i);
+		total = sceKernelPartitionTotalFreeMemSize(i);
+		memset(&info, 0, sizeof(info));
+		info.size = sizeof(info);
+		sceKernelQueryMemoryPartitionInfo(i, &info);
+		Kprintf("%d : Addr: %08X, Size: %8d, Total Free: %8d\n  : Max Free: %8d, Attr: %02X\n", 
+				i, info.startaddr, info.memsize, total, free, info.attr);
+	}
 
 	return CMD_OK;
 }
