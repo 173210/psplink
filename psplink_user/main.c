@@ -42,7 +42,7 @@ int main(int argc, char **argv)
 {
 	pspDebugInstallErrorHandler(ExceptionHandler);
 	Kprintf("PSPLINKUSER loaded\n");
-	sceKernelSleepThread();
+	sceKernelExitDeleteThread(0);
 
 	return 0;
 }
