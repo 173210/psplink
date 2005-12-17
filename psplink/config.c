@@ -42,12 +42,14 @@ static void config_usb(struct ConfigContext *ctx, const char *szVal, unsigned in
 static void config_baud(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
 static void config_modload(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
 static void config_pluser(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
+static void config_prompt(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
 
 struct psplink_config config_names[] = {
 	{ "usb", 1, config_usb },
 	{ "baud", 1, config_baud },
 	{ "modload", 0, config_modload },
 	{ "pluser", 1, config_pluser },
+	{ "prompt", 0, config_prompt },
 	{ NULL, 0, NULL }
 };
 
@@ -97,11 +99,18 @@ static void config_pluser(struct ConfigContext *ctx, const char *szVal, unsigned
 	ctx->enableuser = iVal;
 }
 
+static void config_prompt(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	strncpy(ctx->cliprompt, szVal, sizeof(ctx->cliprompt)-1);
+	ctx->cliprompt[sizeof(ctx->cliprompt)-1] = 0;
+}
+
 void configLoad(const char *bootpath, struct ConfigContext *ctx)
 {
 	char cnf_path[256];
 	struct ConfigFile cnf;
 
+	memset(ctx, 0, sizeof(*ctx));
 	strcpy(cnf_path, bootpath);
 	strcat(cnf_path, "psplink.ini");
 	printf("Config Path %s\n", cnf_path);

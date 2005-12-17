@@ -14,4 +14,4 @@
 
 /* Parse a command string */
 int shellParse(char *command);
-void shellStart();
+void shellStart(const char *cliprompt);

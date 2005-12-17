@@ -192,7 +192,6 @@ const char* psplinkConfigReadNext(struct ConfigFile *cnf, const char **name)
 
 			cnf->line++;
 			strip_whitesp(cnf->str_buf);
-			//Kprintf("%s\n", cnf->str_buf);
 			if((cnf->str_buf[0] == '#') || (cnf->str_buf[0] == 0))
 			{
 				continue;

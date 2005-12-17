@@ -218,7 +218,7 @@ int main_thread(SceSize args, void *argp)
 
 	printf(WELCOME_MESSAGE);
 
-	shellStart();
+	shellStart(ctx.cliprompt);
 
 	unpatch_kernel();
 	sceKernelExitGame();

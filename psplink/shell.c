@@ -29,8 +29,8 @@
 #include "util.h"
 #include "sio.h"
 
-#define SHELL_PROMPT	"psplink> "
-
+#define MAX_SHELL_VAR      128
+#define SHELL_PROMPT	"psplink %d>"
 /* Maximum command line */
 #define CLI_MAX			128
 /* Maximum history */
@@ -162,6 +162,97 @@ static int decode_memaddr(const char *straddr, u32 *memaddr)
 	return ret;
 }
 
+struct shell_variable
+{
+	const char *name;
+	char data[MAX_SHELL_VAR];
+};
+
+struct shell_variable g_shellvars[] = 
+{
+	{ "prompt", SHELL_PROMPT },
+	{ NULL, "" },
+};
+
+char *find_shell_var(const char *name)
+{
+	int i;
+
+	i = 0;
+	while(g_shellvars[i].name)
+	{
+		if(strcmp(name, g_shellvars[i].name) == 0)
+		{
+			return g_shellvars[i].data;
+		}
+		i++;
+	}
+
+	return NULL;
+}
+
+int set_shell_var(const char *name, const char *data)
+{
+	char *vardata;
+
+	vardata = find_shell_var(name);
+	if(vardata == NULL)
+	{
+		return 0;
+	}
+
+	strncpy(vardata, data, MAX_SHELL_VAR-1);
+	vardata[MAX_SHELL_VAR-1] = 0;
+
+	return 1;
+}
+
+void print_prompt(void)
+{
+	char tmp[MAX_SHELL_VAR];
+	const char *cliprompt;
+	int in, out;
+
+	cliprompt = find_shell_var("prompt");
+	if(cliprompt == NULL)
+	{
+		printf("ERROR> ");
+		return;
+	}
+
+	out = 0;
+	in = 0;
+	while((cliprompt[in]) && (out < (MAX_SHELL_VAR-1)))
+	{
+		if(cliprompt[in] == '%')
+		{
+			switch(cliprompt[in+1])
+			{
+				case '%': tmp[out++] = '%';
+						  in += 2;
+						  break;
+				case 'd': strncpy(&tmp[out], g_context.currdir, MAX_SHELL_VAR - out - 1);
+						  tmp[MAX_SHELL_VAR-1] = 0;
+						  while(tmp[out])
+						  {
+							  out++;
+						  }
+						  in += 2;
+						  break;
+				default : in++;
+						  break;
+			};
+		}
+		else
+		{
+			tmp[out++] = cliprompt[in++];
+		}
+	}
+
+	tmp[out] = 0;
+	printf("%s ", tmp);
+}
+
 /* Defines for shell command handlers */
 static int exit_cmd(int argc, char **argv);
 static int help_cmd(int argc, char **argv);
@@ -207,6 +298,7 @@ static int mkdir_cmd(int argc, char **argv);
 static int rm_cmd(int argc, char **argv);
 static int rmdir_cmd(int argc, char **argv);
 static int rename_cmd(int argc, char **argv);
+static int set_cmd(int argc, char **argv);
 
 /* Return values for the commands */
 #define CMD_EXITSHELL 	1
@@ -246,11 +338,11 @@ struct sh_command commands[] = {
 	
 	{ "module", NULL, NULL, 0, "Commands to handle modules", NULL, SHELL_TYPE_CATEGORY },
 	{ "modlist","ml", modlist_cmd, 0, "List the currently loaded modules", "ml [v]", SHELL_TYPE_CMD },
-	{ "modinfo","mi", modinfo_cmd, 1, "Print info about a module", "mi uid", SHELL_TYPE_CMD },
-	{ "modstop","ms", modstop_cmd, 1, "Stop a running module", "ms uid", SHELL_TYPE_CMD },
-	{ "modunld","mu", modunld_cmd, 1, "Unload a module (must be stopped)", "mu uid", SHELL_TYPE_CMD },
+	{ "modinfo","mi", modinfo_cmd, 1, "Print info about a module", "mi uid|@name", SHELL_TYPE_CMD },
+	{ "modstop","ms", modstop_cmd, 1, "Stop a running module", "ms uid|@name", SHELL_TYPE_CMD },
+	{ "modunld","mu", modunld_cmd, 1, "Unload a module (must be stopped)", "mu uid|@name", SHELL_TYPE_CMD },
 	{ "modload","md", modload_cmd, 1, "Load a module", "md path", SHELL_TYPE_CMD },
-	{ "modstart","mt", modstart_cmd, 1, "Start a module", "mt uid [args]", SHELL_TYPE_CMD },
+	{ "modstart","mt", modstart_cmd, 1, "Start a module", "mt uid|@name [args]", SHELL_TYPE_CMD },
 	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me path [args]", SHELL_TYPE_CMD },
 	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path] [args]", SHELL_TYPE_CMD },
 	{ "debug", "d", debug_cmd, 1, "Debug an executable (need to switch to gdb)", "debug path", SHELL_TYPE_CMD },
@@ -281,6 +373,7 @@ struct sh_command commands[] = {
 	{ "usboff", "uf", usboff_cmd, 0, "Disable USB mass storage device", "usboff", SHELL_TYPE_CMD },
     { "uidlist","ul", uidlist_cmd, 0, "List the system UIDS", "ul", SHELL_TYPE_CMD },
 	{ "exit", "quit", exit_cmd, 0, "Exit the shell", "exit", SHELL_TYPE_CMD },
+	{ "set", NULL, set_cmd, 0, "Set a shell variable", "set [var=value]", SHELL_TYPE_CMD },
 	{ "reset", "r", reset_cmd, 0, "Reset", "r", SHELL_TYPE_CMD },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command]", SHELL_TYPE_CMD },
 	{ NULL, NULL, NULL, 0, NULL, NULL, SHELL_TYPE_CMD }
@@ -347,7 +440,7 @@ int shellParse(char *command)
 
 	if(ret != CMD_EXITSHELL)
 	{
-		printf(SHELL_PROMPT);
+		print_prompt();
 	}
 
 	return ret;
@@ -372,14 +465,14 @@ static void cli_handle_escape(void)
 {
 	char ch;
 
-	ch = g_readchar();
+	ch = g_readcharwithtimeout();
 
 	if(ch != -1)
 	{
 		/* Arrow keys UDRL/ABCD */
 		if(ch == '[')
 		{
-			ch = g_readchar();
+			ch = g_readcharwithtimeout();
 			switch(ch)
 			{
 				case 'A' : {
@@ -408,7 +501,9 @@ static void cli_handle_escape(void)
 								   }
 								   *dst = 0;
 
-								   printf("\n%s%s", SHELL_PROMPT, g_cli);
+								   printf("\n");
+								   print_prompt();
+								   printf("%s", g_cli);
 							   } 
 						   } 
 						   break;
@@ -436,7 +531,9 @@ static void cli_handle_escape(void)
 								   }
 								   *dst = 0;
 
-								   printf("\n%s%s", SHELL_PROMPT, g_cli);
+								   printf("\n");
+								   print_prompt();
+								   printf("%s", g_cli);
 							   } 
 						   } 
 						   break;
@@ -456,12 +553,17 @@ static void cli_handle_escape(void)
 }
 
 /* Main shell function */
-void shellStart()
+void shellStart(const char *cliprompt)
 {		
 	int exit_shell = 0;
 
+	if(strlen(cliprompt) > 0)
+	{
+		set_shell_var("prompt", cliprompt);
+	}
+
 	strcpy(g_context.currdir, "ms0:/");
-	printf(SHELL_PROMPT);
+	print_prompt();
 	g_cli_pos = 0;
 	g_cli_size = 0;
 	memset(g_cli, 0, CLI_MAX);
@@ -469,7 +571,7 @@ void shellStart()
 	while(!exit_shell) {
 		char ch;
 
-		ch = g_readcharwithtimeout();
+		ch = g_readchar();
 		switch(ch)
 		{
 			case -1 : break; // No char
@@ -506,6 +608,36 @@ void shellStart()
 					  break;
 		}
 	}
+}
+
+static SceUID get_module_uid(const char *name)
+{
+	char *endp;
+	SceUID uid = -1;
+
+	if(name[0] == '@')
+	{
+		SceModule *pMod;
+
+		pMod = sceKernelFindModuleByName(&name[1]);
+		if(pMod == NULL)
+		{
+			printf("ERROR: Invalid name %s\n", name);
+			return CMD_ERROR;
+		}
+		uid = pMod->modid;
+	}
+	else
+	{
+		uid = strtoul(name, &endp, 16);
+		if(*endp != 0)
+		{
+			printf("ERROR: Invalid uid %s\n", name);
+			uid = -1;
+		}
+	}
+
+	return uid;
 }
 
 typedef int (*ReferFunc)(const char *, SceUID *, void *);
@@ -860,24 +992,24 @@ static int print_modinfo(SceUID uid, int verbose)
 static int modinfo_cmd(int argc, char **argv)
 {
 	SceUID uid;
-	char *suid;
 	int ret = CMD_ERROR;
-	char *endp;
 
-	suid = argv[0];
-	uid = strtoul(suid, &endp, 16);
-	if(*endp == 0)
+	uid = get_module_uid(argv[0]);
+
+	if(uid >= 0)
 	{
 		if(print_modinfo(uid, 1) < 0)
 		{
 			printf("ERROR: Unknown module %08X\n", uid);
 		}
-
-		ret = CMD_OK;
+		else
+		{
+			ret = CMD_OK;
+		}
 	}
 	else
 	{
-		printf("ERROR: Invalid hex argument %s\n", suid);
+		printf("ERROR: Invalid module %s\n", argv[0]);
 	}
 
 	return ret;
@@ -916,13 +1048,10 @@ static int modlist_cmd(int argc, char **argv)
 static int modstop_cmd(int argc, char **argv)
 {
 	SceUID uid;
-	char *suid;
 	int ret = CMD_ERROR;
-	char *endp;
 
-	suid = argv[0];
-	uid = strtoul(suid, &endp, 16);
-	if(*endp == 0)
+	uid = get_module_uid(argv[0]);
+	if(uid >= 0)
 	{
 		SceUID uid_ret;
 		int status;
@@ -934,7 +1063,7 @@ static int modstop_cmd(int argc, char **argv)
 	}
 	else
 	{
-		printf("ERROR: Invalid hex argument %s\n", suid);
+		printf("ERROR: Invalid argument %s\n", argv[0]);
 	}
 
 	return ret;
@@ -944,13 +1073,10 @@ static int modunld_cmd(int argc, char **argv)
 {
 
 	SceUID uid;
-	char *suid;
 	int ret = CMD_ERROR;
-	char *endp;
 
-	suid = argv[0];
-	uid = strtoul(suid, &endp, 16);
-	if(*endp == 0)
+	uid = get_module_uid(argv[0]);
+	if(uid >= 0)
 	{
 		SceUID uid_ret;
 
@@ -961,7 +1087,7 @@ static int modunld_cmd(int argc, char **argv)
 	}
 	else
 	{
-		printf("ERROR: Invalid hex argument %s\n", suid);
+		printf("ERROR: Invalid argument %s\n", argv[0]);
 	}
 
 	return ret;
@@ -971,15 +1097,12 @@ static int modunld_cmd(int argc, char **argv)
 static int modstart_cmd(int argc, char **argv)
 {
 	SceUID uid;
-	char *suid;
 	int ret = CMD_ERROR;
-	char *endp;
 	char args[1024];
 	int  len;
 
-	suid = argv[0];
-	uid = strtoul(suid, &endp, 16);
-	if(*endp == 0)
+	uid = get_module_uid(argv[0]);
+	if(uid >= 0)
 	{
 		SceUID uid_ret;
 		int status;
@@ -1000,7 +1123,7 @@ static int modstart_cmd(int argc, char **argv)
 	}
 	else
 	{
-		printf("ERROR: Invalid hex argument %s\n", suid);
+		printf("ERROR: Invalid argument %s\n", argv[0]);
 	}
 
 	return ret;
@@ -1895,6 +2018,40 @@ static int pokeb_cmd(int argc, char **argv)
 		{
 			printf("Invalid memory address %08X\n", addr);
 			return CMD_ERROR;
+		}
+	}
+
+	return CMD_OK;
+}
+
+static int set_cmd(int argc, char **argv)
+{
+	if(argc == 0)
+	{
+		int i = 0;
+		while(g_shellvars[i].name)
+		{
+			printf("%s=%s\n", g_shellvars[i].name, g_shellvars[i].data);
+			i++;
+		}
+	}
+	else
+	{
+		char *equals;
+
+		equals = strchr(argv[0], '=');
+		if(equals)
+		{
+			*equals = 0;
+			equals++;
+			if(set_shell_var(argv[0], equals) == 0)
+			{
+				printf("Error, couldn't find shell variable '%s'\n", argv[0]);
+			}
+		}
+		else
+		{
+			printf("Error, must be of the form var=value\n");
 		}
 	}
 
