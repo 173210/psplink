@@ -20,6 +20,9 @@
 #define EVENT_RESUMESH  0x100
 #define EVENT_RESET     0x200
 
+#define MAXPATHLEN      1024
+#define MAX_ARGS 16
+
 #ifdef DEBUG
 #define DEBUG_START { int fd; fd = sceIoOpen("ms0:/debug.txt", PSP_O_WRONLY | PSP_O_CREAT | PSP_O_TRUNC, 0666); sceIoClose(fd); }
 #define DEBUG_PRINTF(fmt, ...) \
@@ -35,5 +38,25 @@
 #endif
 
 int fdprintf(int fd, const char *fmt, ...);
+
+void psplinkReset(void);
+
+struct GlobalContext
+{
+	/* The filename of the bootstrap */
+	const char *bootfile;
+	/* The boot path */
+	char bootpath[MAXPATHLEN];
+	/* Indicates the current directory */
+	char currdir[MAXPATHLEN];
+	/* Arguments for auto exec */
+	int  execargc;
+	char *execargv[MAX_ARGS+1];
+	char execargs[1024];
+	/* Inidicates whether a file has already been executed */
+	int  inexec;
+	/* The program to execute */
+	char execfile[MAXPATHLEN];
+};
 
 #endif

@@ -9,7 +9,6 @@ PSP_EXPORT_VAR(module_info)
 PSP_EXPORT_END
 
 PSP_EXPORT_START(psplink, 0, 0x4001)
-PSP_EXPORT_FUNC(psplinkInitialised)
 PSP_EXPORT_FUNC(psplinkHandleException)
 PSP_EXPORT_END
 

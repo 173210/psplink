@@ -1,0 +1,146 @@
+/*
+ * PSPLINK
+ * -----------------------------------------------------------------------
+ * Licensed under the BSD license, see LICENSE in PSPLINK root for details.
+ *
+ * config.c - PSPLINK kernel module configuration loader.
+ *
+ * Copyright (c) 2005 James F <tyranid@gmail.com>
+ * Copyright (c) 2005 Julian T <lovely@crm114.net>
+ *
+ * $HeadURL$
+ * $Id$
+ */
+#include <pspkernel.h>
+#include <pspdebug.h>
+#include <pspsdk.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pspusb.h>
+#include <pspusbstor.h>
+#include <pspumd.h>
+#include <psputilsforkernel.h>
+#include <pspsysmem_kernel.h>
+#include "memoryUID.h"
+#include "psplink.h"
+#include "psplinkcnf.h"
+#include "parse_args.h"
+#include "util.h"
+#include "sio.h"
+#include "shell.h"
+#include "config.h"
+
+struct psplink_config
+{
+	const char *name;
+	int   isnum;
+	void (*handler)(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
+};
+
+static void config_usb(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
+static void config_baud(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
+static void config_modload(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
+static void config_pluser(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
+
+struct psplink_config config_names[] = {
+	{ "usb", 1, config_usb },
+	{ "baud", 1, config_baud },
+	{ "modload", 0, config_modload },
+	{ "pluser", 1, config_pluser },
+	{ NULL, 0, NULL }
+};
+
+static void config_usb(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	if(iVal != 0)
+	{
+		init_usb();
+	}
+}
+
+static void config_baud(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	int valid = 0;
+
+	switch(iVal)
+	{
+		case 4800:
+		case 9600:
+		case 19200:
+		case 38400:
+		case 57600:
+		case 115200: valid = 1;
+					 break;
+		default: break;
+	};
+
+	if(valid)
+	{
+		printf("Setting baud to %d\n", iVal);
+		pspDebugSioSetBaud(iVal);
+	}
+	else
+	{
+		/* Might never be seen :) */
+		printf("Invalid baud rate %d\n", iVal);
+	}
+}
+
+static void config_modload(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	(void) load_start_module(szVal, 0, NULL);
+}
+
+static void config_pluser(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	ctx->enableuser = iVal;
+}
+
+void configLoad(const char *bootpath, struct ConfigContext *ctx)
+{
+	char cnf_path[256];
+	struct ConfigFile cnf;
+
+	strcpy(cnf_path, bootpath);
+	strcat(cnf_path, "psplink.ini");
+	printf("Config Path %s\n", cnf_path);
+	if(psplinkConfigOpen(cnf_path, &cnf))
+	{
+		const char *name;
+		const char *val;
+
+		while((val = psplinkConfigReadNext(&cnf, &name)))
+		{
+			int config;
+
+			config = 0;
+			while(config_names[config].name)
+			{
+				if(strcmp(config_names[config].name, name) == 0)
+				{
+					unsigned int iVal = 0;
+					if(config_names[config].isnum)
+					{
+						char *endp;
+
+						iVal = strtoul(val, &endp, 10);
+						if(*endp != 0)
+						{
+							printf("Error, line %d value should be a number\n", cnf.line); 
+							break;
+						}
+					}
+
+					config_names[config].handler(ctx, val, iVal);
+				}
+				config++;
+			}
+
+			/* Ignore anything we don't care about */
+		}
+
+		psplinkConfigClose(&cnf);
+	}
+}
+
