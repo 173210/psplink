@@ -43,6 +43,38 @@ int (*g_GetModuleIdList)(SceUID *readbuf, int readbufsize, int *idcount) = NULL;
 extern int g_debuggermode;
 extern void set_swbp(u32 addr);
 
+/* Check if character is a hexadecimal character */
+int is_hex(char ch)
+{
+	ch = upcase(ch);
+
+	if((ch >= '0') && (ch <= '9'))
+		return 1;
+
+	if((ch >= 'A') && (ch <= 'F'))
+		return 1;
+
+	return 0;
+}
+
+/* Convert a single hex digit to an int */
+int hex_to_int(char ch)
+{
+	if((ch >= '0') && (ch <= '9'))
+	{
+		return ch - '0';
+	}
+
+	ch = upcase(ch);
+	if((ch >= 'A') && (ch <= 'F'))
+	{
+		return ch - 'A' + 10;
+	}
+
+	return 0;
+}
+
+
 int is_aspace(int ch)
 {
 	if((ch == ' ') || (ch == '\t') || (ch == '\n') || (ch == '\r'))

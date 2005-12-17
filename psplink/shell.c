@@ -56,11 +56,123 @@ static int  g_currcli_pos = 0;
 
 typedef int (*threadmanprint_func)(SceUID uid, int verbose);
 
+#define MEM_ATTRIB_READ	 (1 << 0)
+#define MEM_ATTRIB_WRITE (1 << 1)
+#define MEM_ATTRIB_EXEC	 (1 << 2)
+#define MEM_ATTRIB_BYTE  (1 << 3)
+#define MEM_ATTRIB_HALF  (1 << 4)
+#define MEM_ATTRIB_WORD  (1 << 5)
+#define MEM_ATTRIB_DBL   (1 << 6)
+#define MEM_ATTRIB_ALL	 0xFFFFFFFF
+
+struct mem_entry
+{
+	u32 addr;
+	s32 size;
+	u32 attrib;
+	const char *desc;
+};
+
+static struct mem_entry g_memareas[] = 
+{
+	{ 0x08800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "User memory" },
+	{ 0x48800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "User memory (uncached)" },
+	{ 0x88000000, (32 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory" },
+	{ 0xC8000000, (32 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (uncached)" },
+	{ 0x04000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM" },
+	{ 0x44000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM (uncached)" },
+	{ 0, 0, 0, NULL }
+};
+
+static int validate_memaddr(u32 addr, u32 attrib)
+{
+	const struct mem_entry *entry;
+	int size_left = 0;
+
+	entry = g_memareas;
+
+	while(entry->size != 0)
+	{
+		if((addr >= entry->addr) && (addr < (entry->addr + (u32) entry->size)))
+		{
+			// Only pass through areas with valid attributes (e.g. write or execute)
+			if((entry->attrib & attrib) == attrib)
+			{
+				size_left = entry->size - (int) (addr - entry->addr);
+			}
+			break;
+		}
+
+		entry++;
+	}
+
+	return size_left;
+}
+
+static int decode_memaddr(const char *straddr, u32 *memaddr)
+{
+	int ret = 0;
+	int deref = 0;
+	int i = 0;
+	u32 addr = 0;
+	char *endp;
+
+	/* We are dereferencing */
+	while(*straddr == '@')
+	{
+		/* Incremement the deref count */
+		deref++;
+		straddr++;
+	}
+
+	addr = strtoul(straddr, &endp, 16);
+	if(*endp != 0)
+	{
+		printf("Could not decode memory address '%s'\n", straddr);
+		ret = 0;
+	}
+	else
+	{
+		ret = 1;
+	}
+
+	/* Only deref if it was valid */
+	i = 0;
+	while((i < deref) && (ret))
+	{
+		addr = addr & ~3;
+		if(validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_WORD))
+		{
+			addr = _lw(addr);
+		}
+		else
+		{
+			printf("Invalid de-reference at depth %d (%08x)\n", i, addr);
+			ret = 0;
+		}
+		i++;
+	}
+
+	if(ret)
+	{
+		*memaddr = addr;
+	}
+
+
+	return ret;
+}
+
 /* Defines for shell command handlers */
 static int exit_cmd(int argc, char **argv);
 static int help_cmd(int argc, char **argv);
 static int thlist_cmd(int argc, char **argv);
 static int thinfo_cmd(int argc, char **argv);
+static int thsusp_cmd(int argc, char **argv);
+static int thresm_cmd(int argc, char **argv);
+static int thwake_cmd(int argc, char **argv);
+static int thterm_cmd(int argc, char **argv);
+static int thdel_cmd(int argc, char **argv);
+static int thtdel_cmd(int argc, char **argv);
 static int evlist_cmd(int argc, char **argv);
 static int evinfo_cmd(int argc, char **argv);
 static int smlist_cmd(int argc, char **argv);
@@ -74,6 +186,13 @@ static int modstart_cmd(int argc, char **argv);
 static int modload_cmd(int argc, char **argv);
 static int modexec_cmd(int argc, char **argv);
 static int meminfo_cmd(int argc, char **argv);
+static int memreg_cmd(int argc, char **argv);
+static int memdump_cmd(int argc, char **argv);
+static int savemem_cmd(int argc, char **argv);
+static int loadmem_cmd(int argc, char **argv);
+static int pokew_cmd(int argc, char **argv);
+static int pokeh_cmd(int argc, char **argv);
+static int pokeb_cmd(int argc, char **argv);
 static int ldstart_cmd(int argc, char **argv);
 static int exec_cmd(int argc, char **argv);
 static int debug_cmd(int argc, char **argv);
@@ -113,11 +232,17 @@ struct sh_command
 struct sh_command commands[] = {
 	{ "thread", NULL, NULL, 0, "Commands to manipulate threads", NULL, SHELL_TYPE_CATEGORY },
 	{ "thlist", "tl", thlist_cmd, 0, "List the threads in the system", "tl [v]", SHELL_TYPE_CMD },
-	{ "thinfo", "ti", thinfo_cmd, 1, "Print info about a thread", "ti uid" , SHELL_TYPE_CMD},
+	{ "thinfo", "ti", thinfo_cmd, 1, "Print info about a thread", "ti uid|@name" , SHELL_TYPE_CMD},
+	{ "thsusp", "ts", thsusp_cmd, 1, "Suspend a thread", "ts uid|@name" , SHELL_TYPE_CMD},
+	{ "thresm", "tr", thresm_cmd, 1, "Resume a thread", "tr uid|@name" , SHELL_TYPE_CMD},
+	{ "thwake", "tw", thwake_cmd, 1, "Wakeup a thread", "tw uid|@name" , SHELL_TYPE_CMD},
+	{ "thterm", "tt", thterm_cmd, 1, "Terminate a thread", "tt uid|@name" , SHELL_TYPE_CMD},
+	{ "thdel", "td", thdel_cmd, 1, "Delete a thread", "td uid|@name" , SHELL_TYPE_CMD},
+	{ "thtdel", "tx", thtdel_cmd, 1, "Terminate and delete a thread", "tx uid|@name" , SHELL_TYPE_CMD},
 	{ "evlist", "el", evlist_cmd, 0, "List the event flags in the system", "el [v]", SHELL_TYPE_CMD },
-	{ "evinfo", "ei", evinfo_cmd, 1, "Print info about an event flag", "ei uid", SHELL_TYPE_CMD },
+	{ "evinfo", "ei", evinfo_cmd, 1, "Print info about an event flag", "ei uid|@name", SHELL_TYPE_CMD },
 	{ "smlist", "sl", smlist_cmd, 0, "List the semaphores in the system", "sl [v]", SHELL_TYPE_CMD },
-	{ "sminfo", "si", sminfo_cmd, 1, "Print info about a semaphore", "si uid", SHELL_TYPE_CMD },
+	{ "sminfo", "si", sminfo_cmd, 1, "Print info about a semaphore", "si uid|@name", SHELL_TYPE_CMD },
 	
 	{ "module", NULL, NULL, 0, "Commands to handle modules", NULL, SHELL_TYPE_CATEGORY },
 	{ "modlist","ml", modlist_cmd, 0, "List the currently loaded modules", "ml [v]", SHELL_TYPE_CMD },
@@ -133,6 +258,13 @@ struct sh_command commands[] = {
 	
 	{ "memory", NULL, NULL, 0, "Commands to handle memory allocation", NULL, SHELL_TYPE_CATEGORY },
 	{ "meminfo", "mf", meminfo_cmd, 0, "Print memory info", "mf [partitionid]", SHELL_TYPE_CMD },
+	{ "memreg",  "mr", memreg_cmd, 0, "Print available memory regions (for other commands)", "mr", SHELL_TYPE_CMD },
+	{ "memdump", "dm", memdump_cmd, 1, "Dump memory to screen", "md address", SHELL_TYPE_CMD },
+	{ "savemem", "sm", savemem_cmd, 3, "Save memory to a file", "sm adresss size file", SHELL_TYPE_CMD },
+	{ "loadmem", "lm", loadmem_cmd, 2, "Load memory from a file", "lm address file [maxsize]", SHELL_TYPE_CMD },
+	{ "pokew",   "pw", pokew_cmd, 2, "Poke words into memory", "pw address val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "pokeh",   "pw", pokeh_cmd, 2, "Poke half words into memory", "ph address val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "pokeb",   "pw", pokeb_cmd, 2, "Poke bytes into memory", "pb address val1 [val2..valN]", SHELL_TYPE_CMD },
 	
 	{ "fileio", NULL, NULL, 0, "Commands to handle file io", NULL, SHELL_TYPE_CATEGORY },
 	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "ls [path]", SHELL_TYPE_CMD },
@@ -376,6 +508,33 @@ void shellStart()
 	}
 }
 
+typedef int (*ReferFunc)(const char *, SceUID *, void *);
+
+static SceUID get_thread_uid(const char *name, ReferFunc pRefer)
+{
+	char *endp;
+	SceUID uid = -1;
+
+	if(name[0] == '@')
+	{
+		if(pRefer(&name[1], &uid, NULL) < 0)
+		{
+			printf("ERROR: Invalid name %s\n", name);
+			return CMD_ERROR;
+		}
+	}
+	else
+	{
+		uid = strtoul(name, &endp, 16);
+		if(*endp != 0)
+		{
+			printf("ERROR: Invalid uid %s\n", name);
+			uid = -1;
+		}
+	}
+
+	return uid;
+}
 
 static int threadmanlist_cmd(int argc, char **argv, enum SceKernelIdListType type, const char *name, threadmanprint_func pinfo)
 {
@@ -410,16 +569,14 @@ static int threadmanlist_cmd(int argc, char **argv, enum SceKernelIdListType typ
 	return CMD_OK;
 }
 
-static int threadmaninfo_cmd(int argc, char **argv, const char *name, threadmanprint_func pinfo)
+static int threadmaninfo_cmd(int argc, char **argv, const char *name, threadmanprint_func pinfo, ReferFunc pRefer)
 {
 	SceUID uid;
-	char *suid;
 	int ret = CMD_ERROR;
-	char *endp;
 
-	suid = argv[0];
-	uid = strtoul(suid, &endp, 16);
-	if(*endp == 0)
+	uid = get_thread_uid(argv[0], pRefer);
+
+	if(uid >= 0)
 	{
 		if(pinfo(uid, 1) < 0)
 		{
@@ -427,10 +584,6 @@ static int threadmaninfo_cmd(int argc, char **argv, const char *name, threadmanp
 		}
 
 		ret = CMD_OK;
-	}
-	else
-	{
-		printf("ERROR: Invalid hex argument %s\n", suid);
 	}
 
 	return ret;
@@ -472,7 +625,139 @@ static int thlist_cmd(int argc, char **argv)
 
 static int thinfo_cmd(int argc, char **argv)
 {
-	return threadmaninfo_cmd(argc, argv, "Thread", print_threadinfo);
+	return threadmaninfo_cmd(argc, argv, "Thread", print_threadinfo, (ReferFunc) pspSdkReferThreadStatusByName);
+}
+
+static int thsusp_cmd(int argc, char **argv)
+{
+	SceUID uid;
+	int ret = CMD_ERROR;
+	int err;
+
+	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
+
+	if(uid >= 0)
+	{
+		err = sceKernelSuspendThread(uid);
+		if(err < 0)
+		{
+			printf("Cannot suspend thread %08X\n", err);
+		}
+
+		ret = CMD_OK;
+	}
+
+	return ret;
+}
+
+static int thresm_cmd(int argc, char **argv)
+{
+	SceUID uid;
+	int ret = CMD_ERROR;
+	int err;
+
+	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
+
+	if(uid >= 0)
+	{
+		err = sceKernelResumeThread(uid);
+		if(err < 0)
+		{
+			printf("Cannot suspend thread %08X\n", err);
+		}
+
+		ret = CMD_OK;
+	}
+
+	return ret;
+}
+
+static int thwake_cmd(int argc, char **argv)
+{
+	SceUID uid;
+	int ret = CMD_ERROR;
+	int err;
+
+	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
+
+	if(uid >= 0)
+	{
+		err = sceKernelWakeupThread(uid);
+		if(err < 0)
+		{
+			printf("Cannot wakeup thread %08X\n", err);
+		}
+
+		ret = CMD_OK;
+	}
+
+	return ret;
+}
+
+static int thterm_cmd(int argc, char **argv)
+{
+	SceUID uid;
+	int ret = CMD_ERROR;
+	int err;
+
+	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
+
+	if(uid >= 0)
+	{
+		err = sceKernelTerminateThread(uid);
+		if(err < 0)
+		{
+			printf("Cannot terminate thread %08X\n", err);
+		}
+
+		ret = CMD_OK;
+	}
+
+	return ret;
+}
+
+static int thdel_cmd(int argc, char **argv)
+{
+	SceUID uid;
+	int ret = CMD_ERROR;
+	int err;
+
+	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
+
+	if(uid >= 0)
+	{
+		err = sceKernelDeleteThread(uid);
+		if(err < 0)
+		{
+			printf("Cannot delete thread %08X\n", err);
+		}
+
+		ret = CMD_OK;
+	}
+
+	return ret;
+}
+
+static int thtdel_cmd(int argc, char **argv)
+{
+	SceUID uid;
+	int ret = CMD_ERROR;
+	int err;
+
+	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
+
+	if(uid >= 0)
+	{
+		err = sceKernelTerminateDeleteThread(uid);
+		if(err < 0)
+		{
+			printf("Cannot terminate delete thread %08X\n", err);
+		}
+
+		ret = CMD_OK;
+	}
+
+	return ret;
 }
 
 static int print_eventinfo(SceUID uid, int verbose)
@@ -504,7 +789,7 @@ static int evlist_cmd(int argc, char **argv)
 
 static int evinfo_cmd(int argc, char **argv)
 {
-	return threadmaninfo_cmd(argc, argv, "EventFlag", print_eventinfo);
+	return threadmaninfo_cmd(argc, argv, "EventFlag", print_eventinfo, (ReferFunc) pspSdkReferEventFlagStatusByName);
 }
 
 static int print_semainfo(SceUID uid, int verbose)
@@ -536,7 +821,7 @@ static int smlist_cmd(int argc, char **argv)
 
 static int sminfo_cmd(int argc, char **argv)
 {
-	return threadmaninfo_cmd(argc, argv, "Semaphore", print_semainfo);
+	return threadmaninfo_cmd(argc, argv, "Semaphore", print_semainfo, (ReferFunc) pspSdkReferSemaStatusByName);
 }
 
 static int uidlist_cmd(int argc, char **argv)
@@ -1192,6 +1477,9 @@ static int meminfo_cmd(int argc, char **argv)
 		max = pid + 1;
 	}
 
+	printf("Memory Partitions:\n");
+	printf("N |   BASE   |   SIZE   | TOTALFREE |  MAXFREE  | ATTR |\n");
+	printf("--|----------|----------|-----------|-----------|------|\n");
 	for(i = pid; i < max; i++)
 	{
 		SceSize total;
@@ -1203,8 +1491,411 @@ static int meminfo_cmd(int argc, char **argv)
 		memset(&info, 0, sizeof(info));
 		info.size = sizeof(info);
 		sceKernelQueryMemoryPartitionInfo(i, &info);
-		printf("%d : Addr: %08X, Size: %8d, Total Free: %8d\n  : Max Free: %8d, Attr: %02X\n", 
+		printf("%d | %08X | %8d | %9d | %9d | %04X |\n", 
 				i, info.startaddr, info.memsize, total, free, info.attr);
+	}
+
+	return CMD_OK;
+}
+
+static int memreg_cmd(int argc, char **argv)
+{
+	int i;
+	printf("Memory Regions:\n");
+	i = 0;
+	while(g_memareas[i].addr)
+	{
+		printf("Region %d: Base %08X - Size %08X - %s\n", i,
+				g_memareas[i].addr, g_memareas[i].size, g_memareas[i].desc);
+		i++;
+	}
+
+	return CMD_OK;
+}
+
+/* Maximum memory dump size (per screen) */
+#define MAX_MEMDUMP_SIZE 256
+
+/* Print a row of a memory dump, up to row_size */
+static void print_row(const u32* row, s32 row_size, u32 addr)
+{
+	int i = 0;
+
+	printf("%08x - ", addr);
+	for(i = 0; i < 16; i++)
+	{
+		if(i < row_size)
+		{
+			printf("%02x ", row[i]);
+		}
+		else
+		{
+			printf("-- ");
+		}
+	}
+
+	printf("- ");
+	for(i = 0; i < 16; i++)
+	{
+		if(i < row_size)
+		{
+			if((row[i] >= 32) && (row[i] < 127))
+			{
+				printf("%c", row[i]);
+			}
+			else
+			{
+				printf(".");
+			}
+		}
+		else
+		{
+			printf(".");
+		}
+	}
+
+	printf("\n");
+}
+
+
+/* Print a memory dump to SIO */
+static void print_memdump(u32 addr, s32 size)
+{
+	int size_left;
+	u32 row[16];
+	int row_size;
+	u8 *p_addr = (u8 *) addr;
+
+	printf("         - 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f - 0123456789abcdef\n");
+	printf("-----------------------------------------------------------------------------\n");
+
+	size_left = size > MAX_MEMDUMP_SIZE ? MAX_MEMDUMP_SIZE : size;
+	row_size = 0;
+
+	while(size_left > 0)
+	{
+		row[row_size] = p_addr[row_size];
+		row_size++;
+		if(row_size == 16)
+		{
+			// draw row
+			print_row(row, row_size, (u32) p_addr);
+			p_addr += 16;
+			row_size = 0;
+		}
+
+		size_left--;
+	}
+}
+
+static int memdump_cmd(int argc, char **argv)
+{
+	u32 addr;
+	s32 size_left;
+
+	/* Get memory address */
+	if(decode_memaddr(argv[0], &addr))
+	{
+		size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+
+		if(size_left > 0)
+		{
+			while(size_left > 0)
+			{
+				char ch;
+
+				print_memdump(addr, size_left);
+
+				printf("Press b to go back, space to go forward, or q to quit.\n");
+				while((ch = g_readchar()) == -1);
+
+				ch = upcase(ch);
+				if(ch == 'Q')
+				{
+					break;
+				}
+
+				if(ch == 'B')
+				{
+					addr -= MAX_MEMDUMP_SIZE;
+				}
+				else
+				{
+					addr += MAX_MEMDUMP_SIZE;
+				}
+
+				size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+			}
+		}
+		else
+		{
+			printf("Invalid memory address %x\n", addr);
+		}
+	}
+	else
+	{
+		return CMD_ERROR;
+	}
+
+	return CMD_OK;
+}
+
+static int savemem_cmd(int argc, char **argv)
+{
+	u32 addr;
+	int size;
+	int written;
+	char *endp;
+
+	size = strtoul(argv[1], &endp, 0);
+	if(*endp != 0)
+	{
+		printf("Size parameter invalid '%s'\n", argv[1]);
+		return CMD_ERROR;
+	}
+
+	if(decode_memaddr(argv[0], &addr))
+	{
+		int size_left;
+		int fd;
+
+		size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+		size = size > size_left ? size_left : size;
+		fd = sceIoOpen(argv[2], PSP_O_CREAT | PSP_O_TRUNC | PSP_O_WRONLY, 0777);
+		if(fd < 0)
+		{
+			printf("Could not open file '%s' for writing %08X\n", argv[2], fd);
+		}
+		else
+		{
+			written = 0;
+			while(written < size)
+			{
+				int ret;
+
+				ret = sceIoWrite(fd, (void *) (addr + written), size - written);
+				if(ret <= 0)
+				{
+					printf("Could not write out file\n");
+					break;
+				}
+
+				written += ret;
+			}
+			sceIoClose(fd);
+		}
+	}
+	else
+	{
+		return CMD_ERROR;
+	}
+
+	return CMD_OK;
+}
+
+static int loadmem_cmd(int argc, char **argv)
+{
+	u32 addr;
+	int maxsize = -1;
+	char *endp;
+
+	if(argc > 2)
+	{
+		maxsize = strtoul(argv[2], &endp, 0);
+		if(*endp != 0)
+		{
+			printf("Size parameter invalid '%s'\n", argv[2]);
+			return CMD_ERROR;
+		}
+	}
+
+	if(decode_memaddr(argv[0], &addr))
+	{
+		int size_left;
+		int readbytes;
+		int fd;
+
+		size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+		fd = sceIoOpen(argv[1], PSP_O_RDONLY, 0777);
+		if(fd < 0)
+		{
+			printf("Could not open file '%s' for reading %08X\n", argv[2], fd);
+		}
+		else
+		{
+			int size = 0;
+
+			if(maxsize >= 0)
+			{
+				size = maxsize > size_left ? size_left : maxsize;
+			}
+			else
+			{
+				size = size_left;
+			}
+
+			readbytes = 0;
+			while(readbytes < size)
+			{
+				int ret;
+
+				ret = sceIoRead(fd, (void *) (addr + readbytes), size - readbytes);
+				if(ret < 0)
+				{
+					printf("Could not write out file\n");
+					break;
+				}
+				else if(ret == 0)
+				{
+					break;
+				}
+
+				readbytes += ret;
+			}
+			sceIoClose(fd);
+			printf("Read %d bytes into memory\n", readbytes);
+		}
+	}
+	else
+	{
+		return CMD_ERROR;
+	}
+
+	return CMD_OK;
+}
+
+static int pokew_cmd(int argc, char **argv)
+{
+	u32 addr;
+
+	if(decode_memaddr(argv[0], &addr))
+	{
+		int size_left;
+		int i;
+
+		addr &= ~3;
+		size_left = validate_memaddr(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_WORD);
+		if(size_left > 0)
+		{
+			for(i = 1; i < argc; i++)
+			{
+				u32 data;
+				char *endp;
+
+				data = strtoul(argv[i], &endp, 0);
+				if(*endp == 0)
+				{
+					_sw(data, addr);
+				}
+				else
+				{
+					printf("Invalid value %s\n", argv[i]);
+				}
+
+				addr += 4;
+				size_left -= 4;
+				if(size_left == 0)
+				{
+					break;
+				}
+			}
+		}
+		else
+		{
+			printf("Invalid memory address %08X\n", addr);
+			return CMD_ERROR;
+		}
+	}
+
+	return CMD_OK;
+}
+
+static int pokeh_cmd(int argc, char **argv)
+{
+	u32 addr;
+
+	if(decode_memaddr(argv[0], &addr))
+	{
+		int size_left;
+		int i;
+
+		addr &= ~1;
+		size_left = validate_memaddr(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_HALF);
+		if(size_left > 0)
+		{
+			for(i = 1; i < argc; i++)
+			{
+				u32 data;
+				char *endp;
+
+				data = strtoul(argv[i], &endp, 0);
+				if(*endp == 0)
+				{
+					_sh(data, addr);
+				}
+				else
+				{
+					printf("Invalid value %s\n", argv[i]);
+				}
+
+				addr += 2;
+				size_left -= 2;
+				if(size_left == 0)
+				{
+					break;
+				}
+			}
+		}
+		else
+		{
+			printf("Invalid memory address %08X\n", addr);
+			return CMD_ERROR;
+		}
+	}
+
+	return CMD_OK;
+}
+
+static int pokeb_cmd(int argc, char **argv)
+{
+	u32 addr;
+
+	if(decode_memaddr(argv[0], &addr))
+	{
+		int size_left;
+		int i;
+
+		size_left = validate_memaddr(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
+		if(size_left > 0)
+		{
+			for(i = 1; i < argc; i++)
+			{
+				u32 data;
+				char *endp;
+
+				data = strtoul(argv[i], &endp, 0);
+				if(*endp == 0)
+				{
+					_sb(data, addr);
+				}
+				else
+				{
+					printf("Invalid value %s\n", argv[i]);
+				}
+
+				addr += 1;
+				size_left -= 1;
+				if(size_left == 0)
+				{
+					break;
+				}
+			}
+		}
+		else
+		{
+			printf("Invalid memory address %08X\n", addr);
+			return CMD_ERROR;
+		}
 	}
 
 	return CMD_OK;
@@ -1269,6 +1960,10 @@ static int help_cmd(int argc, char **argv)
 				}
 				printf("Usage: %s\n", found_cmd->help);
 			}
+		}
+		else
+		{
+			printf("Unknown command %s, type help for information\n", argv[0]);
 		}
 	}
 

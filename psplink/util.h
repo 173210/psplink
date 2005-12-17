@@ -16,6 +16,8 @@
 #define TYPE_DIR	2
 #define TYPE_ETHER	3
 
+int is_hex(char ch);
+int hex_to_int(char ch);
 char upcase(char ch);
 int is_aspace(int ch);
 int build_bootargs(char *args, const char *bootfile, const char *execfile, int argc, char **argv);
