@@ -11,4 +11,4 @@
  * $Id$
  */
 
-int parse_args(char *args, int *argc, char **argv, int max_args);
+int parse_args(char *in, char *out, int *argc, char **argv, int max_args);

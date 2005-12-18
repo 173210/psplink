@@ -13,16 +13,14 @@
 #include <pspkernel.h>
 #include <pspdebug.h>
 #include "psplink.h"
+#include "util.h"
 
 #define MAX_BUFFER 1024
 
 struct ConfigFile
 {
-	int fd;
+	PspFile file;
 	char str_buf[MAX_BUFFER];
-	char read_buf[MAX_BUFFER];
-	int  read_size;
-	int  read_pos;
 	int  line;
 };
 

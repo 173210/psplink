@@ -12,9 +12,21 @@
  * $Id$
  */
 
+#ifndef __UTIL_H__
+#define __UTIL_H__
+
+#define MAX_BUFFER 1024
 #define TYPE_FILE	1
 #define TYPE_DIR	2
 #define TYPE_ETHER	3
+
+typedef struct _PspFile
+{
+	int fd;
+	char read_buf[MAX_BUFFER];
+	int  read_size;
+	int  read_pos;
+} PspFile;
 
 int is_hex(char ch);
 int hex_to_int(char ch);
@@ -29,6 +41,13 @@ void map_firmwarerev(void);
 int init_usb(void);
 int stop_usb(void);
 void save_execargs(int argc, char **argv);
+int openfile(const char *filename, PspFile *pFile);
+int closefile(PspFile *pFile);
+int fdgetc(PspFile *pFile);
+int fdgets(PspFile *pFile, char *buf, int size);
+void strip_whitesp(char *s);
 
 extern int (*g_QueryModuleInfo)(SceUID modid, SceKernelModuleInfo *info);
 extern int (*g_GetModuleIdList)(SceUID *readbuf, int readbufsize, int *idcount);
+
+#endif

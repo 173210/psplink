@@ -12,6 +12,11 @@
  * $Id$
  */
 
+/* Return values for the commands */
+#define CMD_EXITSHELL 	1
+#define CMD_OK		  	0
+#define CMD_ERROR		-1
+
 /* Parse a command string */
 int shellParse(char *command);
 void shellStart(const char *cliprompt);

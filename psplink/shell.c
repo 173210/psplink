@@ -30,6 +30,7 @@
 #include "util.h"
 #include "sio.h"
 #include "bitmap.h"
+#include "shell.h"
 
 #define MAX_SHELL_VAR      128
 #define SHELL_PROMPT	"psplink %d>"
@@ -253,367 +254,6 @@ void print_prompt(void)
 
 	tmp[out] = 0;
 	printf("%s ", tmp);
-}
-
-/* Defines for shell command handlers */
-static int exit_cmd(int argc, char **argv);
-static int help_cmd(int argc, char **argv);
-static int thlist_cmd(int argc, char **argv);
-static int thinfo_cmd(int argc, char **argv);
-static int thsusp_cmd(int argc, char **argv);
-static int thresm_cmd(int argc, char **argv);
-static int thwake_cmd(int argc, char **argv);
-static int thterm_cmd(int argc, char **argv);
-static int thdel_cmd(int argc, char **argv);
-static int thtdel_cmd(int argc, char **argv);
-static int evlist_cmd(int argc, char **argv);
-static int evinfo_cmd(int argc, char **argv);
-static int smlist_cmd(int argc, char **argv);
-static int sminfo_cmd(int argc, char **argv);
-static int uidlist_cmd(int argc, char **argv);
-static int modlist_cmd(int argc, char **argv);
-static int modinfo_cmd(int argc, char **argv);
-static int modstop_cmd(int argc, char **argv);
-static int modunld_cmd(int argc, char **argv);
-static int modstart_cmd(int argc, char **argv);
-static int modload_cmd(int argc, char **argv);
-static int modexec_cmd(int argc, char **argv);
-static int meminfo_cmd(int argc, char **argv);
-static int memreg_cmd(int argc, char **argv);
-static int memdump_cmd(int argc, char **argv);
-static int savemem_cmd(int argc, char **argv);
-static int loadmem_cmd(int argc, char **argv);
-static int pokew_cmd(int argc, char **argv);
-static int pokeh_cmd(int argc, char **argv);
-static int pokeb_cmd(int argc, char **argv);
-static int ldstart_cmd(int argc, char **argv);
-static int exec_cmd(int argc, char **argv);
-static int debug_cmd(int argc, char **argv);
-static int reset_cmd(int argc, char **argv);
-static int ls_cmd(int argc, char **argv);
-static int chdir_cmd(int argc, char **argv);
-static int pwd_cmd(int argc, char **argv);
-static int usbon_cmd(int argc, char **argv);
-static int usboff_cmd(int argc, char **argv);
-static int usbstat_cmd(int argc, char **argv);
-static int cp_cmd(int argc, char **argv);
-static int mkdir_cmd(int argc, char **argv);
-static int rm_cmd(int argc, char **argv);
-static int rmdir_cmd(int argc, char **argv);
-static int rename_cmd(int argc, char **argv);
-static int set_cmd(int argc, char **argv);
-static int scrshot_cmd(int argc, char **argv);
-
-/* Return values for the commands */
-#define CMD_EXITSHELL 	1
-#define CMD_OK		  	0
-#define CMD_ERROR		-1
-
-#define SHELL_TYPE_CMD  0
-#define SHELL_TYPE_CATEGORY 1
-
-/* Structure to hold a single command entry */
-struct sh_command 
-{
-	const char *name;		/* Normal name of the command */
-	const char *syn;		/* Synonym of the command */
-	int (*func)(int argc, char **argv);		/* Pointer to the command function */
-	int min_args;
-	const char *desc;		/* Textual description */
-	const char *help;		/* Command usage */
-	int type;
-};
-
-/* Define the list of commands */
-struct sh_command commands[] = {
-	{ "thread", NULL, NULL, 0, "Commands to manipulate threads", NULL, SHELL_TYPE_CATEGORY },
-	{ "thlist", "tl", thlist_cmd, 0, "List the threads in the system", "tl [v]", SHELL_TYPE_CMD },
-	{ "thinfo", "ti", thinfo_cmd, 1, "Print info about a thread", "ti uid|@name" , SHELL_TYPE_CMD},
-	{ "thsusp", "ts", thsusp_cmd, 1, "Suspend a thread", "ts uid|@name" , SHELL_TYPE_CMD},
-	{ "thresm", "tr", thresm_cmd, 1, "Resume a thread", "tr uid|@name" , SHELL_TYPE_CMD},
-	{ "thwake", "tw", thwake_cmd, 1, "Wakeup a thread", "tw uid|@name" , SHELL_TYPE_CMD},
-	{ "thterm", "tt", thterm_cmd, 1, "Terminate a thread", "tt uid|@name" , SHELL_TYPE_CMD},
-	{ "thdel", "td", thdel_cmd, 1, "Delete a thread", "td uid|@name" , SHELL_TYPE_CMD},
-	{ "thtdel", "tx", thtdel_cmd, 1, "Terminate and delete a thread", "tx uid|@name" , SHELL_TYPE_CMD},
-	{ "evlist", "el", evlist_cmd, 0, "List the event flags in the system", "el [v]", SHELL_TYPE_CMD },
-	{ "evinfo", "ei", evinfo_cmd, 1, "Print info about an event flag", "ei uid|@name", SHELL_TYPE_CMD },
-	{ "smlist", "sl", smlist_cmd, 0, "List the semaphores in the system", "sl [v]", SHELL_TYPE_CMD },
-	{ "sminfo", "si", sminfo_cmd, 1, "Print info about a semaphore", "si uid|@name", SHELL_TYPE_CMD },
-	
-	{ "module", NULL, NULL, 0, "Commands to handle modules", NULL, SHELL_TYPE_CATEGORY },
-	{ "modlist","ml", modlist_cmd, 0, "List the currently loaded modules", "ml [v]", SHELL_TYPE_CMD },
-	{ "modinfo","mi", modinfo_cmd, 1, "Print info about a module", "mi uid|@name", SHELL_TYPE_CMD },
-	{ "modstop","ms", modstop_cmd, 1, "Stop a running module", "ms uid|@name", SHELL_TYPE_CMD },
-	{ "modunld","mu", modunld_cmd, 1, "Unload a module (must be stopped)", "mu uid|@name", SHELL_TYPE_CMD },
-	{ "modload","md", modload_cmd, 1, "Load a module", "md path", SHELL_TYPE_CMD },
-	{ "modstart","mt", modstart_cmd, 1, "Start a module", "mt uid|@name [args]", SHELL_TYPE_CMD },
-	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me path [args]", SHELL_TYPE_CMD },
-	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path] [args]", SHELL_TYPE_CMD },
-	{ "debug", "d", debug_cmd, 1, "Debug an executable (need to switch to gdb)", "debug path", SHELL_TYPE_CMD },
-	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path [args]", SHELL_TYPE_CMD },
-	
-	{ "memory", NULL, NULL, 0, "Commands to handle memory allocation", NULL, SHELL_TYPE_CATEGORY },
-	{ "meminfo", "mf", meminfo_cmd, 0, "Print memory info", "mf [partitionid]", SHELL_TYPE_CMD },
-	{ "memreg",  "mr", memreg_cmd, 0, "Print available memory regions (for other commands)", "mr", SHELL_TYPE_CMD },
-	{ "memdump", "dm", memdump_cmd, 1, "Dump memory to screen", "md address", SHELL_TYPE_CMD },
-	{ "savemem", "sm", savemem_cmd, 3, "Save memory to a file", "sm adresss size file", SHELL_TYPE_CMD },
-	{ "loadmem", "lm", loadmem_cmd, 2, "Load memory from a file", "lm address file [maxsize]", SHELL_TYPE_CMD },
-	{ "pokew",   "pw", pokew_cmd, 2, "Poke words into memory", "pw address val1 [val2..valN]", SHELL_TYPE_CMD },
-	{ "pokeh",   "pw", pokeh_cmd, 2, "Poke half words into memory", "ph address val1 [val2..valN]", SHELL_TYPE_CMD },
-	{ "pokeb",   "pw", pokeb_cmd, 2, "Poke bytes into memory", "pb address val1 [val2..valN]", SHELL_TYPE_CMD },
-	
-	{ "fileio", NULL, NULL, 0, "Commands to handle file io", NULL, SHELL_TYPE_CATEGORY },
-	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "ls [path]", SHELL_TYPE_CMD },
-	{ "chdir", "cd", chdir_cmd, 1, "Change the current directory", "cd path", SHELL_TYPE_CMD },
-	{ "cp",  "copy", cp_cmd, 2, "Copy a file", "cp source destination", SHELL_TYPE_CMD },
-	{ "mkdir", "md", mkdir_cmd, 1, "Make a Directory", "mkdir dir", SHELL_TYPE_CMD },
-	{ "rm", "del", rm_cmd, 1, "Removes a File", "rm file", SHELL_TYPE_CMD },
-	{ "rmdir", "rd", rmdir_cmd, 1, "Removes a Director", "rmdir dir", SHELL_TYPE_CMD },
-	{ "rename", "ren", rename_cmd, 2, "Renames a File", "rename src dst", SHELL_TYPE_CMD },
-	{ "pwd",   NULL, pwd_cmd, 0, "Print the current working directory", "pwd", SHELL_TYPE_CMD },
-
-	{ "misc", NULL, NULL, 0, "Miscellaneous commands (e.g. USB, exit)", NULL, SHELL_TYPE_CATEGORY },
-	{ "usbon", "un", usbon_cmd, 0, "Enable USB mass storage device", "usbon", SHELL_TYPE_CMD },
-	{ "usboff", "uf", usboff_cmd, 0, "Disable USB mass storage device", "usboff", SHELL_TYPE_CMD },
-	{ "usbstat", "us", usbstat_cmd, 0, "Display the USB status", "usbstat", SHELL_TYPE_CMD },
-    { "uidlist","ul", uidlist_cmd, 0, "List the system UIDS", "ul", SHELL_TYPE_CMD },
-	{ "exit", "quit", exit_cmd, 0, "Exit the shell", "exit", SHELL_TYPE_CMD },
-	{ "set", NULL, set_cmd, 0, "Set a shell variable", "set [var=value]", SHELL_TYPE_CMD },
-	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "ss file", SHELL_TYPE_CMD },
-	{ "reset", "r", reset_cmd, 0, "Reset", "r", SHELL_TYPE_CMD },
-	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command]", SHELL_TYPE_CMD },
-	{ NULL, NULL, NULL, 0, NULL, NULL, SHELL_TYPE_CMD }
-};
-
-/* Find a command from the command list */
-static struct sh_command* find_command(const char *cmd)
-{
-	struct sh_command* found_cmd = NULL;
-	int cmd_loop;
-
-	for(cmd_loop = 0; commands[cmd_loop].name != NULL; cmd_loop++)
-	{
-		if(strcmp(cmd, commands[cmd_loop].name) == 0)
-		{
-			found_cmd = &commands[cmd_loop];
-			break;
-		}
-
-		if(commands[cmd_loop].syn)
-		{
-			if(strcmp(cmd, commands[cmd_loop].syn) == 0)
-			{
-				found_cmd = &commands[cmd_loop];
-				break;
-			}
-		}
-	}
-
-	return found_cmd;
-}
-
-int shellParse(char *command)
-{
-	int ret = CMD_OK;
-	char *cmd;
-	int argc;
-	char *argv[16];
-
-	if(parse_args(command, &argc, argv, 16) == 0)
-	{
-		printf("Error parsing command\n");
-		return CMD_ERROR;
-	}
-
-	if(argc > 0)
-	{
-		struct sh_command *found_cmd;
-
-		cmd = argv[0];
-		found_cmd = find_command(cmd);
-		if((found_cmd) && (found_cmd->type != SHELL_TYPE_CATEGORY))
-		{
-			if((found_cmd->min_args > (argc - 1)) || ((ret = found_cmd->func(argc-1, &argv[1])) == CMD_ERROR))
-			{
-				printf("Usage: %s\n", found_cmd->help);
-			}
-		}
-		else
-		{
-			printf("Unknown command %s\n", cmd);
-		}
-	}
-
-	if(ret != CMD_EXITSHELL)
-	{
-		print_prompt();
-	}
-
-	return ret;
-}
-
-/* Process command line */
-static int process_cli()
-{
-    pspDebugSioPutchar(13);
-    pspDebugSioPutchar(10);
-	g_cli[g_cli_pos] = 0;
-	g_cli_pos = 0;
-	memcpy(&g_lastcli[g_lastcli_pos][0], g_cli, CLI_MAX);
-	g_lastcli_pos = (g_lastcli_pos + 1) % CLI_HISTSIZE;
-	g_currcli_pos = g_lastcli_pos;
-
-	return shellParse(g_cli);
-}
-
-/* Handle an escape sequence */
-static void cli_handle_escape(void)
-{
-	char ch;
-
-	ch = g_readcharwithtimeout();
-
-	if(ch != -1)
-	{
-		/* Arrow keys UDRL/ABCD */
-		if(ch == '[')
-		{
-			ch = g_readcharwithtimeout();
-			switch(ch)
-			{
-				case 'A' : {
-							   int pos;
-
-							   pos = g_currcli_pos - 1;
-							   if(pos < 0)
-							   {
-								   pos += CLI_HISTSIZE;
-							   }
-
-							   if(g_lastcli[pos][0] != 0)
-							   {
-								   char *src, *dst;
-
-								   src = g_lastcli[pos];
-								   dst = g_cli;
-								   g_currcli_pos = pos;
-								   g_cli_pos = 0;
-								   g_cli_size = 0;
-								   while(*src)
-								   {
-									   *dst++ = *src++;
-									   g_cli_pos++;
-									   g_cli_size++;
-								   }
-								   *dst = 0;
-
-								   printf("\n");
-								   print_prompt();
-								   printf("%s", g_cli);
-							   } 
-						   } 
-						   break;
-
-				case 'B' : {
-							   int pos;
-
-							   pos = g_currcli_pos + 1;
-							   pos %= CLI_HISTSIZE;
-
-							   if(g_lastcli[pos][0] != 0)
-							   {
-								   char *src, *dst;
-
-								   src = g_lastcli[pos];
-								   dst = g_cli;
-								   g_currcli_pos = pos;
-								   g_cli_pos = 0;
-								   g_cli_size = 0;
-								   while(*src)
-								   {
-									   *dst++ = *src++;
-									   g_cli_pos++;
-									   g_cli_size++;
-								   }
-								   *dst = 0;
-
-								   printf("\n");
-								   print_prompt();
-								   printf("%s", g_cli);
-							   } 
-						   } 
-						   break;
-
-
-
-				default: 
-							printf("Unknown character %d\n", ch);
-						   break;
-			};
-		}
-		else
-		{
-			printf("Unknown character %d\n", ch);
-		}
-	}
-}
-
-/* Main shell function */
-void shellStart(const char *cliprompt)
-{		
-	int exit_shell = 0;
-
-	if(strlen(cliprompt) > 0)
-	{
-		set_shell_var("prompt", cliprompt);
-	}
-
-	strcpy(g_context.currdir, "ms0:/");
-	print_prompt();
-	g_cli_pos = 0;
-	g_cli_size = 0;
-	memset(g_cli, 0, CLI_MAX);
-
-	while(!exit_shell) {
-		char ch;
-
-		ch = g_readchar();
-		switch(ch)
-		{
-			case -1 : break; // No char
-					  /* ^D */
-			case 4  : printf("\nExiting Shell\n");
-					  exit_shell = 1;
-					  break;
-			case 8  : // Backspace
-	                case 127: if(g_cli_pos > 0)
-					  {
-						  g_cli_pos--;
-						  g_cli[g_cli_pos] = 0;
-						  pspDebugSioPutchar(8);
-						  pspDebugSioPutchar(' ');
-						  pspDebugSioPutchar(8);
-					  }
-					  break;
-			case 9  : break; // Ignore tab
-			case 13 :		 // Enter key 
-			case 10 : if(process_cli() == CMD_EXITSHELL) 
-					  {
-						  exit_shell = 1;
-					  }
-					  break;
-			case 27 : /* Escape character */
-					  cli_handle_escape();
-					  break;
-			default : if((g_cli_pos < (CLI_MAX - 1)) && (ch >= 32))
-					  {
-						  g_cli[g_cli_pos++] = ch;
-						  g_cli[g_cli_pos] = 0;
-						  pspDebugSioPutchar(ch);
-					  }
-					  break;
-		}
-	}
 }
 
 static SceUID get_module_uid(const char *name)
@@ -2043,6 +1683,44 @@ static int pokeb_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int disasm_cmd(int argc, char **argv)
+{
+	u32 addr;
+	int count = 1;
+	int i;
+
+	if(argc > 1)
+	{
+		char *endp;
+		count = strtoul(argv[1], &endp, 0);
+		if(*endp != 0)
+		{
+			printf("Invalid count argument\n");
+			return CMD_ERROR;
+		}
+	}
+
+	if(decode_memaddr(argv[0], &addr))
+	{
+		int size_left;
+
+		addr &= ~3;
+		size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_WORD | MEM_ATTRIB_EXEC);
+		if((size_left / 4) < count)
+		{
+			count = size_left / 4;
+		}
+
+		for(i = 0; i < count; i++)
+		{
+			printf("%s\n", PSPdis(addr));
+			addr += 4;
+		}
+	}
+
+	return CMD_OK;
+}
+
 static int scrshot_cmd(int argc, char **argv)
 {
 	SceUID block_id;
@@ -2117,6 +1795,317 @@ static int set_cmd(int argc, char **argv)
 static int exit_cmd(int argc, char **argv)
 {
 	return CMD_EXITSHELL;
+}
+
+static int help_cmd(int argc, char **argv);
+
+#define SHELL_TYPE_CMD  0
+#define SHELL_TYPE_CATEGORY 1
+
+/* Structure to hold a single command entry */
+struct sh_command 
+{
+	const char *name;		/* Normal name of the command */
+	const char *syn;		/* Synonym of the command */
+	int (*func)(int argc, char **argv);		/* Pointer to the command function */
+	int min_args;
+	const char *desc;		/* Textual description */
+	const char *help;		/* Command usage */
+	int type;
+};
+
+/* Define the list of commands */
+struct sh_command commands[] = {
+	{ "thread", NULL, NULL, 0, "Commands to manipulate threads", NULL, SHELL_TYPE_CATEGORY },
+	{ "thlist", "tl", thlist_cmd, 0, "List the threads in the system", "tl [v]", SHELL_TYPE_CMD },
+	{ "thinfo", "ti", thinfo_cmd, 1, "Print info about a thread", "ti uid|@name" , SHELL_TYPE_CMD},
+	{ "thsusp", "ts", thsusp_cmd, 1, "Suspend a thread", "ts uid|@name" , SHELL_TYPE_CMD},
+	{ "thresm", "tr", thresm_cmd, 1, "Resume a thread", "tr uid|@name" , SHELL_TYPE_CMD},
+	{ "thwake", "tw", thwake_cmd, 1, "Wakeup a thread", "tw uid|@name" , SHELL_TYPE_CMD},
+	{ "thterm", "tt", thterm_cmd, 1, "Terminate a thread", "tt uid|@name" , SHELL_TYPE_CMD},
+	{ "thdel", "td", thdel_cmd, 1, "Delete a thread", "td uid|@name" , SHELL_TYPE_CMD},
+	{ "thtdel", "tx", thtdel_cmd, 1, "Terminate and delete a thread", "tx uid|@name" , SHELL_TYPE_CMD},
+	{ "evlist", "el", evlist_cmd, 0, "List the event flags in the system", "el [v]", SHELL_TYPE_CMD },
+	{ "evinfo", "ei", evinfo_cmd, 1, "Print info about an event flag", "ei uid|@name", SHELL_TYPE_CMD },
+	{ "smlist", "sl", smlist_cmd, 0, "List the semaphores in the system", "sl [v]", SHELL_TYPE_CMD },
+	{ "sminfo", "si", sminfo_cmd, 1, "Print info about a semaphore", "si uid|@name", SHELL_TYPE_CMD },
+	
+	{ "module", NULL, NULL, 0, "Commands to handle modules", NULL, SHELL_TYPE_CATEGORY },
+	{ "modlist","ml", modlist_cmd, 0, "List the currently loaded modules", "ml [v]", SHELL_TYPE_CMD },
+	{ "modinfo","mi", modinfo_cmd, 1, "Print info about a module", "mi uid|@name", SHELL_TYPE_CMD },
+	{ "modstop","ms", modstop_cmd, 1, "Stop a running module", "ms uid|@name", SHELL_TYPE_CMD },
+	{ "modunld","mu", modunld_cmd, 1, "Unload a module (must be stopped)", "mu uid|@name", SHELL_TYPE_CMD },
+	{ "modload","md", modload_cmd, 1, "Load a module", "md path", SHELL_TYPE_CMD },
+	{ "modstart","mt", modstart_cmd, 1, "Start a module", "mt uid|@name [args]", SHELL_TYPE_CMD },
+	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me path [args]", SHELL_TYPE_CMD },
+	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path] [args]", SHELL_TYPE_CMD },
+	{ "debug", "d", debug_cmd, 1, "Debug an executable (need to switch to gdb)", "debug path", SHELL_TYPE_CMD },
+	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path [args]", SHELL_TYPE_CMD },
+	
+	{ "memory", NULL, NULL, 0, "Commands to manipulate memory", NULL, SHELL_TYPE_CATEGORY },
+	{ "meminfo", "mf", meminfo_cmd, 0, "Print free memory info", "mf [partitionid]", SHELL_TYPE_CMD },
+	{ "memreg",  "mr", memreg_cmd, 0, "Print available memory regions (for other commands)", "mr", SHELL_TYPE_CMD },
+	{ "memdump", "dm", memdump_cmd, 1, "Dump memory to screen", "md address", SHELL_TYPE_CMD },
+	{ "savemem", "sm", savemem_cmd, 3, "Save memory to a file", "sm adresss size file", SHELL_TYPE_CMD },
+	{ "loadmem", "lm", loadmem_cmd, 2, "Load memory from a file", "lm address file [maxsize]", SHELL_TYPE_CMD },
+	{ "pokew",   "pw", pokew_cmd, 2, "Poke words into memory", "pw address val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "pokeh",   "pw", pokeh_cmd, 2, "Poke half words into memory", "ph address val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "pokeb",   "pw", pokeb_cmd, 2, "Poke bytes into memory", "pb address val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "disasm",  "di", disasm_cmd, 1, "Disassemble instructions", "di address [count]", SHELL_TYPE_CMD },
+	
+	{ "fileio", NULL, NULL, 0, "Commands to handle file io", NULL, SHELL_TYPE_CATEGORY },
+	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "ls [path]", SHELL_TYPE_CMD },
+	{ "chdir", "cd", chdir_cmd, 1, "Change the current directory", "cd path", SHELL_TYPE_CMD },
+	{ "cp",  "copy", cp_cmd, 2, "Copy a file", "cp source destination", SHELL_TYPE_CMD },
+	{ "mkdir", "md", mkdir_cmd, 1, "Make a Directory", "mkdir dir", SHELL_TYPE_CMD },
+	{ "rm", "del", rm_cmd, 1, "Removes a File", "rm file", SHELL_TYPE_CMD },
+	{ "rmdir", "rd", rmdir_cmd, 1, "Removes a Director", "rmdir dir", SHELL_TYPE_CMD },
+	{ "rename", "ren", rename_cmd, 2, "Renames a File", "rename src dst", SHELL_TYPE_CMD },
+	{ "pwd",   NULL, pwd_cmd, 0, "Print the current working directory", "pwd", SHELL_TYPE_CMD },
+
+	{ "misc", NULL, NULL, 0, "Miscellaneous commands (e.g. USB, exit)", NULL, SHELL_TYPE_CATEGORY },
+	{ "usbon", "un", usbon_cmd, 0, "Enable USB mass storage device", "usbon", SHELL_TYPE_CMD },
+	{ "usboff", "uf", usboff_cmd, 0, "Disable USB mass storage device", "usboff", SHELL_TYPE_CMD },
+	{ "usbstat", "us", usbstat_cmd, 0, "Display the status of the USB connection", "usbstat", SHELL_TYPE_CMD },
+    { "uidlist","ul", uidlist_cmd, 0, "List the system UIDS", "ul", SHELL_TYPE_CMD },
+	{ "exit", "quit", exit_cmd, 0, "Exit the shell", "exit", SHELL_TYPE_CMD },
+	{ "set", NULL, set_cmd, 0, "Set a shell variable", "set [var=value]", SHELL_TYPE_CMD },
+	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "ss file", SHELL_TYPE_CMD },
+	{ "reset", "r", reset_cmd, 0, "Reset", "r", SHELL_TYPE_CMD },
+	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command]", SHELL_TYPE_CMD },
+	{ NULL, NULL, NULL, 0, NULL, NULL, SHELL_TYPE_CMD }
+};
+
+/* Find a command from the command list */
+static struct sh_command* find_command(const char *cmd)
+{
+	struct sh_command* found_cmd = NULL;
+	int cmd_loop;
+
+	for(cmd_loop = 0; commands[cmd_loop].name != NULL; cmd_loop++)
+	{
+		if(strcmp(cmd, commands[cmd_loop].name) == 0)
+		{
+			found_cmd = &commands[cmd_loop];
+			break;
+		}
+
+		if(commands[cmd_loop].syn)
+		{
+			if(strcmp(cmd, commands[cmd_loop].syn) == 0)
+			{
+				found_cmd = &commands[cmd_loop];
+				break;
+			}
+		}
+	}
+
+	return found_cmd;
+}
+
+int shellParse(char *command)
+{
+	int ret = CMD_OK;
+	char *cmd;
+	int argc;
+	char *argv[16];
+	char outbuf[CLI_MAX];
+
+	if(parse_args(command, outbuf, &argc, argv, 16) == 0)
+	{
+		printf("Error parsing command\n");
+		return CMD_ERROR;
+	}
+
+	if(argc > 0)
+	{
+		struct sh_command *found_cmd;
+
+		cmd = argv[0];
+		found_cmd = find_command(cmd);
+		if((found_cmd) && (found_cmd->type != SHELL_TYPE_CATEGORY))
+		{
+			if((found_cmd->min_args > (argc - 1)) || ((ret = found_cmd->func(argc-1, &argv[1])) == CMD_ERROR))
+			{
+				printf("Usage: %s\n", found_cmd->help);
+			}
+		}
+		else
+		{
+			printf("Unknown command %s\n", cmd);
+		}
+	}
+
+	if(ret != CMD_EXITSHELL)
+	{
+		print_prompt();
+	}
+
+	return ret;
+}
+
+/* Process command line */
+static int process_cli()
+{
+    pspDebugSioPutchar(13);
+    pspDebugSioPutchar(10);
+	g_cli[g_cli_pos] = 0;
+	g_cli_pos = 0;
+	memcpy(&g_lastcli[g_lastcli_pos][0], g_cli, CLI_MAX);
+	g_lastcli_pos = (g_lastcli_pos + 1) % CLI_HISTSIZE;
+	g_currcli_pos = g_lastcli_pos;
+
+	return shellParse(g_cli);
+}
+
+/* Handle an escape sequence */
+static void cli_handle_escape(void)
+{
+	char ch;
+
+	ch = g_readcharwithtimeout();
+
+	if(ch != -1)
+	{
+		/* Arrow keys UDRL/ABCD */
+		if(ch == '[')
+		{
+			ch = g_readcharwithtimeout();
+			switch(ch)
+			{
+				case 'A' : {
+							   int pos;
+
+							   pos = g_currcli_pos - 1;
+							   if(pos < 0)
+							   {
+								   pos += CLI_HISTSIZE;
+							   }
+
+							   if(g_lastcli[pos][0] != 0)
+							   {
+								   char *src, *dst;
+
+								   src = g_lastcli[pos];
+								   dst = g_cli;
+								   g_currcli_pos = pos;
+								   g_cli_pos = 0;
+								   g_cli_size = 0;
+								   while(*src)
+								   {
+									   *dst++ = *src++;
+									   g_cli_pos++;
+									   g_cli_size++;
+								   }
+								   *dst = 0;
+
+								   printf("\n");
+								   print_prompt();
+								   printf("%s", g_cli);
+							   } 
+						   } 
+						   break;
+
+				case 'B' : {
+							   int pos;
+
+							   pos = g_currcli_pos + 1;
+							   pos %= CLI_HISTSIZE;
+
+							   if(g_lastcli[pos][0] != 0)
+							   {
+								   char *src, *dst;
+
+								   src = g_lastcli[pos];
+								   dst = g_cli;
+								   g_currcli_pos = pos;
+								   g_cli_pos = 0;
+								   g_cli_size = 0;
+								   while(*src)
+								   {
+									   *dst++ = *src++;
+									   g_cli_pos++;
+									   g_cli_size++;
+								   }
+								   *dst = 0;
+
+								   printf("\n");
+								   print_prompt();
+								   printf("%s", g_cli);
+							   } 
+						   } 
+						   break;
+
+
+
+				default: 
+							printf("Unknown character %d\n", ch);
+						   break;
+			};
+		}
+		else
+		{
+			printf("Unknown character %d\n", ch);
+		}
+	}
+}
+
+/* Main shell function */
+void shellStart(const char *cliprompt)
+{		
+	int exit_shell = 0;
+
+	if(strlen(cliprompt) > 0)
+	{
+		set_shell_var("prompt", cliprompt);
+	}
+
+	strcpy(g_context.currdir, "ms0:/");
+	print_prompt();
+	g_cli_pos = 0;
+	g_cli_size = 0;
+	memset(g_cli, 0, CLI_MAX);
+
+	while(!exit_shell) {
+		char ch;
+
+		ch = g_readchar();
+		switch(ch)
+		{
+			case -1 : break; // No char
+					  /* ^D */
+			case 4  : printf("\nExiting Shell\n");
+					  exit_shell = 1;
+					  break;
+			case 8  : // Backspace
+	                case 127: if(g_cli_pos > 0)
+					  {
+						  g_cli_pos--;
+						  g_cli[g_cli_pos] = 0;
+						  pspDebugSioPutchar(8);
+						  pspDebugSioPutchar(' ');
+						  pspDebugSioPutchar(8);
+					  }
+					  break;
+			case 9  : break; // Ignore tab
+			case 13 :		 // Enter key 
+			case 10 : if(process_cli() == CMD_EXITSHELL) 
+					  {
+						  exit_shell = 1;
+					  }
+					  break;
+			case 27 : /* Escape character */
+					  cli_handle_escape();
+					  break;
+			default : if((g_cli_pos < (CLI_MAX - 1)) && (ch >= 32))
+					  {
+						  g_cli[g_cli_pos++] = ch;
+						  g_cli[g_cli_pos] = 0;
+						  pspDebugSioPutchar(ch);
+					  }
+					  break;
+		}
+	}
 }
 
 /* Help command */

@@ -435,3 +435,157 @@ void save_execargs(int argc, char **argv)
 	g_context.execargc = argc;
 }
 
+int openfile(const char *filename, PspFile *pFile)
+{
+	int iRet = 0;
+
+	do
+	{
+		if(pFile == NULL)
+		{
+			Kprintf("Error, invalid file\n");
+			break;
+		}
+
+		memset(pFile, 0, sizeof(PspFile));
+
+		pFile->fd = sceIoOpen(filename, PSP_O_RDONLY, 0777);
+		if(pFile->fd < 0)
+		{
+			Kprintf("Error, cannot open file %s\n", filename);
+			break;
+		}
+
+		iRet = 1;
+	}
+	while(0);
+
+	return iRet;
+}
+
+int closefile(PspFile *pFile)
+{
+	int iRet = 0;
+	do
+	{
+		if(pFile == NULL)
+		{
+			Kprintf("Error, invalid configuration structure\n");
+			break;
+		}
+
+		if(pFile->fd < 0)
+		{
+			Kprintf("Error, invalid file descriptor\n");
+			break;
+		}
+
+		sceIoClose(pFile->fd);
+		iRet = 1;
+	}
+	while(0);
+
+	return iRet;
+}
+
+/* Seems the kernel's fdgetc is broken :/ */
+int fdgetc(PspFile *pFile)
+{
+	int ch = -1;
+
+	if(pFile->read_size == 0)
+	{
+		int size;
+		size = sceIoRead(pFile->fd, pFile->read_buf, MAX_BUFFER);
+		if(size > 0)
+		{
+			pFile->read_size = size;
+			pFile->read_pos = 0;
+		}
+		else
+		{
+			pFile->read_size = 0;
+			pFile->read_pos = 0;
+		}
+	}
+
+	if(pFile->read_pos < pFile->read_size)
+	{
+		ch = pFile->read_buf[pFile->read_pos++];
+	}
+
+	return ch;
+}
+
+/* As the kernel's fdgetc is broke so is fdgets */
+int fdgets(PspFile *pFile, char *buf, int max)
+{
+	int pos = 0;
+
+	while(pos < (max-1))
+	{
+		int ch;
+
+		ch = fdgetc(pFile);
+
+		/* EOF */
+		if(ch == -1)
+		{
+			break;
+		}
+
+		buf[pos++] = (char) ch;
+
+		if(ch == '\n')
+		{
+			break;
+		}
+	}
+
+	buf[pos] = 0;
+
+	return pos;
+}
+
+void strip_whitesp(char *s)
+{
+	int start;
+	int end;
+
+	end = strlen(s);
+	while(end > 0)
+	{
+		if(is_aspace(s[end-1]))
+		{
+			s[end-1] = 0;
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	start = 0;
+	while(s[start])
+	{
+		if(is_aspace(s[start]))
+		{
+			start++;
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	if(start > 0)
+	{
+		int pos = 0;
+		while(s[start])
+		{
+			s[pos++] = s[start++];
+		}
+		s[pos] = 0;
+	}
+}
+
