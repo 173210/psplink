@@ -31,6 +31,7 @@
 #include "sio.h"
 #include "bitmap.h"
 #include "shell.h"
+#include "script.h"
 
 #define MAX_SHELL_VAR      128
 #define SHELL_PROMPT	"psplink %d>"
@@ -1792,6 +1793,23 @@ static int set_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int run_cmd(int argc, char **argv)
+{
+	char path[1024];
+	int ret = CMD_ERROR;
+
+	if(handlepath(g_context.currdir, argv[0], path, TYPE_FILE, 1))
+	{
+		ret = scriptRun(path, argc, argv, 0);
+	}
+	else
+	{
+		printf("Invalid file %s\n", path);
+	}
+
+	return ret;
+}
+
 static int exit_cmd(int argc, char **argv)
 {
 	return CMD_EXITSHELL;
@@ -1871,6 +1889,7 @@ struct sh_command commands[] = {
 	{ "exit", "quit", exit_cmd, 0, "Exit the shell", "exit", SHELL_TYPE_CMD },
 	{ "set", NULL, set_cmd, 0, "Set a shell variable", "set [var=value]", SHELL_TYPE_CMD },
 	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "ss file", SHELL_TYPE_CMD },
+	{ "run",  NULL, run_cmd, 1, "Run a shell script", "run file [args]", SHELL_TYPE_CMD },
 	{ "reset", "r", reset_cmd, 0, "Reset", "r", SHELL_TYPE_CMD },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command]", SHELL_TYPE_CMD },
 	{ NULL, NULL, NULL, 0, NULL, NULL, SHELL_TYPE_CMD }
@@ -1909,7 +1928,7 @@ int shellParse(char *command)
 	char *cmd;
 	int argc;
 	char *argv[16];
-	char outbuf[CLI_MAX];
+	char outbuf[MAX_BUFFER];
 
 	if(parse_args(command, outbuf, &argc, argv, 16) == 0)
 	{
@@ -1917,7 +1936,7 @@ int shellParse(char *command)
 		return CMD_ERROR;
 	}
 
-	if(argc > 0)
+	if((argc > 0) && (argv[0][0] != '#'))
 	{
 		struct sh_command *found_cmd;
 
@@ -1933,12 +1952,8 @@ int shellParse(char *command)
 		else
 		{
 			printf("Unknown command %s\n", cmd);
+			ret = CMD_ERROR;
 		}
-	}
-
-	if(ret != CMD_EXITSHELL)
-	{
-		print_prompt();
 	}
 
 	return ret;
@@ -1947,6 +1962,8 @@ int shellParse(char *command)
 /* Process command line */
 static int process_cli()
 {
+	int ret;
+
     pspDebugSioPutchar(13);
     pspDebugSioPutchar(10);
 	g_cli[g_cli_pos] = 0;
@@ -1955,7 +1972,13 @@ static int process_cli()
 	g_lastcli_pos = (g_lastcli_pos + 1) % CLI_HISTSIZE;
 	g_currcli_pos = g_lastcli_pos;
 
-	return shellParse(g_cli);
+	ret = shellParse(g_cli);
+	if(ret != CMD_EXITSHELL)
+	{
+		print_prompt();
+	}
+
+	return ret;
 }
 
 /* Handle an escape sequence */
