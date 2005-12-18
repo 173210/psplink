@@ -22,12 +22,14 @@
 #include <pspumd.h>
 #include <psputilsforkernel.h>
 #include <pspsysmem_kernel.h>
+#include <pspdisplay.h>
 #include "memoryUID.h"
 #include "psplink.h"
 #include "psplinkcnf.h"
 #include "parse_args.h"
 #include "util.h"
 #include "sio.h"
+#include "bitmap.h"
 
 #define MAX_SHELL_VAR      128
 #define SHELL_PROMPT	"psplink %d>"
@@ -293,12 +295,14 @@ static int chdir_cmd(int argc, char **argv);
 static int pwd_cmd(int argc, char **argv);
 static int usbon_cmd(int argc, char **argv);
 static int usboff_cmd(int argc, char **argv);
+static int usbstat_cmd(int argc, char **argv);
 static int cp_cmd(int argc, char **argv);
 static int mkdir_cmd(int argc, char **argv);
 static int rm_cmd(int argc, char **argv);
 static int rmdir_cmd(int argc, char **argv);
 static int rename_cmd(int argc, char **argv);
 static int set_cmd(int argc, char **argv);
+static int scrshot_cmd(int argc, char **argv);
 
 /* Return values for the commands */
 #define CMD_EXITSHELL 	1
@@ -371,9 +375,11 @@ struct sh_command commands[] = {
 	{ "misc", NULL, NULL, 0, "Miscellaneous commands (e.g. USB, exit)", NULL, SHELL_TYPE_CATEGORY },
 	{ "usbon", "un", usbon_cmd, 0, "Enable USB mass storage device", "usbon", SHELL_TYPE_CMD },
 	{ "usboff", "uf", usboff_cmd, 0, "Disable USB mass storage device", "usboff", SHELL_TYPE_CMD },
+	{ "usbstat", "us", usbstat_cmd, 0, "Display the USB status", "usbstat", SHELL_TYPE_CMD },
     { "uidlist","ul", uidlist_cmd, 0, "List the system UIDS", "ul", SHELL_TYPE_CMD },
 	{ "exit", "quit", exit_cmd, 0, "Exit the shell", "exit", SHELL_TYPE_CMD },
 	{ "set", NULL, set_cmd, 0, "Set a shell variable", "set [var=value]", SHELL_TYPE_CMD },
+	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "ss file", SHELL_TYPE_CMD },
 	{ "reset", "r", reset_cmd, 0, "Reset", "r", SHELL_TYPE_CMD },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command]", SHELL_TYPE_CMD },
 	{ NULL, NULL, NULL, 0, NULL, NULL, SHELL_TYPE_CMD }
@@ -1466,6 +1472,19 @@ static int usboff_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int usbstat_cmd(int argc, char **argv)
+{
+	u32 state;
+
+	state = sceUsbGetState();
+	printf("USB Status:\n");
+	printf("Connection    : %s\n", state & PSP_USB_ACTIVATED ? "activated" : "deactivated");
+	printf("USB Cable     : %s\n", state & PSP_USB_CABLE_CONNECTED ? "connected" : "disconnected");
+	printf("USB Connection: %s\n", state & PSP_USB_ACTIVATED ? "established" : "notpresent");
+
+	return CMD_OK;
+}
+
 static int rename_cmd(int argc, char **argv)
 {
 	char asrc[MAXPATHLEN], adst[MAXPATHLEN];
@@ -2024,6 +2043,43 @@ static int pokeb_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int scrshot_cmd(int argc, char **argv)
+{
+	SceUID block_id;
+	void *block_addr;
+	void *frame_addr;
+	int frame_width;
+	int pixel_format;
+	int sync = 1;
+
+	block_id = sceKernelAllocPartitionMemory(4, "scrshot", PSP_SMEM_Low, 544*1024, NULL);
+	if(block_id < 0)
+	{
+		printf("Error could not allocate memory buffer %08X\n", block_id);
+		return CMD_ERROR;
+	}
+	 
+	block_addr = sceKernelGetBlockHeadAddr(block_id);
+
+	sceDisplayGetFrameBuf(&frame_addr, &frame_width, &pixel_format, &sync);
+	printf("frame_addr %p, frame_width %d, pixel_format %d\n", frame_addr, frame_width, pixel_format);
+
+	if(frame_addr != NULL)
+	{
+		memcpy(block_addr, (void *) ((u32) frame_addr | 0x40000000), 544*1024);
+
+		bitmapWrite(block_addr, pixel_format, argv[0]);
+	}
+	else
+	{
+		printf("Invalid frame address\n");
+	}
+
+	sceKernelFreePartitionMemory(block_id);
+
+	return CMD_OK;
+}
+
 static int set_cmd(int argc, char **argv)
 {
 	if(argc == 0)
@@ -2075,7 +2131,7 @@ static int help_cmd(int argc, char **argv)
 		{
 			if(commands[cmd_loop].type == SHELL_TYPE_CATEGORY)
 			{
-				printf("%10s - %s\n", commands[cmd_loop].name, commands[cmd_loop].desc);
+				printf("%-10s - %s\n", commands[cmd_loop].name, commands[cmd_loop].desc);
 			}
 		}
 		printf("\nType 'help category' for more information\n");
@@ -2093,7 +2149,7 @@ static int help_cmd(int argc, char **argv)
 				printf("Category %s\n\n", found_cmd->name);
 				for(cmd_loop = 1; found_cmd[cmd_loop].name && found_cmd[cmd_loop].type != SHELL_TYPE_CATEGORY; cmd_loop++)
 				{
-					printf("%10s - %s\n", found_cmd[cmd_loop].name, found_cmd[cmd_loop].desc);
+					printf("%-10s - %s\n", found_cmd[cmd_loop].name, found_cmd[cmd_loop].desc);
 					if((cmd_loop % 24) == 20)
 					{
 						char ch;

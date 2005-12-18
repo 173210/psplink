@@ -38,6 +38,7 @@
 #endif
 
 int fdprintf(int fd, const char *fmt, ...);
+char *PSPdis(unsigned long _PC);
 
 void psplinkReset(void);
 
