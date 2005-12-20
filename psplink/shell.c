@@ -1174,7 +1174,7 @@ static int mkdir_cmd(int argc, char **argv)
 	if( !handlepath(g_context.currdir, file, afile, TYPE_FILE, 0) )
 		return CMD_ERROR;
 
-	if( sceIoMkdir(afile, 0777) == -1 )
+	if( sceIoMkdir(afile, 0777) < 0 )
 		return CMD_ERROR;
 
 	printf("mkdir %s\n", afile);
@@ -1188,10 +1188,10 @@ static int rmdir_cmd(int argc, char **argv)
 
 	file = argv[0];
 
-	if( !handlepath(g_context.currdir, file, afile, TYPE_DIR, 1) )
+	if( !handlepath(g_context.currdir, file, afile, TYPE_FILE, 0) )
 		return CMD_ERROR;
 
-	if( sceIoRmdir(afile) == -1 )
+	if( sceIoRmdir(afile) < 0 )
 		return CMD_ERROR;
 
 	printf("rmdir %s\n", afile);
