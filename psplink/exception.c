@@ -46,6 +46,7 @@ void DumpException(PspDebugRegBlock *regs)
 	int i;
 
 	Kprintf("Exception - %s\n", codeTxt[(regs->cause >> 2) & 31]);
+	Kprintf("Thread ID - %08X\n", sceKernelGetThreadId());
 	Kprintf("EPC       - %08X\n", regs->epc);
 	Kprintf("Cause     - %08X\n", regs->cause);
 	Kprintf("Status    - %08X\n", regs->status);

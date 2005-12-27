@@ -81,8 +81,13 @@ static struct mem_entry g_memareas[] =
 {
 	{ 0x08800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "User memory" },
 	{ 0x48800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "User memory (uncached)" },
-	{ 0x88000000, (32 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory" },
-	{ 0xC8000000, (32 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (uncached)" },
+	{ 0x88000000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (low)" },
+	{ 0xC8000000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (low uncached)" },
+	/* Don't use the following 2 on a 1.5, just crashes the psp */
+//	{ 0x88400000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (mid v1.0 only)" },
+//	{ 0xC8400000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (mid v1.0 only uncached)" },
+	{ 0x88800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (high)" },
+	{ 0xC8800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (high uncached)" },
 	{ 0x04000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM" },
 	{ 0x44000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM (uncached)" },
 	{ 0, 0, 0, NULL }
@@ -1684,6 +1689,190 @@ static int pokeb_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int fillb_cmd(int argc, char **argv)
+{
+	u32 addr;
+
+	if(decode_memaddr(argv[0], &addr))
+	{
+		u32 size_left;
+		u32 size;
+		u32 val;
+
+		if(strtoint(argv[1], &size) == 0)
+		{
+			printf("Invalid size %s\n", argv[1]);
+			return CMD_ERROR;
+		}
+
+		size_left = validate_memaddr(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
+		size = size > size_left ? size_left : size;
+
+		if(strtoint(argv[2], &val) == 0)
+		{
+			printf("Invalid fill value %s\n", argv[2]);
+			return CMD_ERROR;
+		}
+
+		memset((void *) addr, val, size);
+	}
+
+	return CMD_OK;
+}
+
+static int fillh_cmd(int argc, char **argv)
+{
+	u32 addr;
+
+	if(decode_memaddr(argv[0], &addr))
+	{
+		u32 size_left;
+		u32 size;
+		u32 val;
+		int i;
+		u16 *ptr;
+
+		addr &= ~1;
+
+		if(strtoint(argv[1], &size) == 0)
+		{
+			printf("Invalid size %s\n", argv[1]);
+			return CMD_ERROR;
+		}
+
+		size_left = validate_memaddr(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_HALF);
+		size = size > size_left ? size_left : size;
+
+		if(strtoint(argv[2], &val) == 0)
+		{
+			printf("Invalid fill value %s\n", argv[2]);
+			return CMD_ERROR;
+		}
+
+		ptr = (u16*) addr;
+
+		for(i = 0; i < (size / 2); i++)
+		{
+			ptr[i] = (u16) val;
+		}
+	}
+
+	return CMD_OK;
+}
+
+static int fillw_cmd(int argc, char **argv)
+{
+	u32 addr;
+
+	if(decode_memaddr(argv[0], &addr))
+	{
+		u32 size_left;
+		u32 size;
+		u32 val;
+		int i;
+		u32 *ptr;
+
+		addr &= ~3;
+
+		if(strtoint(argv[1], &size) == 0)
+		{
+			printf("Invalid size %s\n", argv[1]);
+			return CMD_ERROR;
+		}
+
+		size_left = validate_memaddr(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_WORD);
+		size = size > size_left ? size_left : size;
+
+		if(strtoint(argv[2], &val) == 0)
+		{
+			printf("Invalid fill value %s\n", argv[2]);
+			return CMD_ERROR;
+		}
+
+		ptr = (u32*) addr;
+
+		for(i = 0; i < (size / 4); i++)
+		{
+			ptr[i] = (u32) val;
+		}
+	}
+
+	return CMD_OK;
+}
+
+static int findstr_cmd(int argc, char **argv)
+{
+	u32 addr;
+
+	if(decode_memaddr(argv[0], &addr))
+	{
+		int size;
+		u32 size_left;
+		int searchlen;
+		void *curr, *found;
+
+		if(strtoint(argv[1], (u32 *) &size) == 0)
+		{
+			printf("Invalid size argument %s\n", argv[1]);
+			return CMD_ERROR;
+		}
+
+		size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+		size = size_left > size ? size : size_left;
+		searchlen = strlen(argv[2]);
+		curr = (void *) addr;
+		
+		do
+		{
+			found = memmem_mask(curr, NULL, size, argv[2], searchlen);
+			if(found)
+			{
+				printf("Found match at address %p\n", found);
+				found++;
+				size -= (found - curr);
+				curr = found;
+			}
+		}
+		while((found) && (size > 0));
+	}
+
+	return CMD_OK;
+}
+
+static int findhex_cmd(int argc, char **argv)
+{
+	return CMD_ERROR;
+}
+
+static int copymem_cmd(int argc, char **argv)
+{
+	u32 src;
+	u32 dest;
+
+	if((decode_memaddr(argv[0], &src)) && (decode_memaddr(argv[1], &dest)))
+	{
+		u32 size_left;
+		u32 srcsize;
+		u32 destsize;
+		u32 size;
+
+		if(strtoint(argv[2], &size) == 0)
+		{
+			printf("Invalid size %s\n", argv[1]);
+			return CMD_ERROR;
+		}
+
+		srcsize = validate_memaddr(src, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
+		destsize = validate_memaddr(dest, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
+		size_left = srcsize > destsize ? destsize : srcsize;
+		size = size > size_left ? size_left : size;
+
+		memmove((void *) dest, (void *) src, size);
+	}
+
+	return CMD_OK;
+}
+
 static int disasm_cmd(int argc, char **argv)
 {
 	u32 addr;
@@ -1724,12 +1913,19 @@ static int disasm_cmd(int argc, char **argv)
 
 static int scrshot_cmd(int argc, char **argv)
 {
+	char path[1024];
 	SceUID block_id;
 	void *block_addr;
 	void *frame_addr;
 	int frame_width;
 	int pixel_format;
 	int sync = 1;
+
+	if(!handlepath(g_context.currdir, argv[0], path, TYPE_FILE, 0))
+	{
+		printf("Error invalid path\n");
+		return CMD_ERROR;
+	}
 
 	block_id = sceKernelAllocPartitionMemory(4, "scrshot", PSP_SMEM_Low, 544*1024, NULL);
 	if(block_id < 0)
@@ -1741,13 +1937,11 @@ static int scrshot_cmd(int argc, char **argv)
 	block_addr = sceKernelGetBlockHeadAddr(block_id);
 
 	sceDisplayGetFrameBuf(&frame_addr, &frame_width, &pixel_format, &sync);
-	printf("frame_addr %p, frame_width %d, pixel_format %d\n", frame_addr, frame_width, pixel_format);
+	printf("frame_addr %p, frame_width %d, pixel_format %d output %s\n", frame_addr, frame_width, pixel_format, path);
 
 	if(frame_addr != NULL)
 	{
-		memcpy(block_addr, (void *) ((u32) frame_addr | 0x40000000), 544*1024);
-
-		bitmapWrite(block_addr, pixel_format, argv[0]);
+		bitmapWrite((void *) ((u32) frame_addr | 0x40000000), block_addr, pixel_format, path);
 	}
 	else
 	{
@@ -1869,6 +2063,12 @@ struct sh_command commands[] = {
 	{ "pokew",   "pw", pokew_cmd, 2, "Poke words into memory", "pw address val1 [val2..valN]", SHELL_TYPE_CMD },
 	{ "pokeh",   "pw", pokeh_cmd, 2, "Poke half words into memory", "ph address val1 [val2..valN]", SHELL_TYPE_CMD },
 	{ "pokeb",   "pw", pokeb_cmd, 2, "Poke bytes into memory", "pb address val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "fillw",   "fw", fillw_cmd, 3, "Fill a block of memory with a word value", "fw address size val", SHELL_TYPE_CMD },
+	{ "fillh",   "fh", fillh_cmd, 3, "Fill a block of memory with a half value", "fb address size val", SHELL_TYPE_CMD },
+	{ "fillb",   "fb", fillb_cmd, 3, "Fill a block of memory with a byte value", "fb address size val", SHELL_TYPE_CMD },
+	{ "copymem", "cm", copymem_cmd, 3, "Copy a block of memory", "cm srcaddr destaddr size", SHELL_TYPE_CMD },
+	{ "findstr", "fs", findstr_cmd, 3, "Find an ASCII string", "fs address size str", SHELL_TYPE_CMD },
+	{ "findhex", "fx", findhex_cmd, 3, "Find an hexstring string", "fx address size hexstr [mask]", SHELL_TYPE_CMD },
 	{ "disasm",  "di", disasm_cmd, 1, "Disassemble instructions", "di address [count]", SHELL_TYPE_CMD },
 	
 	{ "fileio", NULL, NULL, 0, "Commands to handle file io", NULL, SHELL_TYPE_CATEGORY },
@@ -1877,7 +2077,7 @@ struct sh_command commands[] = {
 	{ "cp",  "copy", cp_cmd, 2, "Copy a file", "cp source destination", SHELL_TYPE_CMD },
 	{ "mkdir", "md", mkdir_cmd, 1, "Make a Directory", "mkdir dir", SHELL_TYPE_CMD },
 	{ "rm", "del", rm_cmd, 1, "Removes a File", "rm file", SHELL_TYPE_CMD },
-	{ "rmdir", "rd", rmdir_cmd, 1, "Removes a Director", "rmdir dir", SHELL_TYPE_CMD },
+	{ "rmdir", "rd", rmdir_cmd, 1, "Removes a Directory", "rmdir dir", SHELL_TYPE_CMD },
 	{ "rename", "ren", rename_cmd, 2, "Renames a File", "rename src dst", SHELL_TYPE_CMD },
 	{ "pwd",   NULL, pwd_cmd, 0, "Print the current working directory", "pwd", SHELL_TYPE_CMD },
 

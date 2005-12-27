@@ -29,7 +29,9 @@ typedef struct _PspFile
 } PspFile;
 
 int is_hex(char ch);
+int is_oct(char ch);
 int hex_to_int(char ch);
+int oct_to_int(char ch);
 char upcase(char ch);
 int is_aspace(int ch);
 int build_bootargs(char *args, const char *bootfile, const char *execfile, int argc, char **argv);
@@ -46,6 +48,9 @@ int closefile(PspFile *pFile);
 int fdgetc(PspFile *pFile);
 int fdgets(PspFile *pFile, char *buf, int size);
 void strip_whitesp(char *s);
+int strtoint(const char *str, u32 *i);
+void* memmem_mask(void *data, void *mask, int len, void *search, int slen);
+int memcmp_mask(void *data1, void *data2, void *mask, int len);
 
 extern int (*g_QueryModuleInfo)(SceUID modid, SceKernelModuleInfo *info);
 extern int (*g_GetModuleIdList)(SceUID *readbuf, int readbufsize, int *idcount);

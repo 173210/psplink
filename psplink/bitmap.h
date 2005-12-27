@@ -14,6 +14,6 @@
 #ifndef __BITMAP_H__
 #define __BITMAP_H__
 
-int bitmapWrite(void *frame_addr, int format, const char *file);
+int bitmapWrite(void *frame_addr, void *tmp_buf, int format, const char *file);
 
 #endif

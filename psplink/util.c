@@ -43,6 +43,26 @@ int (*g_GetModuleIdList)(SceUID *readbuf, int readbufsize, int *idcount) = NULL;
 extern int g_debuggermode;
 extern void set_swbp(u32 addr);
 
+int is_oct(char ch)
+{
+	if((ch >= '0') && (ch < '8'))
+	{
+		return 1;
+	}
+
+	return 0;
+}
+
+int oct_to_int(char ch)
+{
+	if((ch >= '0') && (ch < '8'))
+	{
+		return ch - '0';
+	}
+
+	return 0;
+}
+
 /* Check if character is a hexadecimal character */
 int is_hex(char ch)
 {
@@ -589,3 +609,63 @@ void strip_whitesp(char *s)
 	}
 }
 
+int strtoint(const char *str, u32 *i)
+{
+	char *endp;
+	u32 val;
+
+	val = strtoul(str, &endp, 0);
+	if(*endp != 0)
+	{
+		return 0;
+	}
+	*i = val;
+
+	return 1;
+}
+
+int memcmp_mask(void *data1, void *data2, void *mask, int len)
+{
+	unsigned char *m, *d1, *d2;
+	int i;
+
+	m = mask;
+	d1 = data1;
+	d2 = data2;
+
+	if(m == NULL)
+	{
+		return memcmp(data1, data2, len);
+	}
+
+	for(i = 0; i < len; i++)
+	{
+		if((d1[i] & m[i]) != d2[i])
+		{
+			return (d1[i] & m[i]) - d2[i];
+		}
+	}
+
+	return 0;
+}
+
+void* memmem_mask(void *data, void *mask, int len, void *search, int slen)
+{
+	int i;
+
+	if((data == NULL) || (len < 0) || (search == NULL) || (slen < 0))
+	{
+		return NULL;
+	}
+
+	for(i = 0; i < (len - slen + 1); i++)
+	{
+		if(memcmp_mask(data, search, mask, slen) == 0)
+		{
+			return data;
+		}
+		data++;
+	}
+
+	return NULL;
+}
