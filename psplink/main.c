@@ -130,7 +130,7 @@ void load_psplink_user(const char *bootpath)
 
 void exit_reset(void)
 {
-	printf("\nsceKernelExitGame caught!\n");
+	Kprintf("\nsceKernelExitGame caught!\n");
 }
 
 /* Do some kernel patching */

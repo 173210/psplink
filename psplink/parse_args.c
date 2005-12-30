@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <util.h>
+#include "parse_args.h"
 
 int decode_hex(const char *str, unsigned char *ch)
 {

@@ -23,6 +23,7 @@
 #include <psputilsforkernel.h>
 #include <pspsysmem_kernel.h>
 #include <pspdisplay.h>
+#include <stdint.h>
 #include "memoryUID.h"
 #include "psplink.h"
 #include "psplinkcnf.h"
@@ -330,7 +331,7 @@ static int threadmanlist_cmd(int argc, char **argv, enum SceKernelIdListType typ
 
 	if(argc > 0)
 	{
-		if(strcmp(argv[0], "v"))
+		if(strcmp(argv[0], "v") == 0)
 		{
 			verbose = 1;
 		}
@@ -606,6 +607,196 @@ static int smlist_cmd(int argc, char **argv)
 static int sminfo_cmd(int argc, char **argv)
 {
 	return threadmaninfo_cmd(argc, argv, "Semaphore", print_semainfo, (ReferFunc) pspSdkReferSemaStatusByName);
+}
+
+static int print_mboxinfo(SceUID uid, int verbose)
+{
+	SceKernelMbxInfo info;
+	int ret;
+
+	memset(&info, 0, sizeof(info));
+	info.size = sizeof(info);
+	ret = sceKernelReferMbxStatus(uid, &info);
+	if(ret == 0)
+	{
+		printf("UID: %08X - Name: %s\n", uid, info.name);
+		if(verbose)
+		{
+			printf("Attr: %08X - numWaitThreads: %08X - numMessages: %08X\n", info.attr, info.numWaitThreads, 
+					info.numMessages);
+			printf("firstMessage %p\n", info.firstMessage);
+		}
+	}
+
+	return ret;
+}
+
+static int mxlist_cmd(int argc, char **argv)
+{
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_Mbox, "Message Box", print_mboxinfo);
+}
+
+static int mxinfo_cmd(int argc, char **argv)
+{
+	return threadmaninfo_cmd(argc, argv, "Message Box", print_mboxinfo, (ReferFunc) pspSdkReferMboxStatusByName);
+}
+
+static int print_cbinfo(SceUID uid, int verbose)
+{
+	SceKernelCallbackInfo info;
+	int ret;
+
+	memset(&info, 0, sizeof(info));
+	info.size = sizeof(info);
+	ret = sceKernelReferCallbackStatus(uid, &info);
+	if(ret == 0)
+	{
+		printf("UID: %08X - Name: %s\n", uid, info.name);
+		if(verbose)
+		{
+			printf("threadId %08X - callback %p - common %p\n", info.threadId, info.callback, info.common);
+			printf("notifyCount %d - notifyArg %d\n", info.notifyCount, info.notifyArg);
+		}
+	}
+
+	return ret;
+}
+
+static int cblist_cmd(int argc, char **argv)
+{
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_Callback, "Callback", print_cbinfo);
+}
+
+static int cbinfo_cmd(int argc, char **argv)
+{
+	return threadmaninfo_cmd(argc, argv, "Callback", print_cbinfo, (ReferFunc) pspSdkReferCallbackStatusByName);
+}
+
+static int print_vtinfo(SceUID uid, int verbose)
+{
+	SceKernelVTimerInfo info;
+	int ret;
+
+	memset(&info, 0, sizeof(info));
+	info.size = sizeof(info);
+	ret = sceKernelReferVTimerStatus(uid, &info);
+	if(ret == 0)
+	{
+		printf("UID: %08X - Name: %s\n", uid, info.name);
+		if(verbose)
+		{
+			printf("active %d - base.hi %d - base.low %d - current.hi %d - current.low %d\n", 
+				   info.active, info.base.hi, info.base.low, info.current.hi, info.current.low);	
+			printf("schedule.hi %d - schedule.low %d - handler %p - common %p\n", info.schedule.hi,
+					info.schedule.low, info.handler, info.common);
+		}
+	}
+
+	return ret;
+}
+
+static int vtlist_cmd(int argc, char **argv)
+{
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_VTimer, "VTimer", print_vtinfo);
+}
+
+static int vtinfo_cmd(int argc, char **argv)
+{
+	return threadmaninfo_cmd(argc, argv, "VTimer", print_vtinfo, (ReferFunc) pspSdkReferVTimerStatusByName);
+}
+
+static int print_vplinfo(SceUID uid, int verbose)
+{
+	SceKernelVplInfo info;
+	int ret;
+
+	memset(&info, 0, sizeof(info));
+	info.size = sizeof(info);
+	ret = sceKernelReferVplStatus(uid, &info);
+	if(ret == 0)
+	{
+		printf("UID: %08X - Name: %s\n", uid, info.name);
+		if(verbose)
+		{
+			printf("Attr %08X - poolSize %d - freeSize %d - numWaitThreads %d\n",
+					info.attr, info.poolSize, info.freeSize, info.numWaitThreads);
+		}
+	}
+
+	return ret;
+}
+
+static int vpllist_cmd(int argc, char **argv)
+{
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_Vpl, "Vpl", print_vplinfo);
+}
+
+static int vplinfo_cmd(int argc, char **argv)
+{
+	return threadmaninfo_cmd(argc, argv, "Vpl", print_vplinfo, (ReferFunc) pspSdkReferVplStatusByName);
+}
+
+static int print_fplinfo(SceUID uid, int verbose)
+{
+	SceKernelFplInfo info;
+	int ret;
+
+	memset(&info, 0, sizeof(info));
+	info.size = sizeof(info);
+	ret = sceKernelReferFplStatus(uid, &info);
+	if(ret == 0)
+	{
+		printf("UID: %08X - Name: %s\n", uid, info.name);
+		if(verbose)
+		{
+			printf("Attr %08X - blockSize %d - numBlocks %d - freeBlocks %d - numWaitThreads %d\n",
+					info.attr, info.blockSize, info.numBlocks, info.freeBlocks, info.numWaitThreads);
+		}
+	}
+
+	return ret;
+}
+
+static int fpllist_cmd(int argc, char **argv)
+{
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_Fpl, "Fpl", print_fplinfo);
+}
+
+static int fplinfo_cmd(int argc, char **argv)
+{
+	return threadmaninfo_cmd(argc, argv, "Fpl", print_fplinfo, (ReferFunc) pspSdkReferFplStatusByName);
+}
+
+static int print_mppinfo(SceUID uid, int verbose)
+{
+	SceKernelMppInfo info;
+	int ret;
+
+	memset(&info, 0, sizeof(info));
+	info.size = sizeof(info);
+	ret = sceKernelReferMsgPipeStatus(uid, &info);
+	if(ret == 0)
+	{
+		printf("UID: %08X - Name: %s\n", uid, info.name);
+		if(verbose)
+		{
+			printf("Attr %08X - bufSize %d - freeSize %d\n", info.attr, info.bufSize, info.freeSize);
+			printf("numSendWaitThreads %d - numReceiveWaitThreads %d\n", info.numSendWaitThreads,
+					info.numReceiveWaitThreads);
+		}
+	}
+
+	return ret;
+}
+
+static int mpplist_cmd(int argc, char **argv)
+{
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_Mpipe, "Message Pipe", print_mppinfo);
+}
+
+static int mppinfo_cmd(int argc, char **argv)
+{
+	return threadmaninfo_cmd(argc, argv, "Message Pipe", print_mppinfo, (ReferFunc) pspSdkReferMppStatusByName);
 }
 
 static int uidlist_cmd(int argc, char **argv)
@@ -1156,16 +1347,20 @@ static int rename_cmd(int argc, char **argv)
 static int rm_cmd(int argc, char **argv)
 {
 	char *file, afile[MAXPATHLEN];
+	int i;
 
-	file = argv[0];
+	for(i = 0; i < argc; i++)
+	{
+		file = argv[0];
 
-	if( !handlepath(g_context.currdir, file, afile, TYPE_FILE, 1) )
-		return CMD_ERROR;
+		if( !handlepath(g_context.currdir, file, afile, TYPE_FILE, 1) )
+			continue;
 
-	if( sceIoRemove(afile) < 0 )
-		return CMD_ERROR;
+		if( sceIoRemove(afile) < 0 )
+			continue;
 
-	printf("rm %s\n", afile);
+		printf("rm %s\n", afile);
+	}
 
 	return CMD_OK;
 }
@@ -1841,7 +2036,69 @@ static int findstr_cmd(int argc, char **argv)
 
 static int findhex_cmd(int argc, char **argv)
 {
-	return CMD_ERROR;
+	u32 addr;
+	uint8_t hex[128];
+	uint8_t *mask = NULL;
+	uint8_t mask_d[128];
+	int hexsize;
+	int masksize;
+
+	if(decode_memaddr(argv[0], &addr))
+	{
+		int size;
+		u32 size_left;
+		void *curr, *found;
+
+		if(strtoint(argv[1], (u32 *) &size) == 0)
+		{
+			printf("Invalid size argument %s\n", argv[1]);
+			return CMD_ERROR;
+		}
+		
+		hexsize = decode_hexstr(argv[2], hex, sizeof(hex));
+		if(hexsize == 0)
+		{
+			printf("Error in search string\n");
+			return CMD_ERROR;
+		}
+
+		if(argc > 3)
+		{
+			masksize = decode_hexstr(argv[4], mask_d, sizeof(mask_d));
+			if(masksize == 0)
+			{
+				printf("Error in mask string\n");
+				return CMD_ERROR;
+			}
+
+			if(masksize != hexsize)
+			{
+				printf("Hex and mask do not match\n");
+				return CMD_ERROR;
+			}
+
+			mask = mask_d;
+		}
+
+		size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+		size = size_left > size ? size : size_left;
+		curr = (void *) addr;
+		
+		do
+		{
+			found = memmem_mask(curr, mask, size, hex, hexsize);
+			if(found)
+			{
+				printf("Found match at address %p\n", found);
+				found++;
+				size -= (found - curr);
+				curr = found;
+			}
+		}
+		while((found) && (size > 0));
+	}
+
+	return CMD_OK;
 }
 
 static int copymem_cmd(int argc, char **argv)
@@ -2004,6 +2261,125 @@ static int run_cmd(int argc, char **argv)
 	return ret;
 }
 
+static int dcache_cmd(int argc, char **argv)
+{
+	u32 addr = 0;
+	u32 size = 0;
+	void (*cacheall)(void);
+	void (*cacherange)(const void *addr, unsigned int size);
+
+	if(argc == 2)
+	{
+		printf("Must specify a size\n");
+		return CMD_ERROR;
+	}
+
+	if(strcmp(argv[0], "w") == 0)
+	{
+		cacheall = sceKernelDcacheWritebackAll;
+		cacherange = sceKernelDcacheWritebackRange;
+	}
+	else if(strcmp(argv[0], "i") == 0)
+	{
+		cacheall = sceKernelDcacheInvalidateAll;
+		cacherange = sceKernelDcacheInvalidateRange;
+	}
+	else if(strcmp(argv[0], "wi") == 0)
+	{
+		cacheall = sceKernelDcacheWritebackInvalidateAll;
+		cacherange = sceKernelDcacheWritebackInvalidateRange;
+	}
+	else
+	{
+		printf("Invalid type specifier '%s'\n", argv[0]);
+		return CMD_ERROR;
+	}
+
+	if(argc > 1)
+	{
+		if(!decode_memaddr(argv[1], &addr))
+		{
+			printf("Invalid address\n");
+			return CMD_ERROR;
+		}
+
+		if(!strtoint(argv[2], &size))
+		{
+			printf("Invalid size argument\n");
+			return CMD_ERROR;
+		}
+
+		cacherange((void *) addr, size);
+	}
+	else
+	{
+		cacheall();
+	}
+
+	return CMD_OK;
+}
+
+static int icache_cmd(int argc, char **argv)
+{
+	u32 addr = 0;
+	u32 size = 0;
+
+	if(argc == 1)
+	{
+		printf("Must specify a size\n");
+		return CMD_ERROR;
+	}
+
+	if(argc > 0)
+	{
+		if(!decode_memaddr(argv[0], &addr))
+		{
+			printf("Invalid address\n");
+			return CMD_ERROR;
+		}
+
+		if(!strtoint(argv[1], &size))
+		{
+			printf("Invalid size argument\n");
+			return CMD_ERROR;
+		}
+
+		sceKernelIcacheInvalidateRange((void *) addr, size);
+	}
+	else
+	{
+		sceKernelIcacheInvalidateAll();
+	}
+
+	return CMD_OK;
+}
+
+static int modaddr_cmd(int argc, char **argv)
+{
+	u32 addr;
+	SceModule *pMod;
+
+	if(decode_memaddr(argv[0], &addr))
+	{
+		pMod = sceKernelFindModuleByAddress(addr);
+		if(pMod != NULL)
+		{
+			print_modinfo(pMod->modid, 1);
+		}
+		else
+		{
+			printf("Couldn't find module at address %08X\n", addr);
+		}
+	}
+	else
+	{
+		printf("Invalid address %s\n", argv[0]);
+		return CMD_ERROR;
+	}
+
+	return CMD_OK;
+}
+
 static int exit_cmd(int argc, char **argv)
 {
 	return CMD_EXITSHELL;
@@ -2041,6 +2417,18 @@ struct sh_command commands[] = {
 	{ "evinfo", "ei", evinfo_cmd, 1, "Print info about an event flag", "ei uid|@name", SHELL_TYPE_CMD },
 	{ "smlist", "sl", smlist_cmd, 0, "List the semaphores in the system", "sl [v]", SHELL_TYPE_CMD },
 	{ "sminfo", "si", sminfo_cmd, 1, "Print info about a semaphore", "si uid|@name", SHELL_TYPE_CMD },
+	{ "mxlist", "xl", mxlist_cmd, 0, "List the message boxes in the system", "sl [v]", SHELL_TYPE_CMD },
+	{ "mxinfo", "xi", mxinfo_cmd, 1, "Print info about a message box", "mx uid|@name", SHELL_TYPE_CMD },
+	{ "cblist", "cl", cblist_cmd, 0, "List the callbacks in the system", "cl [v]", SHELL_TYPE_CMD },
+	{ "cbinfo", "ci", cbinfo_cmd, 1, "Print info about a callback", "ci uid|@name", SHELL_TYPE_CMD },
+	{ "vtlist", "tl", vtlist_cmd, 0, "List the virtual timers in the system", "tl [v]", SHELL_TYPE_CMD },
+	{ "vtinfo", "ti", vtinfo_cmd, 1, "Print info about a virtual timer", "ti uid|@name", SHELL_TYPE_CMD },
+	{ "vpllist","vl", vpllist_cmd, 0, "List the variable pools in the system", "vl [v]", SHELL_TYPE_CMD },
+	{ "vplinfo","vi", vplinfo_cmd, 1, "Print info about a variable pool", "vi uid|@name", SHELL_TYPE_CMD },
+	{ "fpllist","vl", fpllist_cmd, 0, "List the fixed pools in the system", "fl [v]", SHELL_TYPE_CMD },
+	{ "fplinfo","vi", fplinfo_cmd, 1, "Print info about a fixed pool", "fi uid|@name", SHELL_TYPE_CMD },
+	{ "mpplist","pl", mpplist_cmd, 0, "List the message pipes in the system", "pl [v]", SHELL_TYPE_CMD },
+	{ "mppinfo","pi", mppinfo_cmd, 1, "Print info about a message pipe", "pi uid|@name", SHELL_TYPE_CMD },
 	
 	{ "module", NULL, NULL, 0, "Commands to handle modules", NULL, SHELL_TYPE_CATEGORY },
 	{ "modlist","ml", modlist_cmd, 0, "List the currently loaded modules", "ml [v]", SHELL_TYPE_CMD },
@@ -2050,6 +2438,7 @@ struct sh_command commands[] = {
 	{ "modload","md", modload_cmd, 1, "Load a module", "md path", SHELL_TYPE_CMD },
 	{ "modstart","mt", modstart_cmd, 1, "Start a module", "mt uid|@name [args]", SHELL_TYPE_CMD },
 	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me path [args]", SHELL_TYPE_CMD },
+	{ "modaddr","ma", modaddr_cmd, 1, "Display info about the module at a specified address", "ma address", SHELL_TYPE_CMD },
 	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path] [args]", SHELL_TYPE_CMD },
 	{ "debug", "d", debug_cmd, 1, "Debug an executable (need to switch to gdb)", "debug path", SHELL_TYPE_CMD },
 	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path [args]", SHELL_TYPE_CMD },
@@ -2069,6 +2458,8 @@ struct sh_command commands[] = {
 	{ "copymem", "cm", copymem_cmd, 3, "Copy a block of memory", "cm srcaddr destaddr size", SHELL_TYPE_CMD },
 	{ "findstr", "fs", findstr_cmd, 3, "Find an ASCII string", "fs address size str", SHELL_TYPE_CMD },
 	{ "findhex", "fx", findhex_cmd, 3, "Find an hexstring string", "fx address size hexstr [mask]", SHELL_TYPE_CMD },
+	{ "dcache",  "dc", dcache_cmd, 1, "Perform a data cache operation", "dc w|i|wi [addr size]", SHELL_TYPE_CMD },
+	{ "icache",  "ic", icache_cmd, 0, "Perform an instruction cache operation", "ic [addr size]", SHELL_TYPE_CMD },
 	{ "disasm",  "di", disasm_cmd, 1, "Disassemble instructions", "di address [count]", SHELL_TYPE_CMD },
 	
 	{ "fileio", NULL, NULL, 0, "Commands to handle file io", NULL, SHELL_TYPE_CATEGORY },

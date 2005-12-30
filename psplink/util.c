@@ -669,3 +669,35 @@ void* memmem_mask(void *data, void *mask, int len, void *search, int slen)
 
 	return NULL;
 }
+
+int decode_hexstr(const char *str, unsigned char *data, int max)
+{
+	int hexlen;
+	int i;
+
+	hexlen = strlen(str);
+	if(hexlen & 1)
+	{
+		printf("Invalid number of hex characters\n");
+		return 0;
+	}
+
+	if((hexlen / 2) > max)
+	{
+		printf("Hex string too long to fit in buffer\n");
+		return 0;
+	}
+
+	for(i = 0; i < (hexlen / 2); i++)
+	{
+		if((!is_hex(str[i*2])) || (!is_hex(str[(i*2)+1])))
+		{
+			printf("Invalid hex byte %.2s\n", &str[i*2]);
+			return 0;
+		}
+
+		data[i] = (hex_to_int(str[i*2]) << 4) | hex_to_int(str[(i*2)+1]);
+	}
+
+	return hexlen / 2;
+}

@@ -51,6 +51,7 @@ void strip_whitesp(char *s);
 int strtoint(const char *str, u32 *i);
 void* memmem_mask(void *data, void *mask, int len, void *search, int slen);
 int memcmp_mask(void *data1, void *data2, void *mask, int len);
+int decode_hexstr(const char *str, unsigned char *data, int max);
 
 extern int (*g_QueryModuleInfo)(SceUID modid, SceKernelModuleInfo *info);
 extern int (*g_GetModuleIdList)(SceUID *readbuf, int readbufsize, int *idcount);
