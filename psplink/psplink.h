@@ -41,6 +41,7 @@ int fdprintf(int fd, const char *fmt, ...);
 char *PSPdis(unsigned long _PC);
 
 void psplinkReset(void);
+u32  psplinkSetK1(u32 k1);
 
 struct GlobalContext
 {
@@ -58,6 +59,7 @@ struct GlobalContext
 	int  inexec;
 	/* The program to execute */
 	char execfile[MAXPATHLEN];
+	int resetonexit;
 };
 
 #endif

@@ -130,7 +130,17 @@ void load_psplink_user(const char *bootpath)
 
 void exit_reset(void)
 {
-	Kprintf("\nsceKernelExitGame caught!\n");
+	if(g_context.resetonexit)
+	{
+		psplinkReset();
+	}
+	else
+	{
+		psplinkSetK1(0);
+		printf("\nsceKernelExitGame caught!\n");
+		/* Kill the thread, bad idea to drop back to the program */
+		sceKernelExitThread(0);
+	}
 }
 
 /* Do some kernel patching */
@@ -172,6 +182,8 @@ void psplinkReset(void)
 {
 	struct SceKernelLoadExecParam le;
 
+	psplinkSetK1(0);
+	printf("Resetting psplink\n");
 	stop_usb();
 
 	le.size = sizeof(le);
@@ -207,6 +219,7 @@ int main_thread(SceSize args, void *argp)
 	{
 		load_psplink_user(g_context.bootpath);
 	}
+	g_context.resetonexit = ctx.resetonexit;
 
 	if(g_context.execfile[0] != 0)
 	{

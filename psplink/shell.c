@@ -2425,8 +2425,8 @@ struct sh_command commands[] = {
 	{ "vtinfo", "ti", vtinfo_cmd, 1, "Print info about a virtual timer", "ti uid|@name", SHELL_TYPE_CMD },
 	{ "vpllist","vl", vpllist_cmd, 0, "List the variable pools in the system", "vl [v]", SHELL_TYPE_CMD },
 	{ "vplinfo","vi", vplinfo_cmd, 1, "Print info about a variable pool", "vi uid|@name", SHELL_TYPE_CMD },
-	{ "fpllist","vl", fpllist_cmd, 0, "List the fixed pools in the system", "fl [v]", SHELL_TYPE_CMD },
-	{ "fplinfo","vi", fplinfo_cmd, 1, "Print info about a fixed pool", "fi uid|@name", SHELL_TYPE_CMD },
+	{ "fpllist","fl", fpllist_cmd, 0, "List the fixed pools in the system", "fl [v]", SHELL_TYPE_CMD },
+	{ "fplinfo","fi", fplinfo_cmd, 1, "Print info about a fixed pool", "fi uid|@name", SHELL_TYPE_CMD },
 	{ "mpplist","pl", mpplist_cmd, 0, "List the message pipes in the system", "pl [v]", SHELL_TYPE_CMD },
 	{ "mppinfo","pi", mppinfo_cmd, 1, "Print info about a message pipe", "pi uid|@name", SHELL_TYPE_CMD },
 	

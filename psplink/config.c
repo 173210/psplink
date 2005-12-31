@@ -38,21 +38,6 @@ struct psplink_config
 	void (*handler)(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
 };
 
-static void config_usb(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
-static void config_baud(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
-static void config_modload(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
-static void config_pluser(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
-static void config_prompt(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
-
-struct psplink_config config_names[] = {
-	{ "usb", 1, config_usb },
-	{ "baud", 1, config_baud },
-	{ "modload", 0, config_modload },
-	{ "pluser", 1, config_pluser },
-	{ "prompt", 0, config_prompt },
-	{ NULL, 0, NULL }
-};
-
 static void config_usb(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
 {
 	if(iVal != 0)
@@ -104,6 +89,21 @@ static void config_prompt(struct ConfigContext *ctx, const char *szVal, unsigned
 	strncpy(ctx->cliprompt, szVal, sizeof(ctx->cliprompt)-1);
 	ctx->cliprompt[sizeof(ctx->cliprompt)-1] = 0;
 }
+
+static void config_resetonexit(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	ctx->resetonexit = iVal;
+}
+
+struct psplink_config config_names[] = {
+	{ "usb", 1, config_usb },
+	{ "baud", 1, config_baud },
+	{ "modload", 0, config_modload },
+	{ "pluser", 1, config_pluser },
+	{ "prompt", 0, config_prompt },
+	{ "resetonexit", 1, config_resetonexit },
+	{ NULL, 0, NULL }
+};
 
 void configLoad(const char *bootpath, struct ConfigContext *ctx)
 {
