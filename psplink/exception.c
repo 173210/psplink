@@ -12,6 +12,7 @@
  */
 #include <pspkernel.h>
 #include <pspdebug.h>
+#include <stdio.h>
 #include "psplink.h"
 
 void _GdbTrapEntry(PspDebugRegBlock *regs);
@@ -45,22 +46,25 @@ void DumpException(PspDebugRegBlock *regs)
 {
 	int i;
 
-	Kprintf("Exception - %s\n", codeTxt[(regs->cause >> 2) & 31]);
-	Kprintf("Thread ID - %08X\n", sceKernelGetThreadId());
-	Kprintf("EPC       - %08X\n", regs->epc);
-	Kprintf("Cause     - %08X\n", regs->cause);
-	Kprintf("Status    - %08X\n", regs->status);
-	Kprintf("BadVAddr  - %08X\n", regs->badvaddr);
+	printf("Exception - %s\n", codeTxt[(regs->cause >> 2) & 31]);
+	printf("Thread ID - %08X\n", sceKernelGetThreadId());
+	printf("EPC       - %08X\n", regs->epc);
+	printf("Cause     - %08X\n", regs->cause);
+	printf("Status    - %08X\n", regs->status);
+	printf("BadVAddr  - %08X\n", regs->badvaddr);
 	for(i = 0; i < 32; i+=4)
 	{
-		Kprintf("%s:%08X %s:%08X %s:%08X %s:%08X\n", regName[i], regs->r[i],
+		printf("%s:%08X %s:%08X %s:%08X %s:%08X\n", regName[i], regs->r[i],
 				regName[i+1], regs->r[i+1], regName[i+2], regs->r[i+2], regName[i+3], regs->r[i+3]);
 	}
 }
 
 int psplinkHandleException(PspDebugRegBlock *regs)
 {
+	u32 k1;
+
 	DEBUG_PRINTF("Resume Pointer - debugger %d\n", g_debuggermode);
+	k1 = psplinkSetK1(0);
 	if(g_debuggermode)
 	{
 		/* Do GDB stub */
@@ -69,6 +73,7 @@ int psplinkHandleException(PspDebugRegBlock *regs)
 	else
 	{
 		DumpException(regs);
+		psplinkSetK1(k1);
 		return 0;
 	}
 
