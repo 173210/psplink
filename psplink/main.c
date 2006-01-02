@@ -31,6 +31,8 @@
 #include "shell.h"
 #include "config.h"
 
+const char *psplinkVersion = "1.0";
+
 PSP_MODULE_INFO("PSPLINK", 0x1000, 1, 1);
 
 #define WELCOME_MESSAGE "PSPLINK Initialised\n"

@@ -16,6 +16,7 @@
 #include <pspsdk.h>
 #include <string.h>
 #include <stdio.h>
+#include "../psplink/version.h"
 
 PSP_MODULE_INFO("PSPLINKLOADER", 0x1000, 1, 1);
 /* Define the main thread's attribute value (optional) */
@@ -108,18 +109,12 @@ int main_thread(SceSize args, void *argp)
 	pspSdkInstallNoPlainModuleCheckPatch();
 
 	parse_args(args, argp);
-	for(ret = 0; ret < g_argc; ret++)
-	{
-		printf("Arg %d: %s\n", ret, g_argv[ret]);
-	}
-
 	path = strrchr(g_argv[0], '/');
 	if(path != NULL)
 	{
 		memcpy(prx_path, g_argv[0], path - g_argv[0] + 1);
 		prx_path[path - g_argv[0] + 1] = 0;
 		strcat(prx_path, "psplink.prx");
-		printf("Path %s\n", prx_path);
 	}
 	else
 	{
@@ -128,17 +123,18 @@ int main_thread(SceSize args, void *argp)
 	}
 
 	/* Start mymodule.prx and dump its information */
-	printf("PSPLink Bootstrap TyRaNiD (c) 2k5\n");
+	printf("PSPLink Bootstrap TyRaNiD (c) 2k5 Version %s\n", PSPLINK_VERSION);
 	modid = load_module(prx_path, 0, 0);
-	printf("Module ID %08X\n", modid);
 	if(modid >= 0)
 	{
 		int size;
 		int status;
 
+		printf("Starting psplink module\n");
 		size = build_args(prx_args, g_argv[0], sceKernelGetThreadId(), g_argv[1], g_argc-2, &g_argv[2]);
 
 		ret = sceKernelStartModule(modid, size, prx_args, &status, NULL);
+		printf("Done\n");
 	}
 	else
 	{

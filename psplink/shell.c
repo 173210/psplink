@@ -33,6 +33,7 @@
 #include "bitmap.h"
 #include "shell.h"
 #include "script.h"
+#include "version.h"
 
 #define MAX_SHELL_VAR      128
 #define SHELL_PROMPT	"psplink %d>"
@@ -2425,6 +2426,13 @@ static int modaddr_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int version_cmd(int argc, char **argv)
+{
+	printf("PSPLink Version %s\n", PSPLINK_VERSION);
+
+	return CMD_OK;
+}
+
 static int exit_cmd(int argc, char **argv)
 {
 	return CMD_EXITSHELL;
@@ -2527,6 +2535,7 @@ struct sh_command commands[] = {
 	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "ss file", SHELL_TYPE_CMD },
 	{ "run",  NULL, run_cmd, 1, "Run a shell script", "run file [args]", SHELL_TYPE_CMD },
 	{ "reset", "r", reset_cmd, 0, "Reset", "r", SHELL_TYPE_CMD },
+	{ "ver", "v", version_cmd, 0, "Print version of psplink", SHELL_TYPE_CMD },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command]", SHELL_TYPE_CMD },
 	{ NULL, NULL, NULL, 0, NULL, NULL, SHELL_TYPE_CMD }
 };
