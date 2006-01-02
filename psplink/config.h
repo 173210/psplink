@@ -22,6 +22,7 @@ struct ConfigContext
 	char cliprompt[128];
 	int  resetonexit;
 	int  wifishell;
+	int  sioshell;
 };
 
 void configLoad(const char *bootpath, struct ConfigContext *ctx);

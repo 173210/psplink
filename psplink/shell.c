@@ -2822,16 +2822,10 @@ int shellProcessChar(int ch)
 }
 
 /* Main shell function */
-void shellStart(const char *cliprompt)
+void shellStart(void)
 {		
 	int exit_shell = 0;
 
-	if(strlen(cliprompt) > 0)
-	{
-		set_shell_var("prompt", cliprompt);
-	}
-
-	strcpy(g_context.currdir, "ms0:/");
 	print_prompt();
 	g_cli_pos = 0;
 	g_cli_size = 0;
@@ -2913,9 +2907,16 @@ static int help_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
-int shellInit(void)
+int shellInit(const char *cliprompt)
 {
 	int ret;
+
+	if(strlen(cliprompt) > 0)
+	{
+		set_shell_var("prompt", cliprompt);
+	}
+
+	strcpy(g_context.currdir, "ms0:/");
 
 	g_command_thid = sceKernelCreateThread("PspLinkParse", shellParseThread, 9, 0x10000, 0, NULL);
 	if(g_command_thid < 0)

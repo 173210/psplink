@@ -44,6 +44,8 @@ static int g_loaderthid = 0;
 /* The two instruction pre-amble from the original exitgame function */
 static u32 g_exitgame[2];
 
+void stdoutInit(void);
+void stdoutSetSioHandler(PspDebugPrintHandler sioHandler);
 void save_execargs(int argc, char **argv);
 
 int unload_loader(void)
@@ -224,28 +226,24 @@ void psplinkExitShell(void)
 int main_thread(SceSize args, void *argp)
 {
 	struct ConfigContext ctx;
-	int status;
 
-	DEBUG_START;
-	DEBUG_PRINTF("Starting PSPLINK kernel module\n");
 	map_firmwarerev();
 	memset(&g_context, 0, sizeof(g_context));
 	g_context.netshelluid = -1;
-	sioInit();
-	if(shellInit() < 0)
+	parse_sceargs(args, argp);
+	configLoad(g_context.bootpath, &ctx);
+	stdoutInit();
+	if(ctx.sioshell)
 	{
-		sceKernelExitGame();
+		sioInit();
+		stdoutSetSioHandler(pspDebugSioPutText);
 	}
 	sceUmdActivate(1, "disc0:");
-	parse_sceargs(args, argp);
-	DEBUG_PRINTF("Bootfile %s threadid %08X execfile %s\n", g_context.bootfile, g_loaderthid,
-			g_context.execfile[0] == 0 ? "NULL" : g_context.execfile);
 	patch_kernel();
 
 	sceKernelWaitThreadEnd(g_loaderthid, NULL);
 	unload_loader();
 
-	configLoad(g_context.bootpath, &ctx);
 	if(ctx.enableuser)
 	{
 		load_psplink_user(g_context.bootpath);
@@ -254,6 +252,11 @@ int main_thread(SceSize args, void *argp)
 	if(ctx.wifishell)
 	{
 		g_context.netshelluid = load_wifishell(g_context.bootpath);
+	}
+
+	if(shellInit(ctx.cliprompt) < 0)
+	{
+		sceKernelExitGame();
 	}
 
 	g_context.resetonexit = ctx.resetonexit;
@@ -268,14 +271,22 @@ int main_thread(SceSize args, void *argp)
 
 	printf(WELCOME_MESSAGE);
 
-	shellStart(ctx.cliprompt);
-
-	if(g_context.netshelluid >= 0)
+	if(ctx.sioshell)
 	{
-		sceKernelStopModule(g_context.netshelluid, 0, NULL, &status, NULL);
-	}
+		shellStart();
 
-	psplinkExitShell();
+		if(g_context.netshelluid >= 0)
+		{
+			int status;
+			sceKernelStopModule(g_context.netshelluid, 0, NULL, &status, NULL);
+		}
+
+		psplinkExitShell();
+	}
+	else
+	{
+		sceKernelSleepThread();
+	}
 
 	return 0;
 }

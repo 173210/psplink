@@ -97,7 +97,12 @@ static void config_resetonexit(struct ConfigContext *ctx, const char *szVal, uns
 
 static void config_wifishell(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
 {
-	ctx->wifishell = 1;
+	ctx->wifishell = iVal;
+}
+
+static void config_sioshell(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	ctx->sioshell = iVal;
 }
 
 struct psplink_config config_names[] = {
@@ -108,6 +113,7 @@ struct psplink_config config_names[] = {
 	{ "prompt", 0, config_prompt },
 	{ "resetonexit", 1, config_resetonexit },
 	{ "wifishell", 1, config_wifishell },
+	{ "sioshell", 1, config_sioshell },
 	{ NULL, 0, NULL }
 };
 
@@ -156,6 +162,12 @@ void configLoad(const char *bootpath, struct ConfigContext *ctx)
 		}
 
 		psplinkConfigClose(&cnf);
+	}
+
+	/* Always enable at least the sio shell */
+	if(ctx->wifishell == 0)
+	{
+		ctx->sioshell = 1;
 	}
 }
 

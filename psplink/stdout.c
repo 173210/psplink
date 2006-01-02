@@ -23,12 +23,16 @@
 #include <psputilsforkernel.h>
 #include "psplink.h"
 
-PspDebugPrintHandler g_sioHandler = pspDebugSioPutText;
+PspDebugPrintHandler g_sioHandler = NULL;
 PspDebugPrintHandler g_wifiHandler = NULL;
 
 static int outputHandler(const char *data, int size)
 {
-	g_sioHandler(data, size);
+	if(g_sioHandler)
+	{
+		g_sioHandler(data, size);
+	}
+
 	if(g_wifiHandler)
 	{
 		g_wifiHandler(data, size);
@@ -40,6 +44,11 @@ static int outputHandler(const char *data, int size)
 void stdoutSetWifiHandler(PspDebugPrintHandler wifiHandler)
 {
 	g_wifiHandler = wifiHandler;
+}
+
+void stdoutSetSioHandler(PspDebugPrintHandler sioHandler)
+{
+	g_sioHandler = sioHandler;
 }
 
 void stdoutInit(void)
