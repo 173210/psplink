@@ -1,4 +1,4 @@
-PSPLINK 0.1a README
+PSPLINK 0.9a README
 (c) TyRaNiD 2005/2006
 (c) John_K 2005
 (c) Julian T 2005
@@ -32,7 +32,8 @@ If you want a wifi shell then configure the first wifi setup in the VSH and then
 the psplink.ini file to set wifishell=1. When psplink start the wifi connection info
 should be printed on the screen with the IP address that the PSP is listening on. Now
 use telnet or netcat to connect to this ip address on port 23 and the shell should 
-appear.
+appear. You need a client with a sensible local echo available as no processing is done
+on the psp side for the command line.
 
 To get a list of available commands type 'help'. To get a slightly more detailed 
 description of a command type 'help command'.
