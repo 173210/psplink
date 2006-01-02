@@ -132,6 +132,12 @@ SceUID load_wifishell(const char *bootpath)
 {
 	char prx_path[MAXPATHLEN];
 
+	load_start_module("flash0:/kd/ifhandle.prx", 0, NULL);
+	load_start_module("flash0:/kd/pspnet.prx", 0, NULL);
+	load_start_module("flash0:/kd/pspnet_inet.prx", 0, NULL);
+	load_start_module("flash0:/kd/pspnet_apctl.prx", 0, NULL);
+	load_start_module("flash0:/kd/pspnet_resolver.prx", 0, NULL);
+
 	strcpy(prx_path, bootpath);
 	strcat(prx_path, "netshell.prx");
 	return load_start_module(prx_path, 0, NULL);
