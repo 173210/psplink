@@ -128,6 +128,15 @@ void load_psplink_user(const char *bootpath)
 	load_start_module(prx_path, 0, NULL);
 }
 
+SceUID load_wifishell(const char *bootpath)
+{
+	char prx_path[MAXPATHLEN];
+
+	strcpy(prx_path, bootpath);
+	strcat(prx_path, "netshell.prx");
+	return load_start_module(prx_path, 0, NULL);
+}
+
 void exit_reset(void)
 {
 	if(g_context.resetonexit)
@@ -181,10 +190,15 @@ void unpatch_kernel(void)
 void psplinkReset(void)
 {
 	struct SceKernelLoadExecParam le;
+	int status;
 
 	psplinkSetK1(0);
 	printf("Resetting psplink\n");
 	stop_usb();
+	if(g_context.netshelluid >= 0)
+	{
+		sceKernelStopModule(g_context.netshelluid, 0, NULL, &status, NULL);
+	}
 
 	le.size = sizeof(le);
 	le.args = strlen(g_context.bootfile) + 1;
@@ -194,17 +208,28 @@ void psplinkReset(void)
 	sceKernelLoadExec(g_context.bootfile, &le);
 }
 
+void psplinkExitShell(void)
+{
+	unpatch_kernel();
+	sceKernelExitGame();
+}
 
 /* Simple thread */
 int main_thread(SceSize args, void *argp)
 {
 	struct ConfigContext ctx;
+	int status;
 
 	DEBUG_START;
 	DEBUG_PRINTF("Starting PSPLINK kernel module\n");
 	map_firmwarerev();
 	memset(&g_context, 0, sizeof(g_context));
+	g_context.netshelluid = -1;
 	sioInit();
+	if(shellInit() < 0)
+	{
+		sceKernelExitGame();
+	}
 	sceUmdActivate(1, "disc0:");
 	parse_sceargs(args, argp);
 	DEBUG_PRINTF("Bootfile %s threadid %08X execfile %s\n", g_context.bootfile, g_loaderthid,
@@ -219,6 +244,12 @@ int main_thread(SceSize args, void *argp)
 	{
 		load_psplink_user(g_context.bootpath);
 	}
+
+	if(ctx.wifishell)
+	{
+		g_context.netshelluid = load_wifishell(g_context.bootpath);
+	}
+
 	g_context.resetonexit = ctx.resetonexit;
 
 	if(g_context.execfile[0] != 0)
@@ -233,8 +264,12 @@ int main_thread(SceSize args, void *argp)
 
 	shellStart(ctx.cliprompt);
 
-	unpatch_kernel();
-	sceKernelExitGame();
+	if(g_context.netshelluid >= 0)
+	{
+		sceKernelStopModule(g_context.netshelluid, 0, NULL, &status, NULL);
+	}
+
+	psplinkExitShell();
 
 	return 0;
 }
@@ -245,7 +280,7 @@ int module_start(SceSize args, void *argp)
 	int thid;
 
 	/* Create a high priority thread */
-	thid = sceKernelCreateThread("PspLink", main_thread, 0x10, 0x10000, 0, NULL);
+	thid = sceKernelCreateThread("PspLink", main_thread, 8, 0x10000, 0, NULL);
 	if(thid >= 0)
 	{
 		sceKernelStartThread(thid, args, argp);

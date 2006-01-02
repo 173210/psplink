@@ -10,6 +10,10 @@ PSP_EXPORT_END
 
 PSP_EXPORT_START(psplink, 0, 0x4001)
 PSP_EXPORT_FUNC(psplinkHandleException)
+PSP_EXPORT_FUNC(psplinkParseCommand)
+PSP_EXPORT_FUNC(psplinkPrintPrompt)
+PSP_EXPORT_FUNC(psplinkExitShell)
+PSP_EXPORT_FUNC(stdoutSetWifiHandler)
 PSP_EXPORT_END
 
 PSP_EXPORT_START(sdkbridge, 0, 0x4001)

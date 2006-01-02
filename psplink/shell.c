@@ -46,6 +46,13 @@ extern struct GlobalContext g_context;
 int (*g_readchar)(void) = sioReadChar;
 int (*g_readcharwithtimeout)(void) = sioReadCharWithTimeout;
 
+typedef struct _CommandMsg
+{
+	struct _CommandMsg *link;
+	char   *command;
+	int    res;
+} CommandMsg;
+
 /* Last command line (history) */
 static char g_lastcli[CLI_HISTSIZE][CLI_MAX];
 /* Current command line */
@@ -58,6 +65,18 @@ static int  g_cli_size = 0;
 static int  g_lastcli_pos = 0;
 /* Current scrolling position in the history buffer */
 static int  g_currcli_pos = 0;
+/* Message box for command line parsing */
+static SceUID g_command_msg = -1;
+/* Thread ID for the command line parsing */
+static SceUID g_command_thid = -1;
+/* Semaphore to lock the cli */
+static SceUID g_cli_sema = -1;
+/* Event flag to indicate the end of command parse */
+static SceUID g_command_event = -1;
+/* Indicates whether we are directly connected to a terminal (i.e. sio) */
+static int g_direct_term = 1;
+
+#define COMMAND_EVENT_DONE 1
 
 typedef int (*threadmanprint_func)(SceUID uid, int verbose);
 
@@ -261,6 +280,15 @@ void print_prompt(void)
 
 	tmp[out] = 0;
 	printf("%s ", tmp);
+}
+
+void psplinkPrintPrompt(void)
+{
+	u32 k1;
+
+	k1 = psplinkSetK1(0);
+	print_prompt();
+	psplinkSetK1(k1);
 }
 
 static SceUID get_module_uid(const char *name)
@@ -1573,22 +1601,39 @@ static void print_memdump(u32 addr, s32 size)
 
 static int memdump_cmd(int argc, char **argv)
 {
-	u32 addr;
+	static u32 addr = 0;
 	s32 size_left;
 
 	/* Get memory address */
-	if(decode_memaddr(argv[0], &addr))
+	if(argc > 0)
 	{
-		size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
-
-		if(size_left > 0)
+		if(!decode_memaddr(argv[0], &addr))
 		{
-			while(size_left > 0)
+			printf("Error, invalid memory address %s\n", argv[0]);
+			return CMD_ERROR;
+		}
+	}
+	else if(addr == 0)
+	{
+		return CMD_ERROR;
+	}
+	else
+	{
+		addr += MAX_MEMDUMP_SIZE;
+	}
+
+	size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+
+	if(size_left > 0)
+	{
+		while(size_left > 0)
+		{
+			char ch;
+
+			print_memdump(addr, size_left);
+
+			if(g_direct_term)
 			{
-				char ch;
-
-				print_memdump(addr, size_left);
-
 				printf("Press b to go back, space to go forward, or q to quit.\n");
 				while((ch = g_readchar()) == -1);
 
@@ -1609,15 +1654,15 @@ static int memdump_cmd(int argc, char **argv)
 
 				size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
 			}
-		}
-		else
-		{
-			printf("Invalid memory address %x\n", addr);
+			else
+			{
+				break;
+			}
 		}
 	}
 	else
 	{
-		return CMD_ERROR;
+		printf("Invalid memory address %x\n", addr);
 	}
 
 	return CMD_OK;
@@ -2446,7 +2491,7 @@ struct sh_command commands[] = {
 	{ "memory", NULL, NULL, 0, "Commands to manipulate memory", NULL, SHELL_TYPE_CATEGORY },
 	{ "meminfo", "mf", meminfo_cmd, 0, "Print free memory info", "mf [partitionid]", SHELL_TYPE_CMD },
 	{ "memreg",  "mr", memreg_cmd, 0, "Print available memory regions (for other commands)", "mr", SHELL_TYPE_CMD },
-	{ "memdump", "dm", memdump_cmd, 1, "Dump memory to screen", "md address", SHELL_TYPE_CMD },
+	{ "memdump", "dm", memdump_cmd, 0, "Dump memory to screen", "md address", SHELL_TYPE_CMD },
 	{ "savemem", "sm", savemem_cmd, 3, "Save memory to a file", "sm adresss size file", SHELL_TYPE_CMD },
 	{ "loadmem", "lm", loadmem_cmd, 2, "Load memory from a file", "lm address file [maxsize]", SHELL_TYPE_CMD },
 	{ "pokew",   "pw", pokew_cmd, 2, "Poke words into memory", "pw address val1 [val2..valN]", SHELL_TYPE_CMD },
@@ -2550,20 +2595,86 @@ int shellParse(char *command)
 	return ret;
 }
 
+static int shellParseThread(SceSize args, void *argp)
+{
+	int error;
+	void *data;
+	CommandMsg *msg;
+
+	while(1)
+	{
+		error = sceKernelReceiveMbx(g_command_msg, &data, NULL);
+		if(error < 0)
+		{
+			printf("Error in receiving message %08X\n", error);
+			sceKernelExitDeleteThread(0);
+		}
+
+		msg = (CommandMsg *) data;
+		msg->res = shellParse(msg->command);
+		sceKernelSetEventFlag(g_command_event, COMMAND_EVENT_DONE);
+	}
+
+	return 0;
+}
+
+int psplinkParseCommand(char *command, int direct_term)
+{
+	u32 k1;
+	int ret;
+	CommandMsg msg;
+	SceUInt timeout = (10*1000*1000);
+
+	k1 = psplinkSetK1(0);
+
+	ret = sceKernelWaitSema(g_cli_sema, 1, &timeout);
+	if(ret < 0)
+	{
+		printf("Error, could not wait on cli sema %08X\n", ret);
+		return 1;
+	}
+
+	g_direct_term = direct_term;
+	msg.command = command;
+	msg.res = 0;
+	ret = sceKernelSendMbx(g_command_msg, &msg);
+	if(ret >= 0)
+	{
+		/* Wait 10 seconds for completion */
+		int timeout = (10*1000*1000);
+		unsigned int result;
+		ret = sceKernelWaitEventFlag(g_command_event, COMMAND_EVENT_DONE, 0x21, &result, &timeout);
+		if(ret >= 0)
+		{
+			ret = msg.res;
+		}
+		else
+		{
+			printf("Error, command did not complete %08X\n", ret);
+			ret = CMD_EXITSHELL;
+		}
+	}
+
+	sceKernelSignalSema(g_cli_sema, 1);
+	psplinkSetK1(k1);
+
+	return ret;
+}
+
 /* Process command line */
 static int process_cli()
 {
 	int ret;
 
-    pspDebugSioPutchar(13);
-    pspDebugSioPutchar(10);
+    putchar(13);
+    putchar(10);
 	g_cli[g_cli_pos] = 0;
 	g_cli_pos = 0;
 	memcpy(&g_lastcli[g_lastcli_pos][0], g_cli, CLI_MAX);
 	g_lastcli_pos = (g_lastcli_pos + 1) % CLI_HISTSIZE;
 	g_currcli_pos = g_lastcli_pos;
 
-	ret = shellParse(g_cli);
+	ret = psplinkParseCommand(g_cli, 1);
 	if(ret != CMD_EXITSHELL)
 	{
 		print_prompt();
@@ -2664,6 +2775,52 @@ static void cli_handle_escape(void)
 	}
 }
 
+int shellProcessChar(int ch)
+{
+	int exit_shell = 0;
+
+	switch(ch)
+	{
+		case -1 : break; // No char
+				  /* ^D */
+		case 4  : printf("\nExiting Shell\n");
+				  exit_shell = 1;
+				  break;
+		case 8  : // Backspace
+	               case 127: if(g_cli_pos > 0)
+				  {
+					  g_cli_pos--;
+					  g_cli[g_cli_pos] = 0;
+					  putchar(8);
+					  putchar(' ');
+					  putchar(8);
+				  }
+				  break;
+		case 9  : break; // Ignore tab
+		case 13 :		 // Enter key 
+		case 10 : if(process_cli() == CMD_EXITSHELL) 
+				  {
+					  exit_shell = 1;
+				  }
+				  break;
+		case 18 : /* CTRL + R */
+				  psplinkReset();
+				  break;
+		case 27 : /* Escape character */
+				  cli_handle_escape();
+				  break;
+		default : if((g_cli_pos < (CLI_MAX - 1)) && (ch >= 32))
+				  {
+					  g_cli[g_cli_pos++] = ch;
+					  g_cli[g_cli_pos] = 0;
+					  putchar(ch);
+				  }
+				  break;
+	}
+
+	return exit_shell;
+}
+
 /* Main shell function */
 void shellStart(const char *cliprompt)
 {		
@@ -2681,44 +2838,11 @@ void shellStart(const char *cliprompt)
 	memset(g_cli, 0, CLI_MAX);
 
 	while(!exit_shell) {
-		char ch;
+		int ch;
 
 		ch = g_readchar();
-		switch(ch)
-		{
-			case -1 : break; // No char
-					  /* ^D */
-			case 4  : printf("\nExiting Shell\n");
-					  exit_shell = 1;
-					  break;
-			case 8  : // Backspace
-	                case 127: if(g_cli_pos > 0)
-					  {
-						  g_cli_pos--;
-						  g_cli[g_cli_pos] = 0;
-						  pspDebugSioPutchar(8);
-						  pspDebugSioPutchar(' ');
-						  pspDebugSioPutchar(8);
-					  }
-					  break;
-			case 9  : break; // Ignore tab
-			case 13 :		 // Enter key 
-			case 10 : if(process_cli() == CMD_EXITSHELL) 
-					  {
-						  exit_shell = 1;
-					  }
-					  break;
-			case 27 : /* Escape character */
-					  cli_handle_escape();
-					  break;
-			default : if((g_cli_pos < (CLI_MAX - 1)) && (ch >= 32))
-					  {
-						  g_cli[g_cli_pos++] = ch;
-						  g_cli[g_cli_pos] = 0;
-						  pspDebugSioPutchar(ch);
-					  }
-					  break;
-		}
+
+		exit_shell = shellProcessChar(ch);
 	}
 }
 
@@ -2753,16 +2877,19 @@ static int help_cmd(int argc, char **argv)
 				for(cmd_loop = 1; found_cmd[cmd_loop].name && found_cmd[cmd_loop].type != SHELL_TYPE_CATEGORY; cmd_loop++)
 				{
 					printf("%-10s - %s\n", found_cmd[cmd_loop].name, found_cmd[cmd_loop].desc);
-					if((cmd_loop % 24) == 20)
+					if(g_direct_term)
 					{
-						char ch;
-						printf("Press any key to continue, or q to quit\n");
-
-						while((ch = g_readchar()) == -1);
-						ch = toupper(ch);
-						if(ch == 'Q')
+						if((cmd_loop % 24) == 20)
 						{
-							break;
+							char ch;
+							printf("Press any key to continue, or q to quit\n");
+
+							while((ch = g_readchar()) == -1);
+							ch = toupper(ch);
+							if(ch == 'Q')
+							{
+								break;
+							}
 						}
 					}
 				}
@@ -2786,3 +2913,44 @@ static int help_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+int shellInit(void)
+{
+	int ret;
+
+	g_command_thid = sceKernelCreateThread("PspLinkParse", shellParseThread, 9, 0x10000, 0, NULL);
+	if(g_command_thid < 0)
+	{
+		printf("Error, couldn't create thread for parsing %08X\n", g_command_thid);
+		return -1;
+	}
+
+	g_command_msg = sceKernelCreateMbx("PspLinkCmdMbx", 0, 0);
+	if(g_command_msg < 0)
+	{
+		printf("Error, couldn't create message box %08X\n", g_command_msg);
+		return -1;
+	}
+
+	g_cli_sema = sceKernelCreateSema("PspLinkCliSema", 0, 1, 1, NULL);
+	if(g_cli_sema < 0)
+	{
+		printf("Error, couldn't create cli semaphore %08X\n", g_cli_sema);
+		return -1;
+	}
+
+	g_command_event = sceKernelCreateEventFlag("PspLinkCmdEvent", 0, 0, NULL);
+	if(g_command_event < 0)
+	{
+		printf("Error, couldn't create command event %08X\n", g_command_event);
+		return -1;
+	}
+
+	ret = sceKernelStartThread(g_command_thid, 0, NULL);
+	if(ret < 0)
+	{
+		printf("Error, couldn't start command thread %08X\n", ret);
+		return -1;
+	}
+
+	return 0;
+}

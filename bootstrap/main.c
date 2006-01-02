@@ -151,6 +151,8 @@ int main_thread(SceSize args, void *argp)
 	return 0;
 }
 
+int module_start(SceSize args, void *argp) __attribute__((alias("_start")));
+
 /* Entry point */
 int _start(SceSize args, void *argp)
 {
@@ -167,5 +169,10 @@ int _start(SceSize args, void *argp)
 		sceKernelStartThread(thid, args, argp);
 	}
 
+	return 0;
+}
+
+int module_stop(void)
+{
 	return 0;
 }

@@ -21,6 +21,7 @@ struct ConfigContext
 	int  enableuser;
 	char cliprompt[128];
 	int  resetonexit;
+	int  wifishell;
 };
 
 void configLoad(const char *bootpath, struct ConfigContext *ctx);

@@ -24,6 +24,8 @@
 #include <psputilsforkernel.h>
 #include "psplink.h"
 
+void stdoutInit(void);
+
 static SceUID g_eventflag = -1;
 
 static int intr_handler(void *arg)
@@ -81,8 +83,7 @@ void sioInit(void)
 	g_eventflag = sceKernelCreateEventFlag("SioShellEvent", 0, 0, 0);
 	pspDebugSioInit();
 	pspDebugSioSetBaud(115200);
-	pspDebugInstallStdoutHandler(pspDebugSioPutText);
-	pspDebugInstallStderrHandler(pspDebugSioPutText);
+	stdoutInit();
 	pspDebugSioInstallKprintf();
 	sceKernelRegisterIntrHandler(PSP_HPREMOTE_INT, 1, intr_handler, NULL, NULL);
 	sceKernelEnableIntr(PSP_HPREMOTE_INT);

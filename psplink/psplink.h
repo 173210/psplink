@@ -42,6 +42,7 @@ char *PSPdis(unsigned long _PC);
 
 void psplinkReset(void);
 u32  psplinkSetK1(u32 k1);
+int psplinkParseComamnd(char *command);
 
 struct GlobalContext
 {
@@ -60,6 +61,7 @@ struct GlobalContext
 	/* The program to execute */
 	char execfile[MAXPATHLEN];
 	int resetonexit;
+	SceUID netshelluid;
 };
 
 #endif

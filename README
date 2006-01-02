@@ -1,6 +1,7 @@
 PSPLINK 0.1a README
-(c) TyRaNiD 2005
+(c) TyRaNiD 2005/2006
 (c) John_K 2005
+(c) Julian T 2005
 
 PSPLINK is licensed under the BSD license, see LICENSE in PSPLINK root for details.
 
@@ -9,13 +10,13 @@ NOTE: This is still a work in progress. Treat it as such :P
 -= What is this? =-
 
 PSPLINK is an attempt at producing a loader/development application to eliminate 
-the need to go back to the VSH everytime. It provides a shell over the SIO connection
-from which you can load new apps, dump useful system information and then reset the
-PSP to start another application. The program mounts the USB device so you can copy
-new executables onto the ms for execution. It also eliminates some of the boilerplate
-code necessary for executables, it installs stdio and kprintf handlers for tty output
-as well as providing a built in exception handler. Almost all applications can now
-be run in user mode only without having to resort to ugly kernel mode hacks.
+the need to go back to the VSH everytime. It provides a shell over the SIO or WIFI 
+connection from which you can load new apps, dump useful system information and then 
+reset the PSP to start another application. The program mounts the USB device so you 
+can copy new executables onto the ms for execution. It also eliminates some of the 
+boilerplate code necessary for executables, it installs stdio and kprintf handlers for 
+tty output as well as providing a built in exception handler. Almost all applications 
+can now be run in user mode only without having to resort to ugly kernel mode hacks.
 
 -= Installation =-
 
@@ -26,6 +27,12 @@ files appropriate for your firmware revision.
 
 Setup a serial terminal at 115200 baud 8N1. Run psplink from the VSH and in a few 
 seconds a shell prompt should be printed. When this happens you can now type commands.
+
+If you want a wifi shell then configure the first wifi setup in the VSH and then edit
+the psplink.ini file to set wifishell=1. When psplink start the wifi connection info
+should be printed on the screen with the IP address that the PSP is listening on. Now
+use telnet or netcat to connect to this ip address on port 23 and the shell should 
+appear.
 
 To get a list of available commands type 'help'. To get a slightly more detailed 
 description of a command type 'help command'.

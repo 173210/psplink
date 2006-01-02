@@ -10,11 +10,11 @@
  * $HeadURL$
  * $Id$
  */
+#include <pspkernel.h>
 #include <pspsysmem.h>
+#include <stdio.h>
 #include <string.h>
 #include "memoryUID.h"
-
-void Kprintf(char *, ...);
 
 u32 findUIDByName(const char *name)
 {

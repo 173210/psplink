@@ -95,6 +95,11 @@ static void config_resetonexit(struct ConfigContext *ctx, const char *szVal, uns
 	ctx->resetonexit = iVal;
 }
 
+static void config_wifishell(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	ctx->wifishell = 1;
+}
+
 struct psplink_config config_names[] = {
 	{ "usb", 1, config_usb },
 	{ "baud", 1, config_baud },
@@ -102,6 +107,7 @@ struct psplink_config config_names[] = {
 	{ "pluser", 1, config_pluser },
 	{ "prompt", 0, config_prompt },
 	{ "resetonexit", 1, config_resetonexit },
+	{ "wifishell", 1, config_wifishell },
 	{ NULL, 0, NULL }
 };
 
