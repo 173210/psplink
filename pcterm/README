@@ -1,0 +1,10 @@
+PCTerm for psplink v0.1 (c) TyRaNiD 2k6
+
+This is a very simple application for use when connecting to the wifi
+shell of psplink. You need readline5 to build it, all it does is provide
+a readline shell for communicating with the wifi shell to add back the
+bits which are missing on the native psp side like command line history.
+Of course it is even better than that, it provides full cli editing
+into the bargin so it better even that the inbuilt sio shell.
+
+Just type make then run the shell with ./pcterm pspipaddress

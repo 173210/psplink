@@ -105,6 +105,11 @@ static void config_sioshell(struct ConfigContext *ctx, const char *szVal, unsign
 	ctx->sioshell = iVal;
 }
 
+static void config_passprompt(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	ctx->passprompt = iVal;
+}
+
 struct psplink_config config_names[] = {
 	{ "usb", 1, config_usb },
 	{ "baud", 1, config_baud },
@@ -114,6 +119,7 @@ struct psplink_config config_names[] = {
 	{ "resetonexit", 1, config_resetonexit },
 	{ "wifishell", 1, config_wifishell },
 	{ "sioshell", 1, config_sioshell },
+	{ "passprompt", 1, config_passprompt },
 	{ NULL, 0, NULL }
 };
 

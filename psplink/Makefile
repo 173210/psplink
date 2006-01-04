@@ -9,7 +9,7 @@ USE_KERNEL_LIBS = 1
 
 INCDIR = 
 #CFLAGS = -O2 -G0 -Wall -DDEBUG
-CFLAGS = -O2 -G0 -Wall -fno-builtin-printf -DNO_SIO
+CFLAGS = -O2 -G0 -Wall -fno-builtin-printf
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 

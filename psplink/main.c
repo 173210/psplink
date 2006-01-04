@@ -262,6 +262,7 @@ int main_thread(SceSize args, void *argp)
 	}
 
 	g_context.resetonexit = ctx.resetonexit;
+	g_context.passprompt  = ctx.passprompt;
 
 	if(g_context.execfile[0] != 0)
 	{

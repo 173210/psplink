@@ -41,6 +41,8 @@
 #define CLI_MAX			128
 /* Maximum history */
 #define CLI_HISTSIZE	8
+/* Define the pass prompt value */
+#define PASSPROMPT_VAL  0xFF
 
 extern struct GlobalContext g_context;
 
@@ -252,7 +254,13 @@ void print_prompt(void)
 
 	out = 0;
 	in = 0;
-	while((cliprompt[in]) && (out < (MAX_SHELL_VAR-1)))
+
+	if(g_context.passprompt)
+	{
+		tmp[out++] = PASSPROMPT_VAL;
+	}
+
+	while((cliprompt[in]) && (out < (MAX_SHELL_VAR-2)))
 	{
 		if(cliprompt[in] == '%')
 		{
@@ -277,6 +285,11 @@ void print_prompt(void)
 		{
 			tmp[out++] = cliprompt[in++];
 		}
+	}
+
+	if(g_context.passprompt)
+	{
+		tmp[out++] = PASSPROMPT_VAL;
 	}
 
 	tmp[out] = 0;

@@ -23,6 +23,7 @@ struct ConfigContext
 	int  resetonexit;
 	int  wifishell;
 	int  sioshell;
+	int  passprompt;
 };
 
 void configLoad(const char *bootpath, struct ConfigContext *ctx);
