@@ -1,7 +1,13 @@
-all: pcterm
+OUTPUT=pcterm
+OBJS=pcterm.o
 
 CFLAGS=-Wall -g
-LDFLAGS=-lreadline
+LIBS=-lreadline
+
+all: pcterm
+
+$(OUTPUT): $(OBJS)
+	$(CC) -o $@ $^ $(LIBS)
 
 clean:
-	rm -f pcterm
+	rm -f $(OUTPUT) *.o
