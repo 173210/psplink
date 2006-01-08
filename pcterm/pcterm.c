@@ -18,17 +18,22 @@
 #include <sys/fcntl.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <limits.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <errno.h>
 #include <signal.h>
 
 #define DEFAULT_PORT 23
+#define HISTORY_FILE ".pcterm.hist"
+#define CONNECT_RETRIES 5
 
 struct Args
 {
 	const char *ip;
+	const char *hist;
 	unsigned short port;
+	int retries;
 };
 
 enum State
@@ -48,6 +53,7 @@ struct GlobalContext
 	int promptwait;
 	char line_buffer[16*1024];
 	int  line_pos;
+	char history_file[PATH_MAX];
 };
 
 struct GlobalContext g_context;
@@ -142,13 +148,14 @@ int parse_args(int argc, char **argv, struct Args *args)
 {
 	memset(args, 0, sizeof(*args));
 	args->port = DEFAULT_PORT;
+	args->retries = CONNECT_RETRIES;
 
 	while(1)
 	{
 		int ch;
 		int error = 0;
 
-		ch = getopt(argc, argv, "p:");
+		ch = getopt(argc, argv, "p:h:r:");
 		if(ch < 0)
 		{
 			break;
@@ -157,6 +164,10 @@ int parse_args(int argc, char **argv, struct Args *args)
 		switch(ch)
 		{
 			case 'p': args->port = atoi(optarg);
+					  break;
+			case 'h': args->hist = optarg;
+					  break;
+			case 'r': args->retries = atoi(optarg);
 					  break;
 			default : error = 1;
 					  break;
@@ -188,6 +199,8 @@ void print_help(void)
 	fprintf(stderr, "Usage: pcterm [options] ipaddr\n");
 	fprintf(stderr, "Options:\n");
 	fprintf(stderr, "-p port     : Specify the port number\n");
+	fprintf(stderr, "-h history  : Specify the history file (default ~/%s)\n", HISTORY_FILE);
+	fprintf(stderr, "-r retries  : Number of connection retries (default %d)\n", CONNECT_RETRIES);
 }
 
 int init_sockaddr(struct sockaddr_in *name, const char *ipaddr, unsigned short port)
@@ -283,6 +296,7 @@ void shell(void)
 {
 	fd_set readset, readsave;
 	fd_set writeset, writesave;
+	int conn_sanity = 0;
 
 	printf("Opening connection to %s port %d\n", g_context.args.ip, g_context.args.port);
 	if(!init_sockaddr(&g_context.serv, g_context.args.ip, g_context.args.port))
@@ -291,6 +305,8 @@ void shell(void)
 	}
 
 	init_readline();
+	read_history(g_context.history_file);
+	history_set_pos(history_length);
 
 	FD_ZERO(&readsave);
 	FD_SET(STDIN_FILENO, &readsave);
@@ -377,10 +393,23 @@ void shell(void)
 					if(err != 0)
 					{
 						errno = err;
-						perror("getsockopt");
-						break;
+						if(conn_sanity >= g_context.args.retries)
+						{
+							perror("getsockopt");
+							break;
+						}
+						else
+						{
+							printf("Retrying connection\n");
+							conn_sanity++;
+							close(g_context.sock);
+							g_context.sock = -1;
+							g_context.state = STATE_IDLE;
+							continue;
+						}
 					}
 
+					conn_sanity = 0;
 					set_socknonblock(g_context.sock, 0);
 					g_context.state = STATE_CONNECTED;
 					FD_SET(g_context.sock, &readsave);
@@ -390,6 +419,7 @@ void shell(void)
 		}
 	}
 
+	write_history(g_context.history_file);
 	rl_callback_handler_remove();
 }
 
@@ -421,12 +451,35 @@ int setup_signals(void)
 	return 0;
 }
 
+void build_histfile(void)
+{
+	if(g_context.args.hist == NULL)
+	{
+		char *home;
+
+		home = getenv("HOME");
+		if(home == NULL)
+		{
+			snprintf(g_context.history_file, PATH_MAX, "%s", HISTORY_FILE);
+		}
+		else
+		{
+			snprintf(g_context.history_file, PATH_MAX, "%s/%s", home, HISTORY_FILE);
+		}
+	}
+	else
+	{
+		snprintf(g_context.history_file, PATH_MAX, "%s", g_context.args.hist);
+	}
+}
+
 int main(int argc, char **argv)
 {
 	memset(&g_context, 0, sizeof(g_context));
 	g_context.sock = -1;
 	if(parse_args(argc, argv, &g_context.args))
 	{
+		build_histfile();
 		setup_signals();
 		shell();
 		if(g_context.sock >= 0)
