@@ -24,6 +24,7 @@ struct ConfigContext
 	int  wifishell;
 	int  sioshell;
 	int  passprompt;
+	int  baudrate;
 };
 
 void configLoad(const char *bootpath, struct ConfigContext *ctx);

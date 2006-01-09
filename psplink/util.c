@@ -43,6 +43,24 @@ int (*g_GetModuleIdList)(SceUID *readbuf, int readbufsize, int *idcount) = NULL;
 extern int g_debuggermode;
 extern void set_swbp(u32 addr);
 
+int is_alnum(char ch)
+{
+	int c;
+
+	c = upcase(ch);
+	if((c >= 'A') && (c <= 'Z'))
+	{
+		return 1;
+	}
+
+	if((c >= '0') && (c <= '9'))
+	{
+		return 1;
+	}
+
+	return 0;
+}
+
 int is_oct(char ch)
 {
 	if((ch >= '0') && (ch < '8'))

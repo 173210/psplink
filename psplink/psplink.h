@@ -23,6 +23,8 @@
 #define MAXPATHLEN      1024
 #define MAX_ARGS 16
 
+#define DEFAULT_BAUDRATE 115200
+
 #ifdef DEBUG
 #define DEBUG_START { int fd; fd = sceIoOpen("ms0:/debug.txt", PSP_O_WRONLY | PSP_O_CREAT | PSP_O_TRUNC, 0666); sceIoClose(fd); }
 #define DEBUG_PRINTF(fmt, ...) \

@@ -31,6 +31,7 @@
 #include "shell.h"
 #include "config.h"
 
+
 struct psplink_config
 {
 	const char *name;
@@ -65,12 +66,14 @@ static void config_baud(struct ConfigContext *ctx, const char *szVal, unsigned i
 	if(valid)
 	{
 		printf("Setting baud to %d\n", iVal);
-		pspDebugSioSetBaud(iVal);
+		ctx->baudrate = iVal;
 	}
 	else
 	{
-		/* Might never be seen :) */
 		printf("Invalid baud rate %d\n", iVal);
+		/* Set a default */
+		ctx->baudrate = DEFAULT_BAUDRATE;
+
 	}
 }
 

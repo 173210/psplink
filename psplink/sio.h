@@ -14,7 +14,7 @@
 #ifndef __SIO_H__
 #define __SIO_H__
 
-void sioInit(void);
+void sioInit(int baudrate);
 int sioReadChar(void);
 int sioReadCharWithTimeout(void);
 

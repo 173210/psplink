@@ -30,6 +30,7 @@
 #include "sio.h"
 #include "shell.h"
 #include "config.h"
+#include "exception.h"
 
 const char *psplinkVersion = "1.0";
 
@@ -231,13 +232,19 @@ int main_thread(SceSize args, void *argp)
 
 	map_firmwarerev();
 	memset(&g_context, 0, sizeof(g_context));
+	exceptionInit();
 	g_context.netshelluid = -1;
 	parse_sceargs(args, argp);
 	configLoad(g_context.bootpath, &ctx);
 	stdoutInit();
 	if(ctx.sioshell)
 	{
-		sioInit();
+		if(ctx.baudrate == 0)
+		{
+			ctx.baudrate = DEFAULT_BAUDRATE;
+		}
+
+		sioInit(ctx.baudrate);
 		stdoutSetSioHandler(pspDebugSioPutText);
 	}
 	sceUmdActivate(1, "disc0:");

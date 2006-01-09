@@ -76,11 +76,11 @@ int sioReadChar(void)
 	return ch;
 }
 
-void sioInit(void)
+void sioInit(int baud)
 {
 	g_eventflag = sceKernelCreateEventFlag("SioShellEvent", 0, 0, 0);
 	pspDebugSioInit();
-	pspDebugSioSetBaud(115200);
+	pspDebugSioSetBaud(baud);
 	pspDebugSioInstallKprintf();
 	sceKernelRegisterIntrHandler(PSP_HPREMOTE_INT, 1, intr_handler, NULL, NULL);
 	sceKernelEnableIntr(PSP_HPREMOTE_INT);

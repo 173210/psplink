@@ -34,6 +34,7 @@ int hex_to_int(char ch);
 int oct_to_int(char ch);
 char upcase(char ch);
 int is_aspace(int ch);
+int is_alnum(char ch);
 int build_bootargs(char *args, const char *bootfile, const char *execfile, int argc, char **argv);
 int build_args(char *args, const char *execfile, int argc, char **argv);
 int handlepath(char *currentdir, char *relative, char *path, int type, int validate);

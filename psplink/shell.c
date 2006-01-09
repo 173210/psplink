@@ -34,6 +34,8 @@
 #include "shell.h"
 #include "script.h"
 #include "version.h"
+#include "exception.h"
+#include "decodeaddr.h"
 
 #define MAX_SHELL_VAR      128
 #define SHELL_PROMPT	"psplink %d>"
@@ -82,117 +84,6 @@ static int g_direct_term = 1;
 #define COMMAND_EVENT_DONE 1
 
 typedef int (*threadmanprint_func)(SceUID uid, int verbose);
-
-#define MEM_ATTRIB_READ	 (1 << 0)
-#define MEM_ATTRIB_WRITE (1 << 1)
-#define MEM_ATTRIB_EXEC	 (1 << 2)
-#define MEM_ATTRIB_BYTE  (1 << 3)
-#define MEM_ATTRIB_HALF  (1 << 4)
-#define MEM_ATTRIB_WORD  (1 << 5)
-#define MEM_ATTRIB_DBL   (1 << 6)
-#define MEM_ATTRIB_ALL	 0xFFFFFFFF
-
-struct mem_entry
-{
-	u32 addr;
-	s32 size;
-	u32 attrib;
-	const char *desc;
-};
-
-static struct mem_entry g_memareas[] = 
-{
-	{ 0x08800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "User memory" },
-	{ 0x48800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "User memory (uncached)" },
-	{ 0x88000000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (low)" },
-	{ 0xC8000000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (low uncached)" },
-	/* Don't use the following 2 on a 1.5, just crashes the psp */
-//	{ 0x88400000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (mid v1.0 only)" },
-//	{ 0xC8400000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (mid v1.0 only uncached)" },
-	{ 0x88800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (high)" },
-	{ 0xC8800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (high uncached)" },
-	{ 0x04000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM" },
-	{ 0x44000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM (uncached)" },
-	{ 0, 0, 0, NULL }
-};
-
-static int validate_memaddr(u32 addr, u32 attrib)
-{
-	const struct mem_entry *entry;
-	int size_left = 0;
-
-	entry = g_memareas;
-
-	while(entry->size != 0)
-	{
-		if((addr >= entry->addr) && (addr < (entry->addr + (u32) entry->size)))
-		{
-			// Only pass through areas with valid attributes (e.g. write or execute)
-			if((entry->attrib & attrib) == attrib)
-			{
-				size_left = entry->size - (int) (addr - entry->addr);
-			}
-			break;
-		}
-
-		entry++;
-	}
-
-	return size_left;
-}
-
-static int decode_memaddr(const char *straddr, u32 *memaddr)
-{
-	int ret = 0;
-	int deref = 0;
-	int i = 0;
-	u32 addr = 0;
-	char *endp;
-
-	/* We are dereferencing */
-	while(*straddr == '@')
-	{
-		/* Incremement the deref count */
-		deref++;
-		straddr++;
-	}
-
-	addr = strtoul(straddr, &endp, 16);
-	if(*endp != 0)
-	{
-		printf("Could not decode memory address '%s'\n", straddr);
-		ret = 0;
-	}
-	else
-	{
-		ret = 1;
-	}
-
-	/* Only deref if it was valid */
-	i = 0;
-	while((i < deref) && (ret))
-	{
-		addr = addr & ~3;
-		if(validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_WORD))
-		{
-			addr = _lw(addr);
-		}
-		else
-		{
-			printf("Invalid de-reference at depth %d (%08x)\n", i, addr);
-			ret = 0;
-		}
-		i++;
-	}
-
-	if(ret)
-	{
-		*memaddr = addr;
-	}
-
-
-	return ret;
-}
 
 struct shell_variable
 {
@@ -1088,6 +979,40 @@ static int ldstart_cmd(int argc, char **argv)
 	return ret;
 }
 
+static int calc_cmd(int argc, char **argv)
+{
+	u32 val;
+	char disp;
+
+	if(memDecode(argv[0], &val))
+	{
+		if(argc > 1)
+		{
+			disp = upcase(argv[1][0]);
+		}
+		else
+		{
+			disp = 'X';
+		}
+
+		switch(disp)
+		{
+			case 'D': printf("Result = %d\n", val);
+					  break;
+			case 'O': printf("Result = %o\n", val);
+					  break;
+			case 'X': printf("Result = %08X\n", val);
+					  break;
+		};
+	}
+	else
+	{
+		printf("Error could not calculate address\n");
+	}
+
+	return CMD_OK;
+}
+
 static int reset_cmd(int argc, char **argv)
 {
 	psplinkReset();
@@ -1525,16 +1450,7 @@ static int meminfo_cmd(int argc, char **argv)
 
 static int memreg_cmd(int argc, char **argv)
 {
-	int i;
-	printf("Memory Regions:\n");
-	i = 0;
-	while(g_memareas[i].addr)
-	{
-		printf("Region %d: Base %08X - Size %08X - %s\n", i,
-				g_memareas[i].addr, g_memareas[i].size, g_memareas[i].desc);
-		i++;
-	}
-
+	memPrintRegions();
 	return CMD_OK;
 }
 
@@ -1621,7 +1537,7 @@ static int memdump_cmd(int argc, char **argv)
 	/* Get memory address */
 	if(argc > 0)
 	{
-		if(!decode_memaddr(argv[0], &addr))
+		if(!memDecode(argv[0], &addr))
 		{
 			printf("Error, invalid memory address %s\n", argv[0]);
 			return CMD_ERROR;
@@ -1636,7 +1552,7 @@ static int memdump_cmd(int argc, char **argv)
 		addr += MAX_MEMDUMP_SIZE;
 	}
 
-	size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+	size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
 
 	if(size_left > 0)
 	{
@@ -1666,7 +1582,7 @@ static int memdump_cmd(int argc, char **argv)
 					addr += MAX_MEMDUMP_SIZE;
 				}
 
-				size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+				size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
 			}
 			else
 			{
@@ -1696,12 +1612,12 @@ static int savemem_cmd(int argc, char **argv)
 		return CMD_ERROR;
 	}
 
-	if(decode_memaddr(argv[0], &addr))
+	if(memDecode(argv[0], &addr))
 	{
 		int size_left;
 		int fd;
 
-		size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
 		size = size > size_left ? size_left : size;
 		fd = sceIoOpen(argv[2], PSP_O_CREAT | PSP_O_TRUNC | PSP_O_WRONLY, 0777);
 		if(fd < 0)
@@ -1751,13 +1667,13 @@ static int loadmem_cmd(int argc, char **argv)
 		}
 	}
 
-	if(decode_memaddr(argv[0], &addr))
+	if(memDecode(argv[0], &addr))
 	{
 		int size_left;
 		int readbytes;
 		int fd;
 
-		size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
 		fd = sceIoOpen(argv[1], PSP_O_RDONLY, 0777);
 		if(fd < 0)
 		{
@@ -1810,14 +1726,14 @@ static int pokew_cmd(int argc, char **argv)
 {
 	u32 addr;
 
-	if(decode_memaddr(argv[0], &addr))
+	if(memDecode(argv[0], &addr))
 	{
 		int size_left;
 		int i;
 
 		addr &= ~3;
-		size_left = validate_memaddr(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_WORD);
-		if(size_left > 0)
+		size_left = memValidate(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_WORD);
+		if(size_left >= sizeof(u32))
 		{
 			for(i = 1; i < argc; i++)
 			{
@@ -1836,7 +1752,7 @@ static int pokew_cmd(int argc, char **argv)
 
 				addr += 4;
 				size_left -= 4;
-				if(size_left == 0)
+				if(size_left <= 0)
 				{
 					break;
 				}
@@ -1856,14 +1772,14 @@ static int pokeh_cmd(int argc, char **argv)
 {
 	u32 addr;
 
-	if(decode_memaddr(argv[0], &addr))
+	if(memDecode(argv[0], &addr))
 	{
 		int size_left;
 		int i;
 
 		addr &= ~1;
-		size_left = validate_memaddr(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_HALF);
-		if(size_left > 0)
+		size_left = memValidate(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_HALF);
+		if(size_left >= sizeof(u16))
 		{
 			for(i = 1; i < argc; i++)
 			{
@@ -1882,7 +1798,7 @@ static int pokeh_cmd(int argc, char **argv)
 
 				addr += 2;
 				size_left -= 2;
-				if(size_left == 0)
+				if(size_left <= 0)
 				{
 					break;
 				}
@@ -1902,12 +1818,12 @@ static int pokeb_cmd(int argc, char **argv)
 {
 	u32 addr;
 
-	if(decode_memaddr(argv[0], &addr))
+	if(memDecode(argv[0], &addr))
 	{
 		int size_left;
 		int i;
 
-		size_left = validate_memaddr(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
+		size_left = memValidate(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
 		if(size_left > 0)
 		{
 			for(i = 1; i < argc; i++)
@@ -1927,7 +1843,7 @@ static int pokeb_cmd(int argc, char **argv)
 
 				addr += 1;
 				size_left -= 1;
-				if(size_left == 0)
+				if(size_left <= 0)
 				{
 					break;
 				}
@@ -1943,11 +1859,82 @@ static int pokeb_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int peekw_cmd(int argc, char **argv)
+{
+	u32 addr;
+
+	if(memDecode(argv[0], &addr))
+	{
+		int size_left;
+
+		addr &= ~3;
+		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_WORD);
+		if(size_left >= sizeof(u32))
+		{
+			printf("%08X: %08X\n", addr, _lw(addr));
+		}
+		else
+		{
+			printf("Invalid memory address %08X\n", addr);
+			return CMD_ERROR;
+		}
+	}
+
+	return CMD_OK;
+}
+
+static int peekh_cmd(int argc, char **argv)
+{
+	u32 addr;
+
+	if(memDecode(argv[0], &addr))
+	{
+		int size_left;
+
+		addr &= ~1;
+		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_HALF);
+		if(size_left >= sizeof(u16))
+		{
+			printf("%08X: %04X\n", addr, _lh(addr));
+		}
+		else
+		{
+			printf("Invalid memory address %08X\n", addr);
+			return CMD_ERROR;
+		}
+	}
+
+	return CMD_OK;
+}
+
+static int peekb_cmd(int argc, char **argv)
+{
+	u32 addr;
+
+	if(memDecode(argv[0], &addr))
+	{
+		int size_left;
+
+		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+		if(size_left > 0)
+		{
+			printf("%08X: %02X\n", addr, _lb(addr));
+		}
+		else
+		{
+			printf("Invalid memory address %08X\n", addr);
+			return CMD_ERROR;
+		}
+	}
+
+	return CMD_OK;
+}
+
 static int fillb_cmd(int argc, char **argv)
 {
 	u32 addr;
 
-	if(decode_memaddr(argv[0], &addr))
+	if(memDecode(argv[0], &addr))
 	{
 		u32 size_left;
 		u32 size;
@@ -1959,7 +1946,7 @@ static int fillb_cmd(int argc, char **argv)
 			return CMD_ERROR;
 		}
 
-		size_left = validate_memaddr(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
+		size_left = memValidate(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
 		size = size > size_left ? size_left : size;
 
 		if(strtoint(argv[2], &val) == 0)
@@ -1978,7 +1965,7 @@ static int fillh_cmd(int argc, char **argv)
 {
 	u32 addr;
 
-	if(decode_memaddr(argv[0], &addr))
+	if(memDecode(argv[0], &addr))
 	{
 		u32 size_left;
 		u32 size;
@@ -1994,7 +1981,7 @@ static int fillh_cmd(int argc, char **argv)
 			return CMD_ERROR;
 		}
 
-		size_left = validate_memaddr(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_HALF);
+		size_left = memValidate(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_HALF);
 		size = size > size_left ? size_left : size;
 
 		if(strtoint(argv[2], &val) == 0)
@@ -2018,7 +2005,7 @@ static int fillw_cmd(int argc, char **argv)
 {
 	u32 addr;
 
-	if(decode_memaddr(argv[0], &addr))
+	if(memDecode(argv[0], &addr))
 	{
 		u32 size_left;
 		u32 size;
@@ -2034,7 +2021,7 @@ static int fillw_cmd(int argc, char **argv)
 			return CMD_ERROR;
 		}
 
-		size_left = validate_memaddr(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_WORD);
+		size_left = memValidate(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_WORD);
 		size = size > size_left ? size_left : size;
 
 		if(strtoint(argv[2], &val) == 0)
@@ -2058,7 +2045,7 @@ static int findstr_cmd(int argc, char **argv)
 {
 	u32 addr;
 
-	if(decode_memaddr(argv[0], &addr))
+	if(memDecode(argv[0], &addr))
 	{
 		int size;
 		u32 size_left;
@@ -2071,7 +2058,7 @@ static int findstr_cmd(int argc, char **argv)
 			return CMD_ERROR;
 		}
 
-		size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
 		size = size_left > size ? size : size_left;
 		searchlen = strlen(argv[2]);
 		curr = (void *) addr;
@@ -2102,7 +2089,7 @@ static int findhex_cmd(int argc, char **argv)
 	int hexsize;
 	int masksize;
 
-	if(decode_memaddr(argv[0], &addr))
+	if(memDecode(argv[0], &addr))
 	{
 		int size;
 		u32 size_left;
@@ -2139,7 +2126,7 @@ static int findhex_cmd(int argc, char **argv)
 			mask = mask_d;
 		}
 
-		size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
 		size = size_left > size ? size : size_left;
 		curr = (void *) addr;
 		
@@ -2165,7 +2152,7 @@ static int copymem_cmd(int argc, char **argv)
 	u32 src;
 	u32 dest;
 
-	if((decode_memaddr(argv[0], &src)) && (decode_memaddr(argv[1], &dest)))
+	if((memDecode(argv[0], &src)) && (memDecode(argv[1], &dest)))
 	{
 		u32 size_left;
 		u32 srcsize;
@@ -2178,8 +2165,8 @@ static int copymem_cmd(int argc, char **argv)
 			return CMD_ERROR;
 		}
 
-		srcsize = validate_memaddr(src, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
-		destsize = validate_memaddr(dest, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
+		srcsize = memValidate(src, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
+		destsize = memValidate(dest, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
 		size_left = srcsize > destsize ? destsize : srcsize;
 		size = size > size_left ? size_left : size;
 
@@ -2206,12 +2193,12 @@ static int disasm_cmd(int argc, char **argv)
 		}
 	}
 
-	if(decode_memaddr(argv[0], &addr))
+	if(memDecode(argv[0], &addr))
 	{
 		int size_left;
 
 		addr &= ~3;
-		size_left = validate_memaddr(addr, MEM_ATTRIB_READ | MEM_ATTRIB_WORD | MEM_ATTRIB_EXEC);
+		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_WORD | MEM_ATTRIB_EXEC);
 		if((size_left / 4) < count)
 		{
 			count = size_left / 4;
@@ -2356,7 +2343,7 @@ static int dcache_cmd(int argc, char **argv)
 
 	if(argc > 1)
 	{
-		if(!decode_memaddr(argv[1], &addr))
+		if(!memDecode(argv[1], &addr))
 		{
 			printf("Invalid address\n");
 			return CMD_ERROR;
@@ -2391,7 +2378,7 @@ static int icache_cmd(int argc, char **argv)
 
 	if(argc > 0)
 	{
-		if(!decode_memaddr(argv[0], &addr))
+		if(!memDecode(argv[0], &addr))
 		{
 			printf("Invalid address\n");
 			return CMD_ERROR;
@@ -2418,7 +2405,7 @@ static int modaddr_cmd(int argc, char **argv)
 	u32 addr;
 	SceModule *pMod;
 
-	if(decode_memaddr(argv[0], &addr))
+	if(memDecode(argv[0], &addr))
 	{
 		pMod = sceKernelFindModuleByAddress(addr);
 		if(pMod != NULL)
@@ -2435,6 +2422,13 @@ static int modaddr_cmd(int argc, char **argv)
 		printf("Invalid address %s\n", argv[0]);
 		return CMD_ERROR;
 	}
+
+	return CMD_OK;
+}
+
+static int exprint_cmd(int argc, char **argv)
+{
+	exceptionPrint();
 
 	return CMD_OK;
 }
@@ -2518,6 +2512,9 @@ struct sh_command commands[] = {
 	{ "pokew",   "pw", pokew_cmd, 2, "Poke words into memory", "pw address val1 [val2..valN]", SHELL_TYPE_CMD },
 	{ "pokeh",   "pw", pokeh_cmd, 2, "Poke half words into memory", "ph address val1 [val2..valN]", SHELL_TYPE_CMD },
 	{ "pokeb",   "pw", pokeb_cmd, 2, "Poke bytes into memory", "pb address val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "peekw",   "kw", peekw_cmd, 1, "Peek the word at address", "kw address", SHELL_TYPE_CMD },
+	{ "peekh",   "kh", peekh_cmd, 1, "Peek the half word at address", "kh address", SHELL_TYPE_CMD },
+	{ "peekb",   "kb", peekb_cmd, 1, "Peek the byte at address", "kb address", SHELL_TYPE_CMD },
 	{ "fillw",   "fw", fillw_cmd, 3, "Fill a block of memory with a word value", "fw address size val", SHELL_TYPE_CMD },
 	{ "fillh",   "fh", fillh_cmd, 3, "Fill a block of memory with a half value", "fb address size val", SHELL_TYPE_CMD },
 	{ "fillb",   "fb", fillb_cmd, 3, "Fill a block of memory with a byte value", "fb address size val", SHELL_TYPE_CMD },
@@ -2538,6 +2535,9 @@ struct sh_command commands[] = {
 	{ "rename", "ren", rename_cmd, 2, "Renames a File", "rename src dst", SHELL_TYPE_CMD },
 	{ "pwd",   NULL, pwd_cmd, 0, "Print the current working directory", "pwd", SHELL_TYPE_CMD },
 
+	{ "exception", NULL, NULL, 0, "Commands to manipulate exceptions", NULL, SHELL_TYPE_CATEGORY },
+	{ "exprint", "ep", exprint_cmd, 0, "Print the current exception info", "exprint", SHELL_TYPE_CMD },
+
 	{ "misc", NULL, NULL, 0, "Miscellaneous commands (e.g. USB, exit)", NULL, SHELL_TYPE_CATEGORY },
 	{ "usbon", "un", usbon_cmd, 0, "Enable USB mass storage device", "usbon", SHELL_TYPE_CMD },
 	{ "usboff", "uf", usboff_cmd, 0, "Disable USB mass storage device", "usboff", SHELL_TYPE_CMD },
@@ -2547,6 +2547,7 @@ struct sh_command commands[] = {
 	{ "set", NULL, set_cmd, 0, "Set a shell variable", "set [var=value]", SHELL_TYPE_CMD },
 	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "ss file", SHELL_TYPE_CMD },
 	{ "run",  NULL, run_cmd, 1, "Run a shell script", "run file [args]", SHELL_TYPE_CMD },
+	{ "calc", NULL, calc_cmd, 1, "Do a simple address calculation", "calc exp [d|o|x]", SHELL_TYPE_CMD },
 	{ "reset", "r", reset_cmd, 0, "Reset", "r", SHELL_TYPE_CMD },
 	{ "ver", "v", version_cmd, 0, "Print version of psplink", SHELL_TYPE_CMD },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command]", SHELL_TYPE_CMD },
@@ -2696,7 +2697,7 @@ static int process_cli()
 	g_lastcli_pos = (g_lastcli_pos + 1) % CLI_HISTSIZE;
 	g_currcli_pos = g_lastcli_pos;
 
-	ret = psplinkParseCommand(g_cli, 1);
+	ret = psplinkParseCommand(g_cli, 0);
 	if(ret != CMD_EXITSHELL)
 	{
 		print_prompt();
