@@ -101,6 +101,11 @@ static void config_resetonexit(struct ConfigContext *ctx, const char *szVal, uns
 static void config_wifishell(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
 {
 	ctx->wifishell = iVal;
+	if((iVal) && (ctx->wifi == 0))
+	{
+		/* Set default wifi access point */
+		ctx->wifi = 1;
+	}
 }
 
 static void config_sioshell(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
@@ -113,6 +118,11 @@ static void config_passprompt(struct ConfigContext *ctx, const char *szVal, unsi
 	ctx->passprompt = iVal;
 }
 
+static void config_wifi(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	ctx->wifi = iVal;
+}
+
 struct psplink_config config_names[] = {
 	{ "usb", 1, config_usb },
 	{ "baud", 1, config_baud },
@@ -123,6 +133,7 @@ struct psplink_config config_names[] = {
 	{ "wifishell", 1, config_wifishell },
 	{ "sioshell", 1, config_sioshell },
 	{ "passprompt", 1, config_passprompt },
+	{ "wifi", 1, config_wifi },
 	{ NULL, 0, NULL }
 };
 

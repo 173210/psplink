@@ -32,8 +32,6 @@
 #include "config.h"
 #include "exception.h"
 
-const char *psplinkVersion = "1.0";
-
 PSP_MODULE_INFO("PSPLINK", 0x1000, 1, 1);
 
 #define WELCOME_MESSAGE "PSPLINK Initialised\n"
@@ -133,15 +131,29 @@ void load_psplink_user(const char *bootpath)
 	load_start_module(prx_path, 0, NULL);
 }
 
-SceUID load_wifishell(const char *bootpath)
+SceUID load_wifi(const char *bootpath, int ap)
 {
 	char prx_path[MAXPATHLEN];
+	char num[32];
+	char *args[2];
 
 	load_start_module("flash0:/kd/ifhandle.prx", 0, NULL);
 	load_start_module("flash0:/kd/pspnet.prx", 0, NULL);
 	load_start_module("flash0:/kd/pspnet_inet.prx", 0, NULL);
 	load_start_module("flash0:/kd/pspnet_apctl.prx", 0, NULL);
 	load_start_module("flash0:/kd/pspnet_resolver.prx", 0, NULL);
+
+	sprintf(num, "%d", ap);
+	args[0] = num;
+	args[1] = NULL;
+	strcpy(prx_path, bootpath);
+	strcat(prx_path, "modnet.prx");
+	return load_start_module(prx_path, 1, args);
+}
+
+SceUID load_wifishell(const char *bootpath)
+{
+	char prx_path[MAXPATHLEN];
 
 	strcpy(prx_path, bootpath);
 	strcat(prx_path, "netshell.prx");
@@ -258,9 +270,14 @@ int main_thread(SceSize args, void *argp)
 		load_psplink_user(g_context.bootpath);
 	}
 
-	if(ctx.wifishell)
+	if(ctx.wifi > 0)
 	{
-		g_context.netshelluid = load_wifishell(g_context.bootpath);
+		load_wifi(g_context.bootpath, ctx.wifi);
+
+		if(ctx.wifishell)
+		{
+			g_context.netshelluid = load_wifishell(g_context.bootpath);
+		}
 	}
 
 	if(shellInit(ctx.cliprompt) < 0)

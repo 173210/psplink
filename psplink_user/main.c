@@ -26,15 +26,17 @@ void pspDebugResumeFromException(void);
 
 void ExceptionHandler(PspDebugRegBlock *regs)
 {
-	if(psplinkHandleException(regs))
-	{
-		pspDebugResumeFromException();
-	}
-	else
-	{
-		/* Don't resume */
-		sceKernelSleepThread();
-	}
+	PspDebugRegBlock regsave;
+
+	/* Suspend interrupts ? */
+	/* Save regs onto the stack */
+	memcpy(&regsave, regs, sizeof(regsave));
+
+	psplinkHandleException(&regsave);
+
+	memcpy(regs, &regsave, sizeof(regsave));
+
+	pspDebugResumeFromException();
 }
 
 /* Simple thread */

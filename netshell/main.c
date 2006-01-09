@@ -26,6 +26,7 @@
 #include <arpa/inet.h>
 #include <sys/select.h>
 #include <errno.h>
+#include <modnet.h>
 
 #define MODULE_NAME "NetShell"
 #define WELCOME_MESSAGE "Welcome to PSPLink's NetShell\n"
@@ -177,87 +178,18 @@ void start_server(const char *szIpAddr)
 	g_servsock = -1;
 }
 
-/* Connect to an access point */
-int connect_to_apctl(int config)
-{
-	int err;
-	int stateLast = -1;
-
-	/* Connect using the first profile */
-	err = sceNetApctlConnect(config);
-	if (err != 0)
-	{
-		printf(MODULE_NAME ": sceNetApctlConnect returns %08X\n", err);
-		return 0;
-	}
-
-	printf(MODULE_NAME ": Connecting...\n");
-	while (1)
-	{
-		int state;
-		err = sceNetApctlGetState(&state);
-		if (err != 0)
-		{
-			printf(MODULE_NAME ": sceNetApctlGetState returns $%x\n", err);
-			break;
-		}
-		if (state > stateLast)
-		{
-			printf("  connection state %d of 4\n", state);
-			stateLast = state;
-		}
-		if (state == 4)
-			break;  // connected with static IP
-
-		// wait a little before polling again
-		sceKernelDelayThread(50*1000); // 50ms
-	}
-	printf(MODULE_NAME ": Connected!\n");
-
-	if(err != 0)
-	{
-		return 0;
-	}
-
-	return 1;
-}
-
 /* Simple thread */
 int main(int argc, char **argv)
 {
-	int err;
-
 	pspDebugScreenInit();
 	printf("PSPLink NetShell (c) 2k6 TyRaNiD\n");
-	do
+
+	if(modNetIsInit() >= 0)
 	{
-		if((err = pspSdkInetInit()))
-		{
-			printf(MODULE_NAME ": Error, could not initialise the network %08X\n", err);
-			break;
-		}
-
-		if(!sceWlanGetSwitchState())
-		{
-			printf("Please switch on WLAN on your PSP\n");
-			do
-			{
-				sceKernelDelayThread(1000000);
-			}
-			while(!sceWlanGetSwitchState());
-		}
-
-		if(connect_to_apctl(1))
-		{
-			// connected, get my IPADDR and run test
-			char szMyIPAddr[32];
-			if (sceNetApctlGetInfo(8, szMyIPAddr) != 0)
-				strcpy(szMyIPAddr, "unknown IP address");
-
-			start_server(szMyIPAddr);
-		}
+		const char *ip;
+		ip = modNetGetIpAddress();
+		start_server(ip);
 	}
-	while(0);
 
 	sceKernelSleepThread();
 

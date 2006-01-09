@@ -1,11 +1,12 @@
-TARGET = netshell
-OBJS = main.o psplink.o modNet.o sdkbridge.o
+TARGET = modnet
+OBJS = main.o 
 
-PRX_EXPORTS=exports.exp
 BUILD_PRX=1
 
+PRX_EXPORTS = exports.exp
+
 INCDIR = 
-CFLAGS = -O0 -G0 -Wall -g -I../modnet/
+CFLAGS = -O2 -G0 -Wall
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 

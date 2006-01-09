@@ -21,6 +21,7 @@ struct ConfigContext
 	int  enableuser;
 	char cliprompt[128];
 	int  resetonexit;
+	int  wifi;
 	int  wifishell;
 	int  sioshell;
 	int  passprompt;
