@@ -176,7 +176,7 @@ void exit_reset(void)
 }
 
 /* Do some kernel patching */
-void patch_kernel(void)
+static void patch_kernel(void)
 {
 	u32 *jump;
 	u32 *patch;
@@ -195,7 +195,7 @@ void patch_kernel(void)
 }
 
 /* Do some kernel patching */
-void unpatch_kernel(void)
+static void unpatch_kernel(void)
 {
 	u32 *jump;
 	u32 *patch;
