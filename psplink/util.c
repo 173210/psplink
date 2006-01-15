@@ -595,7 +595,8 @@ void strip_whitesp(char *s)
 	{
 		if(is_aspace(s[end-1]))
 		{
-			s[end-1] = 0;
+			end--;
+			s[end] = 0;
 		}
 		else
 		{
