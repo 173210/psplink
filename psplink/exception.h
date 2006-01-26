@@ -13,8 +13,11 @@ struct ExceptionContext
 	char modulename[32];
 };
 
+extern struct ExceptionContext g_exception;
+
 void exceptionInit(void);
 void exceptionPrint(void);
 u32 *exceptionGetReg(const char *reg);
+void exceptionResume(void);
 
 #endif

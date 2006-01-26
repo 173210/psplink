@@ -1,7 +1,7 @@
 OUTPUT=pcterm
 OBJS=pcterm.o
 
-CFLAGS=-Wall -g
+CFLAGS=-Wall -g -DSERIAL_SUPPORT
 LIBS=-lreadline
 
 all: pcterm

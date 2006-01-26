@@ -1,5 +1,5 @@
 TARGET = modnet
-OBJS = main.o 
+OBJS = main.o psplinkUser.o
 
 BUILD_PRX=1
 

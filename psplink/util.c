@@ -327,39 +327,6 @@ int load_start_module(const char *name, int argc, char **argv)
 	return modid;
 }
 
-int load_start_module_debug(const char *name)
-{
-	SceUID modid;
-	int status;
-
-	modid = sceKernelLoadModule(name, 0, NULL);
-	if(modid >= 0)
-	{
-		SceKernelModuleInfo info;
-		int ret;
-
-		ret = g_QueryModuleInfo(modid, &info);
-		if(ret >= 0)
-		{
-			//u32 result;
-
-			g_debuggermode = 1;
-			stop_usb();
-			pspDebugGdbStubInit();
-
-			set_swbp(info.entry_addr);
-			sceKernelDcacheWritebackAll();
-			sceKernelIcacheInvalidateAll();
-			Kprintf("lsmd: using name '%s'\n",name);
-			modid = sceKernelStartModule(modid, strlen(name) + 1, (void *)name, &status, NULL);
-
-			//sceKernelWaitEventFlag(g_eventflag, EVENT_RESUMESH, 0x100, &result, NULL);
-		}
-	}
-
-	return modid;
-}
-
 void map_firmwarerev(void)
 {
 	/* Special case for version 1 firmware */
@@ -720,3 +687,48 @@ int decode_hexstr(const char *str, unsigned char *data, int max)
 
 	return hexlen / 2;
 }
+
+SceUID refer_module_by_addr(unsigned int addr, SceKernelModuleInfo *info)
+{
+	SceModule *pMod;
+	SceUID uid = -1;
+
+	pMod = sceKernelFindModuleByAddress(addr);
+	if(pMod)
+	{
+		uid = pMod->modid;
+		memset(info, 0, sizeof(*info));
+		info->size = sizeof(*info);
+		pspDebugSioDisableKprintf();
+		if(g_QueryModuleInfo(uid, info) < 0)
+		{
+			uid = -1;
+		}
+		pspDebugSioEnableKprintf();
+	}
+
+	return uid;
+}
+
+SceUID refer_module_by_name(const char *name, SceKernelModuleInfo *info)
+{
+	SceModule *pMod;
+	SceUID uid = -1;
+
+	pMod = sceKernelFindModuleByName(name);
+	if(pMod)
+	{
+		uid = pMod->modid;
+		memset(info, 0, sizeof(*info));
+		info->size = sizeof(*info);
+		pspDebugSioDisableKprintf();
+		if(g_QueryModuleInfo(uid, info) < 0)
+		{
+			uid = -1;
+		}
+		pspDebugSioEnableKprintf();
+	}
+
+	return uid;
+}
+

@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * Licensed under the BSD license, see LICENSE in PSPLINK root for details.
  *
- * pcterm.c - PSPLINK wifi pc terminal
+ * pcterm.c - PSPLINK pc terminal
  *
  * Copyright (c) 2006 James F <tyranid@gmail.com>
  *
@@ -24,15 +24,22 @@
 #include <errno.h>
 #include <signal.h>
 
+#ifdef SERIAL_SUPPORT
+#include <termios.h>
+#endif
+
 #define DEFAULT_PORT 23
 #define HISTORY_FILE ".pcterm.hist"
 #define CONNECT_RETRIES 5
+#define BAUD_RATE 115200
 
 struct Args
 {
 	const char *ip;
 	const char *hist;
 	unsigned short port;
+	unsigned int baud;
+	int serialmode;
 	int retries;
 };
 
@@ -48,6 +55,9 @@ struct GlobalContext
 	struct Args args;
 	struct sockaddr_in serv;
 	int exit;
+	int conn_sanity;
+	fd_set readsave;
+	fd_set writesave;
 	int sock;
 	enum State state;
 	int promptwait;
@@ -99,7 +109,15 @@ void execute_line(const char *buf)
 			g_context.state = STATE_IDLE;
 		}
 
-		len = fixed_write(g_context.sock, "\r\n", 2);
+		if(g_context.args.serialmode)
+		{
+			len = fixed_write(g_context.sock, "\n", 1);
+		}
+		else
+		{
+			len = fixed_write(g_context.sock, "\r\n", 2);
+		}
+
 		if(len < 0)
 		{
 			close(g_context.sock);
@@ -135,27 +153,116 @@ void cli_handler(char *buf)
 	}
 }
 
+int cli_reset()
+{
+	if(g_context.args.serialmode)
+	{
+		if(g_context.sock >= 0)
+		{
+			char ch = 18;
+			write(g_context.sock, &ch, 1);
+		}
+	}
+	else
+	{
+		execute_line("reset");
+	}
+
+	return 0;
+}
+
+int cli_step()
+{
+	if(g_context.args.serialmode)
+	{
+		if(g_context.sock >= 0)
+		{
+			char ch = 19;
+			write(g_context.sock, &ch, 1);
+		}
+	}
+	else
+	{
+		execute_line("step");
+	}
+
+	return 0;
+}
+
+int cli_skip()
+{
+	if(g_context.args.serialmode)
+	{
+		if(g_context.sock >= 0)
+		{
+			char ch = 19;
+			write(g_context.sock, &ch, 1);
+		}
+	}
+	else
+	{
+		execute_line("skip");
+	}
+
+	return 0;
+}
+
 int init_readline(void)
 {
 	rl_bind_key('\t', rl_insert);
+	rl_bind_key_in_map(META('r'), cli_reset, emacs_standard_keymap);
+	rl_bind_key_in_map(META('s'), cli_step, emacs_standard_keymap);
+	rl_bind_key_in_map(META('k'), cli_skip, emacs_standard_keymap);
 	rl_callback_handler_install("", cli_handler);
 	g_context.promptwait = 1;
 
 	return 1;
 }
 
+#ifdef SERIAL_SUPPORT
+speed_t map_int_to_speed(int baud)
+{
+	speed_t ret = 0;
+
+	switch(baud)
+	{
+		case 4800: ret = B4800;
+				   break;
+		case 9600: ret = B9600;
+				   break;
+		case 19200: ret = B19200;
+				   break;
+		case 38400: ret = B38400;
+				   break;
+		case 57600: ret = B57600;
+				   break;
+		case 115200: ret = B115200;
+				   break;
+		default: fprintf(stderr, "Unsupport baud rate %d\n", baud);
+				 break;
+	};
+
+	return ret;
+}
+#endif
+
 int parse_args(int argc, char **argv, struct Args *args)
 {
 	memset(args, 0, sizeof(*args));
 	args->port = DEFAULT_PORT;
 	args->retries = CONNECT_RETRIES;
+	args->baud = map_int_to_speed(BAUD_RATE);
 
 	while(1)
 	{
 		int ch;
 		int error = 0;
 
+#ifdef SERIAL_SUPPORT
+		ch = getopt(argc, argv, "sp:h:r:b:");
+#else
 		ch = getopt(argc, argv, "p:h:r:");
+#endif
 		if(ch < 0)
 		{
 			break;
@@ -169,6 +276,16 @@ int parse_args(int argc, char **argv, struct Args *args)
 					  break;
 			case 'r': args->retries = atoi(optarg);
 					  break;
+#ifdef SERIAL_SUPPORT
+			case 'b': args->baud = map_int_to_speed(atoi(optarg));
+					  if(args->baud == 0)
+					  {
+						  error = 1;
+					  }
+					  break;
+			case 's': args->serialmode = 1;
+					  break;
+#endif
 			default : error = 1;
 					  break;
 		};
@@ -201,6 +318,10 @@ void print_help(void)
 	fprintf(stderr, "-p port     : Specify the port number\n");
 	fprintf(stderr, "-h history  : Specify the history file (default ~/%s)\n", HISTORY_FILE);
 	fprintf(stderr, "-r retries  : Number of connection retries (default %d)\n", CONNECT_RETRIES);
+#ifdef SERIAL_SUPPORT
+	fprintf(stderr, "-b baud     : Specify the baud rate (default %d)\n", BAUD_RATE);
+	fprintf(stderr, "-s          : Set serial mode\n");
+#endif
 }
 
 int init_sockaddr(struct sockaddr_in *name, const char *ipaddr, unsigned short port)
@@ -243,6 +364,11 @@ int read_socket(int sock)
 	char prompt[1024];
 	int len;
 	int promptfind = 0;
+
+	/* TODO: Support for better reading of the prompt data */
+	/* If not waiting for a prompt then print directly, otherwise start adding to a buffer. */
+	/* If we get a 0xFF then start the prompt pending, if we get a linefeed before it completes then
+	 * we just dump the line as is */
 
 	len = read(sock, buf, sizeof(buf)-1);
 	if(len < 0)
@@ -292,25 +418,140 @@ int read_socket(int sock)
 	return len;
 }
 
+int on_idle(void)
+{
+#ifdef SERIAL_SUPPORT
+	if(g_context.args.serialmode)
+	{
+		struct termios options;
+
+		g_context.sock = open(g_context.args.ip, O_RDWR | O_NOCTTY | O_NDELAY);
+		if(g_context.sock == -1)
+		{
+			perror("Unable to open serial port - ");
+			return 0;
+		}
+		else
+		{
+			fcntl(g_context.sock, F_SETFL, 0);
+		}
+
+		tcgetattr(g_context.sock, &options);
+		cfsetispeed(&options, g_context.args.baud);
+		cfsetospeed(&options, g_context.args.baud);
+		options.c_cflag &= ~PARENB;
+		options.c_cflag &= ~CSTOPB;
+		options.c_cflag &= ~CSIZE;
+		options.c_cflag |= CS8;
+		options.c_cflag &= ~CRTSCTS;
+		options.c_cflag |= (CLOCAL | CREAD);
+
+		options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+		options.c_iflag &= ~(IXON | IXOFF | IXANY);
+		options.c_iflag |= IGNCR;
+
+		options.c_oflag &= ~OPOST;
+
+		tcsetattr(g_context.sock, TCSANOW, &options);
+		FD_SET(g_context.sock, &g_context.readsave);
+		g_context.state = STATE_CONNECTED;
+	}
+	else
+#endif
+	{
+		g_context.sock = socket(PF_INET, SOCK_STREAM, 0);
+		if(g_context.sock < 0)
+		{
+			perror("socket");
+			return 0;
+		}
+		set_socknonblock(g_context.sock, 1);
+		if(connect(g_context.sock, (struct sockaddr *) &g_context.serv, sizeof(g_context.serv)) < 0)
+		{
+			if(errno != EINPROGRESS)
+			{
+				perror("connect");
+				return 0;
+			}
+
+			FD_SET(g_context.sock, &g_context.writesave);
+			g_context.state = STATE_CONNECTING;
+		}
+		else
+		{
+			set_socknonblock(g_context.sock, 0);
+			FD_SET(g_context.sock, &g_context.readsave);
+			g_context.state = STATE_CONNECTED;
+		}
+	}
+
+	return 1;
+}
+
+int on_connecting(void)
+{
+	int err;
+	socklen_t len;
+	len = sizeof(err);
+
+	if(getsockopt(g_context.sock, SOL_SOCKET, SO_ERROR, &err, &len) < 0)
+	{
+		perror("getsockopt");
+		return 0;
+	}
+
+	if(err != 0)
+	{
+		errno = err;
+		if(g_context.conn_sanity >= g_context.args.retries)
+		{
+			perror("getsockopt");
+			return 0;
+		}
+		else
+		{
+			printf("Retrying connection\n");
+			g_context.conn_sanity++;
+			close(g_context.sock);
+			g_context.sock = -1;
+			g_context.state = STATE_IDLE;
+			return 1;
+		}
+	}
+
+	g_context.conn_sanity = 0;
+	set_socknonblock(g_context.sock, 0);
+	g_context.state = STATE_CONNECTED;
+	FD_SET(g_context.sock, &g_context.readsave);
+	FD_CLR(g_context.sock, &g_context.writesave);
+
+	return 1;
+}
+
 void shell(void)
 {
-	fd_set readset, readsave;
-	fd_set writeset, writesave;
-	int conn_sanity = 0;
+	fd_set readset, writeset;
 
-	printf("Opening connection to %s port %d\n", g_context.args.ip, g_context.args.port);
-	if(!init_sockaddr(&g_context.serv, g_context.args.ip, g_context.args.port))
+	if(g_context.args.serialmode)
 	{
-		return;
+		printf("Opening %s baud %d\n", g_context.args.ip, g_context.args.baud);
+	}
+	else
+	{
+		printf("Opening connection to %s port %d\n", g_context.args.ip, g_context.args.port);
+		if(!init_sockaddr(&g_context.serv, g_context.args.ip, g_context.args.port))
+		{
+			return;
+		}
 	}
 
 	init_readline();
 	read_history(g_context.history_file);
 	history_set_pos(history_length);
 
-	FD_ZERO(&readsave);
-	FD_SET(STDIN_FILENO, &readsave);
-	FD_ZERO(&writesave);
+	FD_ZERO(&g_context.readsave);
+	FD_SET(STDIN_FILENO, &g_context.readsave);
+	FD_ZERO(&g_context.writesave);
 
 	while(!g_context.exit)
 	{
@@ -318,33 +559,14 @@ void shell(void)
 
 		if(g_context.state == STATE_IDLE)
 		{
-			g_context.sock = socket(PF_INET, SOCK_STREAM, 0);
-			if(g_context.sock < 0)
+			if(!on_idle())
 			{
-				perror("socket");
 				break;
-			}
-			set_socknonblock(g_context.sock, 1);
-			if(connect(g_context.sock, (struct sockaddr *) &g_context.serv, sizeof(g_context.serv)) < 0)
-			{
-				if(errno != EINPROGRESS)
-				{
-					perror("connect");
-					break;
-				}
-
-				FD_SET(g_context.sock, &writesave);
-				g_context.state = STATE_CONNECTING;
-			}
-			else
-			{
-				FD_SET(g_context.sock, &readsave);
-				g_context.state = STATE_CONNECTED;
 			}
 		}
 
-		readset = readsave;
-		writeset = writesave;
+		readset = g_context.readsave;
+		writeset = g_context.writesave;
 		ret = select(FD_SETSIZE, &readset, &writeset, NULL, NULL);
 		if(ret < 0)
 		{
@@ -376,44 +598,15 @@ void shell(void)
 				}
 			}
 
+			/* If connecting (never occurs if using serial) */
 			if(g_context.state == STATE_CONNECTING)
 			{
 				if(FD_ISSET(g_context.sock, &writeset))
 				{
-					int err;
-					socklen_t len;
-					len = sizeof(err);
-
-					if(getsockopt(g_context.sock, SOL_SOCKET, SO_ERROR, &err, &len) < 0)
+					if(!on_connecting())
 					{
-						perror("getsockopt");
 						break;
 					}
-
-					if(err != 0)
-					{
-						errno = err;
-						if(conn_sanity >= g_context.args.retries)
-						{
-							perror("getsockopt");
-							break;
-						}
-						else
-						{
-							printf("Retrying connection\n");
-							conn_sanity++;
-							close(g_context.sock);
-							g_context.sock = -1;
-							g_context.state = STATE_IDLE;
-							continue;
-						}
-					}
-
-					conn_sanity = 0;
-					set_socknonblock(g_context.sock, 0);
-					g_context.state = STATE_CONNECTED;
-					FD_SET(g_context.sock, &readsave);
-					FD_CLR(g_context.sock, &writesave);
 				}
 			}
 		}

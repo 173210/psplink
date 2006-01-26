@@ -13,6 +13,7 @@
  */
 #include <pspkernel.h>
 #include <pspdebug.h>
+#include <pspkdebug.h>
 #include <pspsdk.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -235,6 +236,11 @@ void psplinkExitShell(void)
 {
 	unpatch_kernel();
 	sceKernelExitGame();
+}
+
+int psplinkPresent(void)
+{
+	return 1;
 }
 
 /* Simple thread */

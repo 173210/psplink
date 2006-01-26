@@ -39,6 +39,8 @@ PSP_MAIN_THREAD_NAME("ModNet");
 SceUID g_modevent = -1;
 char   g_ipaddr[20] = "";
 
+void psplinkUserRegisterGdbHandler(int i);
+
 int modNetIsInit(void)
 {
 	int sanity = 0;
@@ -120,8 +122,6 @@ int main(int argc, char **argv)
 	int err;
 	int ap = 1;
 
-	pspDebugScreenInit();
-
 	if(argc > 1)
 	{
 		ap = atoi(argv[1]);
@@ -144,7 +144,7 @@ int main(int argc, char **argv)
 		
 		if(!sceWlanGetSwitchState())
 		{
-			printf("Please switch on WLAN on your PSP\n");
+			pspDebugScreenPrintf("Please switch on WLAN on your PSP\n");
 			do
 			{
 				sceKernelDelayThread(1000000);

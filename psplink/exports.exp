@@ -9,19 +9,20 @@ PSP_EXPORT_VAR(module_info)
 PSP_EXPORT_END
 
 PSP_EXPORT_START(psplink, 0, 0x4001)
+PSP_EXPORT_FUNC(psplinkPresent)
 PSP_EXPORT_FUNC(psplinkHandleException)
 PSP_EXPORT_FUNC(psplinkParseCommand)
 PSP_EXPORT_FUNC(psplinkPrintPrompt)
 PSP_EXPORT_FUNC(psplinkExitShell)
 PSP_EXPORT_FUNC(stdoutSetWifiHandler)
+PSP_EXPORT_FUNC(sceKernelRegisterDefaultExceptionHandler)
+PSP_EXPORT_FUNC(sceKernelDcacheWritebackAll)
+PSP_EXPORT_FUNC(sceKernelDcacheInvalidateAll)
+PSP_EXPORT_FUNC(sceKernelDcacheWritebackInvalidateAll)
+PSP_EXPORT_FUNC(sceKernelIcacheInvalidateAll)
 PSP_EXPORT_END
 
 PSP_EXPORT_START(sdkbridge, 0, 0x4001)
-# Some kernel bridge functions
-PSP_EXPORT_FUNC(pspDebugSioPutchar)
-PSP_EXPORT_FUNC(pspDebugSioGetchar)
-PSP_EXPORT_FUNC(Kprintf)
-PSP_EXPORT_FUNC(sceKernelRegisterDefaultExceptionHandler)
 PSP_EXPORT_FUNC(sceIoAddDrv)
 PSP_EXPORT_FUNC(sceIoDelDrv)
 PSP_EXPORT_END

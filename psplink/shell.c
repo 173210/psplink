@@ -36,6 +36,8 @@
 #include "version.h"
 #include "exception.h"
 #include "decodeaddr.h"
+#include "debug.h"
+#include "symbols.h"
 
 #define MAX_SHELL_VAR      128
 #define SHELL_PROMPT	"psplink %d>"
@@ -279,7 +281,7 @@ static int threadmanlist_cmd(int argc, char **argv, enum SceKernelIdListType typ
 		{
 			if(pinfo(ids[i], verbose) < 0)
 			{
-				printf("ERROR: Unknown %s %08X\n", name, ids[i]);
+				printf("ERROR: Unknown %s 0x%08X\n", name, ids[i]);
 			}
 		}
 	}
@@ -298,7 +300,7 @@ static int threadmaninfo_cmd(int argc, char **argv, const char *name, threadmanp
 	{
 		if(pinfo(uid, 1) < 0)
 		{
-			printf("ERROR: Unknown %s %08X\n", name, uid);
+			printf("ERROR: Unknown %s 0x%08X\n", name, uid);
 		}
 
 		ret = CMD_OK;
@@ -317,15 +319,15 @@ static int print_threadinfo(SceUID uid, int verbose)
 	ret = sceKernelReferThreadStatus(uid, &info);
 	if(ret == 0)
 	{
-		printf("UID: %08X - Name: %s\n", uid, info.name);
+		printf("UID: 0x%08X - Name: %s\n", uid, info.name);
 		if(verbose)
 		{
-			printf("Attr: %08X - Status: %d - Entry: %p\n", info.attr, info.status, info.entry);
-			printf("Stack: %p - StackSize %08X - GP: %08X\n", info.stack, info.stackSize,
+			printf("Attr: 0x%08X - Status: %d - Entry: %p\n", info.attr, info.status, info.entry);
+			printf("Stack: %p - StackSize 0x%08X - GP: 0x%08X\n", info.stack, info.stackSize,
 					(u32) info.gpReg);
 			printf("InitPri: %d - CurrPri: %d - WaitType %d\n", info.initPriority,
 					info.currentPriority, info.waitType);
-			printf("WaitId: %08X - WakeupCount: %d - ExitStatus: %08X\n", info.waitId,
+			printf("WaitId: 0x%08X - WakeupCount: %d - ExitStatus: 0x%08X\n", info.waitId,
 					info.wakeupCount, info.exitStatus);
 			printf("RunClocks: %d - IntrPrempt: %d - ThreadPrempt: %d\n", info.runClocks.low,
 					info.intrPreemptCount, info.threadPreemptCount);
@@ -359,7 +361,7 @@ static int thsusp_cmd(int argc, char **argv)
 		err = sceKernelSuspendThread(uid);
 		if(err < 0)
 		{
-			printf("Cannot suspend thread %08X\n", err);
+			printf("Cannot suspend thread 0x%08X\n", err);
 		}
 
 		ret = CMD_OK;
@@ -381,7 +383,7 @@ static int thresm_cmd(int argc, char **argv)
 		err = sceKernelResumeThread(uid);
 		if(err < 0)
 		{
-			printf("Cannot suspend thread %08X\n", err);
+			printf("Cannot suspend thread 0x%08X\n", err);
 		}
 
 		ret = CMD_OK;
@@ -403,7 +405,7 @@ static int thwake_cmd(int argc, char **argv)
 		err = sceKernelWakeupThread(uid);
 		if(err < 0)
 		{
-			printf("Cannot wakeup thread %08X\n", err);
+			printf("Cannot wakeup thread 0x%08X\n", err);
 		}
 
 		ret = CMD_OK;
@@ -425,7 +427,7 @@ static int thterm_cmd(int argc, char **argv)
 		err = sceKernelTerminateThread(uid);
 		if(err < 0)
 		{
-			printf("Cannot terminate thread %08X\n", err);
+			printf("Cannot terminate thread 0x%08X\n", err);
 		}
 
 		ret = CMD_OK;
@@ -447,7 +449,7 @@ static int thdel_cmd(int argc, char **argv)
 		err = sceKernelDeleteThread(uid);
 		if(err < 0)
 		{
-			printf("Cannot delete thread %08X\n", err);
+			printf("Cannot delete thread 0x%08X\n", err);
 		}
 
 		ret = CMD_OK;
@@ -469,7 +471,7 @@ static int thtdel_cmd(int argc, char **argv)
 		err = sceKernelTerminateDeleteThread(uid);
 		if(err < 0)
 		{
-			printf("Cannot terminate delete thread %08X\n", err);
+			printf("Cannot terminate delete thread 0x%08X\n", err);
 		}
 
 		ret = CMD_OK;
@@ -488,12 +490,12 @@ static int print_eventinfo(SceUID uid, int verbose)
 	ret = sceKernelReferEventFlagStatus(uid, &info);
 	if(ret == 0)
 	{
-		printf("UID: %08X - Name: %s\n", uid, info.name);
+		printf("UID: 0x%08X - Name: %s\n", uid, info.name);
 		if(verbose)
 		{
-			printf("Attr: %08X - initPattern %08X - currPatten %08X\n", info.attr, info.initPattern, 
+			printf("Attr: 0x%08X - initPattern 0x%08X - currPatten 0x%08X\n", info.attr, info.initPattern, 
 					info.currentPattern);
-			printf("NumWaitThreads: %08X\n", info.numWaitThreads);
+			printf("NumWaitThreads: 0x%08X\n", info.numWaitThreads);
 		}
 	}
 
@@ -520,12 +522,12 @@ static int print_semainfo(SceUID uid, int verbose)
 	ret = sceKernelReferSemaStatus(uid, &info);
 	if(ret == 0)
 	{
-		printf("UID: %08X - Name: %s\n", uid, info.name);
+		printf("UID: 0x%08X - Name: %s\n", uid, info.name);
 		if(verbose)
 		{
-			printf("Attr: %08X - initCount: %08X - currCount: %08X\n", info.attr, info.initCount, 
+			printf("Attr: 0x%08X - initCount: 0x%08X - currCount: 0x%08X\n", info.attr, info.initCount, 
 					info.currentCount);
-			printf("maxCount: %08X - NumWaitThreads: %08X\n", info.maxCount, info.numWaitThreads);
+			printf("maxCount: 0x%08X - NumWaitThreads: 0x%08X\n", info.maxCount, info.numWaitThreads);
 		}
 	}
 
@@ -552,10 +554,10 @@ static int print_mboxinfo(SceUID uid, int verbose)
 	ret = sceKernelReferMbxStatus(uid, &info);
 	if(ret == 0)
 	{
-		printf("UID: %08X - Name: %s\n", uid, info.name);
+		printf("UID: 0x%08X - Name: %s\n", uid, info.name);
 		if(verbose)
 		{
-			printf("Attr: %08X - numWaitThreads: %08X - numMessages: %08X\n", info.attr, info.numWaitThreads, 
+			printf("Attr: 0x%08X - numWaitThreads: 0x%08X - numMessages: 0x%08X\n", info.attr, info.numWaitThreads, 
 					info.numMessages);
 			printf("firstMessage %p\n", info.firstMessage);
 		}
@@ -584,10 +586,10 @@ static int print_cbinfo(SceUID uid, int verbose)
 	ret = sceKernelReferCallbackStatus(uid, &info);
 	if(ret == 0)
 	{
-		printf("UID: %08X - Name: %s\n", uid, info.name);
+		printf("UID: 0x%08X - Name: %s\n", uid, info.name);
 		if(verbose)
 		{
-			printf("threadId %08X - callback %p - common %p\n", info.threadId, info.callback, info.common);
+			printf("threadId 0x%08X - callback %p - common %p\n", info.threadId, info.callback, info.common);
 			printf("notifyCount %d - notifyArg %d\n", info.notifyCount, info.notifyArg);
 		}
 	}
@@ -615,7 +617,7 @@ static int print_vtinfo(SceUID uid, int verbose)
 	ret = sceKernelReferVTimerStatus(uid, &info);
 	if(ret == 0)
 	{
-		printf("UID: %08X - Name: %s\n", uid, info.name);
+		printf("UID: 0x%08X - Name: %s\n", uid, info.name);
 		if(verbose)
 		{
 			printf("active %d - base.hi %d - base.low %d - current.hi %d - current.low %d\n", 
@@ -648,10 +650,10 @@ static int print_vplinfo(SceUID uid, int verbose)
 	ret = sceKernelReferVplStatus(uid, &info);
 	if(ret == 0)
 	{
-		printf("UID: %08X - Name: %s\n", uid, info.name);
+		printf("UID: 0x%08X - Name: %s\n", uid, info.name);
 		if(verbose)
 		{
-			printf("Attr %08X - poolSize %d - freeSize %d - numWaitThreads %d\n",
+			printf("Attr 0x%08X - poolSize %d - freeSize %d - numWaitThreads %d\n",
 					info.attr, info.poolSize, info.freeSize, info.numWaitThreads);
 		}
 	}
@@ -679,10 +681,10 @@ static int print_fplinfo(SceUID uid, int verbose)
 	ret = sceKernelReferFplStatus(uid, &info);
 	if(ret == 0)
 	{
-		printf("UID: %08X - Name: %s\n", uid, info.name);
+		printf("UID: 0x%08X - Name: %s\n", uid, info.name);
 		if(verbose)
 		{
-			printf("Attr %08X - blockSize %d - numBlocks %d - freeBlocks %d - numWaitThreads %d\n",
+			printf("Attr 0x%08X - blockSize %d - numBlocks %d - freeBlocks %d - numWaitThreads %d\n",
 					info.attr, info.blockSize, info.numBlocks, info.freeBlocks, info.numWaitThreads);
 		}
 	}
@@ -710,10 +712,10 @@ static int print_mppinfo(SceUID uid, int verbose)
 	ret = sceKernelReferMsgPipeStatus(uid, &info);
 	if(ret == 0)
 	{
-		printf("UID: %08X - Name: %s\n", uid, info.name);
+		printf("UID: 0x%08X - Name: %s\n", uid, info.name);
 		if(verbose)
 		{
-			printf("Attr %08X - bufSize %d - freeSize %d\n", info.attr, info.bufSize, info.freeSize);
+			printf("Attr 0x%08X - bufSize %d - freeSize %d\n", info.attr, info.bufSize, info.freeSize);
 			printf("numSendWaitThreads %d - numReceiveWaitThreads %d\n", info.numSendWaitThreads,
 					info.numReceiveWaitThreads);
 		}
@@ -751,13 +753,19 @@ static int print_modinfo(SceUID uid, int verbose)
 	ret = g_QueryModuleInfo(uid, &info);
 	if(ret >= 0)
 	{
-		printf("UID: %08X Attr: %04X - Name: %s\n", uid, info.attribute, info.name);
+		int i;
+		printf("UID: 0x%08X Attr: %04X - Name: %s\n", uid, info.attribute, info.name);
 		if(verbose)
 		{
-			printf("Entry: %08X - GP: %08X - TextAddr: %08X\n", info.entry_addr,
+			printf("Entry: 0x%08X - GP: 0x%08X - TextAddr: 0x%08X\n", info.entry_addr,
 					info.gp_value, info.text_addr);
-			printf("TextSize: %08X - DataSize: %08X BssSize: %08X\n", info.text_size,
+			printf("TextSize: 0x%08X - DataSize: 0x%08X BssSize: 0x%08X\n", info.text_size,
 					info.data_size, info.bss_size);
+			for(i = 0; (i < info.nsegment) && (i < 4); i++)
+			{
+				printf("Segment %d: Addr 0x%08X - Size 0x%08X\n", i, 
+						(u32) info.segmentaddr[i], (u32) info.segmentsize[i]);
+			}
 		}
 	}
 	pspDebugSioEnableKprintf();
@@ -776,7 +784,7 @@ static int modinfo_cmd(int argc, char **argv)
 	{
 		if(print_modinfo(uid, 1) < 0)
 		{
-			printf("ERROR: Unknown module %08X\n", uid);
+			printf("ERROR: Unknown module 0x%08X\n", uid);
 		}
 		else
 		{
@@ -833,7 +841,7 @@ static int modstop_cmd(int argc, char **argv)
 		int status;
 
 		uid_ret = sceKernelStopModule(uid, 0, NULL, &status, NULL);
-		printf("Module Stop %08X Status %08X\n", uid_ret, status);
+		printf("Module Stop 0x%08X Status 0x%08X\n", uid_ret, status);
 
 		ret = CMD_OK;
 	}
@@ -857,7 +865,7 @@ static int modunld_cmd(int argc, char **argv)
 		SceUID uid_ret;
 
 		uid_ret = sceKernelUnloadModule(uid);
-		printf("Module Unload %08X\n", uid_ret);
+		printf("Module Unload 0x%08X\n", uid_ret);
 
 		ret = CMD_OK;
 	}
@@ -893,7 +901,7 @@ static int modstart_cmd(int argc, char **argv)
 		}
 
 		uid_ret = sceKernelStartModule(uid, len, args, &status, NULL);
-		printf("Module Start %08X Status %08X\n", uid_ret, status);
+		printf("Module Start 0x%08X Status 0x%08X\n", uid_ret, status);
 
 		ret = CMD_OK;
 	}
@@ -913,7 +921,7 @@ static int modload_cmd(int argc, char **argv)
 	if(handlepath(g_context.currdir, argv[0], path, TYPE_FILE, 1))
 	{
 		modid = sceKernelLoadModule(path, 0, NULL);
-		printf("Module Load '%s' UID: %08X\n", path, modid);
+		printf("Module Load '%s' UID: 0x%08X\n", path, modid);
 	}
 	else
 	{
@@ -961,11 +969,11 @@ static int ldstart_cmd(int argc, char **argv)
 			modid = load_start_module(path, argc-1, &argv[1]);
 			if(modid >= 0)
 			{
-				printf("Load/Start module UID: %08X\n", modid);
+				printf("Load/Start module UID: 0x%08X\n", modid);
 			}
 			else
 			{
-				printf("Failed to Load/Start module '%s' Error: %08X\n", path, modid);
+				printf("Failed to Load/Start module '%s' Error: 0x%08X\n", path, modid);
 			}
 
 			ret = CMD_OK;
@@ -1001,7 +1009,7 @@ static int calc_cmd(int argc, char **argv)
 					  break;
 			case 'O': printf("Result = %o\n", val);
 					  break;
-			case 'X': printf("Result = %08X\n", val);
+			case 'X': printf("Result = 0x%08X\n", val);
 					  break;
 		};
 	}
@@ -1082,7 +1090,7 @@ static int exec_cmd(int argc, char **argv)
 			modid = load_start_module(file, argc-1, &argv[1]);
 			if(modid >= 0)
 			{
-				printf("Load/Start module UID: %08X\n", modid);
+				printf("Load/Start module UID: 0x%08X\n", modid);
 				strcpy(g_context.execfile, file);
 				g_context.inexec = 1;
 				save_execargs(argc-1, &argv[1]);
@@ -1090,45 +1098,13 @@ static int exec_cmd(int argc, char **argv)
 			}
 			else
 			{
-				printf("Failed to Load/Start module '%s' Error: %08X\n", file, modid);
+				printf("Failed to Load/Start module '%s' Error: 0x%08X\n", file, modid);
 			}
 		}
 	}
 	while(0);
 
 	return ret;
-}
-
-static int debug_cmd(int argc, char **argv)
-{
-	char *file;
-
-	do
-	{
-		file = argv[0];
-
-		if(g_context.inexec)
-		{
-			printf("ERROR: Reset before going into debug mode\n");
-		}
-		else
-		{
-			SceUID modid;
-
-			modid = load_start_module_debug(file);
-			if(modid >= 0)
-			{
-				printf("Load/Start module UID: %08X\n", modid);
-			}
-			else
-			{
-				printf("Failed to Load/Start module '%s' Error: %08X\n", file, modid);
-			}
-		}
-	}
-	while(0);
-
-	return CMD_OK;
 }
 
 static int list_dir(const char *name)
@@ -1428,8 +1404,8 @@ static int meminfo_cmd(int argc, char **argv)
 	}
 
 	printf("Memory Partitions:\n");
-	printf("N |   BASE   |   SIZE   | TOTALFREE |  MAXFREE  | ATTR |\n");
-	printf("--|----------|----------|-----------|-----------|------|\n");
+	printf("N |    BASE    |   SIZE   | TOTALFREE |  MAXFREE  | ATTR |\n");
+	printf("--|------------|----------|-----------|-----------|------|\n");
 	for(i = pid; i < max; i++)
 	{
 		SceSize total;
@@ -1441,7 +1417,7 @@ static int meminfo_cmd(int argc, char **argv)
 		memset(&info, 0, sizeof(info));
 		info.size = sizeof(info);
 		sceKernelQueryMemoryPartitionInfo(i, &info);
-		printf("%d | %08X | %8d | %9d | %9d | %04X |\n", 
+		printf("%d | 0x%08X | %8d | %9d | %9d | %04X |\n", 
 				i, info.startaddr, info.memsize, total, free, info.attr);
 	}
 
@@ -1622,7 +1598,7 @@ static int savemem_cmd(int argc, char **argv)
 		fd = sceIoOpen(argv[2], PSP_O_CREAT | PSP_O_TRUNC | PSP_O_WRONLY, 0777);
 		if(fd < 0)
 		{
-			printf("Could not open file '%s' for writing %08X\n", argv[2], fd);
+			printf("Could not open file '%s' for writing 0x%08X\n", argv[2], fd);
 		}
 		else
 		{
@@ -1677,7 +1653,7 @@ static int loadmem_cmd(int argc, char **argv)
 		fd = sceIoOpen(argv[1], PSP_O_RDONLY, 0777);
 		if(fd < 0)
 		{
-			printf("Could not open file '%s' for reading %08X\n", argv[2], fd);
+			printf("Could not open file '%s' for reading 0x%08X\n", argv[2], fd);
 		}
 		else
 		{
@@ -1760,7 +1736,7 @@ static int pokew_cmd(int argc, char **argv)
 		}
 		else
 		{
-			printf("Invalid memory address %08X\n", addr);
+			printf("Invalid memory address 0x%08X\n", addr);
 			return CMD_ERROR;
 		}
 	}
@@ -1806,7 +1782,7 @@ static int pokeh_cmd(int argc, char **argv)
 		}
 		else
 		{
-			printf("Invalid memory address %08X\n", addr);
+			printf("Invalid memory address 0x%08X\n", addr);
 			return CMD_ERROR;
 		}
 	}
@@ -1851,7 +1827,7 @@ static int pokeb_cmd(int argc, char **argv)
 		}
 		else
 		{
-			printf("Invalid memory address %08X\n", addr);
+			printf("Invalid memory address 0x%08X\n", addr);
 			return CMD_ERROR;
 		}
 	}
@@ -1871,11 +1847,11 @@ static int peekw_cmd(int argc, char **argv)
 		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_WORD);
 		if(size_left >= sizeof(u32))
 		{
-			printf("%08X: %08X\n", addr, _lw(addr));
+			printf("%08X: 0x%08X\n", addr, _lw(addr));
 		}
 		else
 		{
-			printf("Invalid memory address %08X\n", addr);
+			printf("Invalid memory address 0x%08X\n", addr);
 			return CMD_ERROR;
 		}
 	}
@@ -1899,7 +1875,7 @@ static int peekh_cmd(int argc, char **argv)
 		}
 		else
 		{
-			printf("Invalid memory address %08X\n", addr);
+			printf("Invalid memory address 0x%08X\n", addr);
 			return CMD_ERROR;
 		}
 	}
@@ -1922,7 +1898,7 @@ static int peekb_cmd(int argc, char **argv)
 		}
 		else
 		{
-			printf("Invalid memory address %08X\n", addr);
+			printf("Invalid memory address 0x%08X\n", addr);
 			return CMD_ERROR;
 		}
 	}
@@ -2230,10 +2206,10 @@ static int scrshot_cmd(int argc, char **argv)
 		return CMD_ERROR;
 	}
 
-	block_id = sceKernelAllocPartitionMemory(4, "scrshot", PSP_SMEM_Low, 544*1024, NULL);
+	block_id = sceKernelAllocPartitionMemory(4, "scrshot", PSP_SMEM_Low, 512*1024, NULL);
 	if(block_id < 0)
 	{
-		printf("Error could not allocate memory buffer %08X\n", block_id);
+		printf("Error could not allocate memory buffer 0x%08X\n", block_id);
 		return CMD_ERROR;
 	}
 	 
@@ -2414,7 +2390,7 @@ static int modaddr_cmd(int argc, char **argv)
 		}
 		else
 		{
-			printf("Couldn't find module at address %08X\n", addr);
+			printf("Couldn't find module at address 0x%08X\n", addr);
 		}
 	}
 	else
@@ -2429,6 +2405,141 @@ static int modaddr_cmd(int argc, char **argv)
 static int exprint_cmd(int argc, char **argv)
 {
 	exceptionPrint();
+
+	return CMD_OK;
+}
+
+static int exresume_cmd(int argc, char **argv)
+{
+	exceptionResume();
+
+	return CMD_OK;
+}
+
+static int bpset_cmd(int argc, char **argv)
+{
+	u32 addr;
+	int ret = CMD_ERROR;
+
+	if(memDecode(argv[0], &addr))
+	{
+		int size_left;
+
+		addr &= ~3;
+		size_left = memValidate(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_WORD | MEM_ATTRIB_EXEC);
+		if(size_left >= sizeof(u32))
+		{
+			debugSetBP(addr);
+			ret = CMD_OK;
+		}
+		else
+		{
+			printf("Error, invalidate memory address for breakpoint\n");
+		}
+	}
+
+	return ret;
+}
+
+static int bpprint_cmd(int argc, char **argv)
+{
+	debugPrintBPS();
+
+	return CMD_OK;
+}
+
+static int step_cmd(int argc, char **argv)
+{
+	debugStep(0);
+
+	return CMD_OK;
+}
+
+static int skip_cmd(int argc, char **argv)
+{
+	debugStep(1);
+
+	return CMD_OK;
+}
+
+static int symload_cmd(int argc, char **argv)
+{
+	char source[MAXPATHLEN];
+
+	if( !handlepath(g_context.currdir, argv[0], source, TYPE_FILE, 1) )
+	{
+		return CMD_ERROR;
+	}
+
+	if(!symbolLoadSymbols(source))
+	{
+		return CMD_ERROR;
+	}
+
+	return CMD_OK;
+}
+
+static int symlist_cmd(int argc, char **argv)
+{
+	symbolPrintLoadList();
+
+	return CMD_OK;
+}
+
+static int symprint_cmd(int argc, char **argv)
+{
+	symbolPrintSymbols(argv[0]);
+
+	return CMD_OK;
+}
+
+static int symbyaddr_cmd(int argc, char **argv)
+{
+	u32 addr;
+	int ret = CMD_ERROR;
+
+	if(memDecode(argv[0], &addr))
+	{
+		const struct SymfileEntry *pEntry;
+		unsigned int baseaddr;
+
+		pEntry = symbolFindByAddress(addr, &baseaddr);
+		if(pEntry)
+		{
+			if((baseaddr + pEntry->addr) < addr)
+			{
+				printf("%s+0x%x\n", pEntry->name, addr - (baseaddr + pEntry->addr));
+			}
+			else
+			{
+				printf("%s\n", pEntry->name);
+			}
+
+			ret = CMD_OK;
+		}
+		else
+		{
+			printf("Error could not find symbol at address 0x%08X\n", addr);
+		}
+	}
+
+	return ret;
+}
+
+static int symbyname_cmd(int argc, char **argv)
+{
+	u32 addr;
+
+	addr = symbolFindByName(argv[0]);
+	if(addr > 0)
+	{
+		printf("%s = 0x%08X\n", argv[0], addr);
+	}
+	else
+	{
+		printf("Could not find symbol %s\n", argv[0]);
+		return CMD_ERROR;
+	}
 
 	return CMD_OK;
 }
@@ -2500,7 +2611,6 @@ struct sh_command commands[] = {
 	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me path [args]", SHELL_TYPE_CMD },
 	{ "modaddr","ma", modaddr_cmd, 1, "Display info about the module at a specified address", "ma address", SHELL_TYPE_CMD },
 	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path] [args]", SHELL_TYPE_CMD },
-	{ "debug", "d", debug_cmd, 1, "Debug an executable (need to switch to gdb)", "debug path", SHELL_TYPE_CMD },
 	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path [args]", SHELL_TYPE_CMD },
 	
 	{ "memory", NULL, NULL, 0, "Commands to manipulate memory", NULL, SHELL_TYPE_CATEGORY },
@@ -2535,8 +2645,18 @@ struct sh_command commands[] = {
 	{ "rename", "ren", rename_cmd, 2, "Renames a File", "rename src dst", SHELL_TYPE_CMD },
 	{ "pwd",   NULL, pwd_cmd, 0, "Print the current working directory", "pwd", SHELL_TYPE_CMD },
 
-	{ "exception", NULL, NULL, 0, "Commands to manipulate exceptions", NULL, SHELL_TYPE_CATEGORY },
+	{ "debugger", NULL, NULL, 0, "Debug commands", NULL, SHELL_TYPE_CATEGORY },
 	{ "exprint", "ep", exprint_cmd, 0, "Print the current exception info", "exprint", SHELL_TYPE_CMD },
+	{ "exresume", "c", exresume_cmd, 0, "Resume from the exception", "exresume [address]", SHELL_TYPE_CMD },
+	{ "bpset", "bp", bpset_cmd, 1, "Set a break point", "bpset address", SHELL_TYPE_CMD },
+	{ "bpprint", "bt", bpprint_cmd, 0, "Print the current breakpoints", "bpprint", SHELL_TYPE_CMD },
+	{ "step", "s", step_cmd, 0, "Step the next instruction", "step", SHELL_TYPE_CMD },
+	{ "skip", "k", skip_cmd, 0, "Skip the next instruction (i.e. jump over jals)", "skip", SHELL_TYPE_CMD },
+	{ "symload", "syl", symload_cmd, 1, "Load a symbol file", "syl file.sym", SHELL_TYPE_CMD },
+	{ "symlist", "syt", symlist_cmd, 0, "List the loaded symbols", "syt", SHELL_TYPE_CMD },
+	{ "symprint", "syp", symprint_cmd, 1, "Print the symbols for a module", "syp modname", SHELL_TYPE_CMD },
+	{ "symbyaddr", "sya", symbyaddr_cmd, 1, "Print the symbol at the specified address", "sya addr", SHELL_TYPE_CMD },
+	{ "symbyname", "syn", symbyname_cmd, 1, "Print the specified symbol address", "syn module:symname", SHELL_TYPE_CMD },
 
 	{ "misc", NULL, NULL, 0, "Miscellaneous commands (e.g. USB, exit)", NULL, SHELL_TYPE_CATEGORY },
 	{ "usbon", "un", usbon_cmd, 0, "Enable USB mass storage device", "usbon", SHELL_TYPE_CMD },
@@ -2629,7 +2749,7 @@ static int shellParseThread(SceSize args, void *argp)
 		error = sceKernelReceiveMbx(g_command_msg, &data, NULL);
 		if(error < 0)
 		{
-			printf("Error in receiving message %08X\n", error);
+			printf("Error in receiving message 0x%08X\n", error);
 			sceKernelExitDeleteThread(0);
 		}
 
@@ -2653,7 +2773,7 @@ int psplinkParseCommand(char *command, int direct_term)
 	ret = sceKernelWaitSema(g_cli_sema, 1, &timeout);
 	if(ret < 0)
 	{
-		printf("Error, could not wait on cli sema %08X\n", ret);
+		printf("Error, could not wait on cli sema 0x%08X\n", ret);
 		return 1;
 	}
 
@@ -2664,7 +2784,7 @@ int psplinkParseCommand(char *command, int direct_term)
 	if(ret >= 0)
 	{
 		/* Wait 10 seconds for completion */
-		int timeout = (10*1000*1000);
+		unsigned int timeout = (60*1000*1000);
 		unsigned int result;
 		ret = sceKernelWaitEventFlag(g_command_event, COMMAND_EVENT_DONE, 0x21, &result, &timeout);
 		if(ret >= 0)
@@ -2673,7 +2793,7 @@ int psplinkParseCommand(char *command, int direct_term)
 		}
 		else
 		{
-			printf("Error, command did not complete %08X\n", ret);
+			printf("Error, command did not complete 0x%08X\n", ret);
 			ret = CMD_EXITSHELL;
 		}
 	}
@@ -2826,8 +2946,14 @@ int shellProcessChar(int ch)
 					  exit_shell = 1;
 				  }
 				  break;
+		case 11 : /* CTRL + K */
+				  debugStep(1);
+				  break;
 		case 18 : /* CTRL + R */
 				  psplinkReset();
+				  break;
+		case 19 : /* CTRL + S */
+				  debugStep(0);
 				  break;
 		case 27 : /* Escape character */
 				  cli_handle_escape();
@@ -2944,35 +3070,35 @@ int shellInit(const char *cliprompt)
 	g_command_thid = sceKernelCreateThread("PspLinkParse", shellParseThread, 9, 0x10000, 0, NULL);
 	if(g_command_thid < 0)
 	{
-		printf("Error, couldn't create thread for parsing %08X\n", g_command_thid);
+		printf("Error, couldn't create thread for parsing 0x%08X\n", g_command_thid);
 		return -1;
 	}
 
 	g_command_msg = sceKernelCreateMbx("PspLinkCmdMbx", 0, 0);
 	if(g_command_msg < 0)
 	{
-		printf("Error, couldn't create message box %08X\n", g_command_msg);
+		printf("Error, couldn't create message box 0x%08X\n", g_command_msg);
 		return -1;
 	}
 
 	g_cli_sema = sceKernelCreateSema("PspLinkCliSema", 0, 1, 1, NULL);
 	if(g_cli_sema < 0)
 	{
-		printf("Error, couldn't create cli semaphore %08X\n", g_cli_sema);
+		printf("Error, couldn't create cli semaphore 0x%08X\n", g_cli_sema);
 		return -1;
 	}
 
 	g_command_event = sceKernelCreateEventFlag("PspLinkCmdEvent", 0, 0, NULL);
 	if(g_command_event < 0)
 	{
-		printf("Error, couldn't create command event %08X\n", g_command_event);
+		printf("Error, couldn't create command event 0x%08X\n", g_command_event);
 		return -1;
 	}
 
 	ret = sceKernelStartThread(g_command_thid, 0, NULL);
 	if(ret < 0)
 	{
-		printf("Error, couldn't start command thread %08X\n", ret);
+		printf("Error, couldn't start command thread 0x%08X\n", ret);
 		return -1;
 	}
 

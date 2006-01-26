@@ -99,7 +99,7 @@ void start_server(const char *szIpAddr)
 	sock = make_socket(SERVER_PORT);
 	if(sock < 0)
 	{
-		printf("Error creating server socket\n");
+		pspDebugScreenPrintf("Error creating server socket\n");
 		return;
 	}
 	g_servsock = sock;
@@ -107,24 +107,24 @@ void start_server(const char *szIpAddr)
 	ret = sceNetInetListen(sock, 1);
 	if(ret < 0)
 	{
-		printf("Error calling listen\n");
+		pspDebugScreenPrintf("Error calling listen\n");
 		return;
 	}
 
-	printf("Listening for connections ip %s port %d\n", szIpAddr, SERVER_PORT);
+	pspDebugScreenPrintf("Listening for connections ip %s port %d\n", szIpAddr, SERVER_PORT);
 
 	while(1)
 	{
 		new = sceNetInetAccept(sock, (struct sockaddr *) &client, &size);
 		if(new < 0)
 		{
-			printf("Error in accept %s\n", strerror(errno));
+			pspDebugScreenPrintf("Error in accept %s\n", strerror(errno));
 			sceNetInetClose(sock);
 			g_servsock = -1;
 			return;
 		}
 
-		Kprintf("New connection %d from %s:%d\n", new, 
+		printf("New connection %d from %s:%d\n", new, 
 				inet_ntoa(client.sin_addr),
 				ntohs(client.sin_port));
 
@@ -138,9 +138,9 @@ void start_server(const char *szIpAddr)
 			readbytes = sceNetInetRecv(new, &data, 1, 0);
 			if(readbytes <= 0)
 			{
-				Kprintf("Socket %d closed\n", new);
 				sceNetInetClose(new);
 				g_currsock = -1;
+				printf("Socket %d closed\n", new);
 				break;
 			}
 			else
@@ -181,8 +181,7 @@ void start_server(const char *szIpAddr)
 /* Simple thread */
 int main(int argc, char **argv)
 {
-	pspDebugScreenInit();
-	printf("PSPLink NetShell (c) 2k6 TyRaNiD\n");
+	pspDebugScreenPrintf("PSPLink NetShell (c) 2k6 TyRaNiD\n");
 
 	if(modNetIsInit() >= 0)
 	{

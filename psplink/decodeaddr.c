@@ -19,6 +19,7 @@
 #include "decodeaddr.h"
 #include "exception.h"
 #include "util.h"
+#include "symbols.h"
 
 struct mem_entry
 {
@@ -267,6 +268,28 @@ static int parse_line(char *line, unsigned int *val)
 			/* Decode the module name */
 			if(!get_threadaddr(line, &temp))
 			{
+				return 0;
+			}
+
+			line = endp+1;
+		}
+		else if(*line == '?') /* Symbol name */
+		{
+			char *endp;
+			line++;
+
+			endp = strchr(line, '?');
+			if(endp == NULL)
+			{
+				printf("Error, no matching '?' for symbol name\n");
+				return 0;
+			}
+
+			*endp = 0;
+			temp = symbolFindByName(line);
+			if(temp == 0)
+			{
+				printf("Error, could not find symbol %s\n", line);
 				return 0;
 			}
 

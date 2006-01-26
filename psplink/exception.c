@@ -17,12 +17,9 @@
 #include "exception.h"
 #include "util.h"
 #include "psplink.h"
-
-void _GdbTrapEntry(PspDebugRegBlock *regs);
+#include "debug.h"
 
 struct ExceptionContext g_exception;
-
-int g_debuggermode = 0;
 
 /* Mnemonic register names */
 static const char regName[32][5] =
@@ -75,17 +72,17 @@ void exceptionPrint(void)
 		int i;
 
 		printf("Exception - %s\n", codeTxt[(g_exception.regs.cause >> 2) & 31]);
-		printf("Thread ID - %08X\n", g_exception.thid);
+		printf("Thread ID - 0x%08X\n", g_exception.thid);
 		printf("Th Name   - %s\n", g_exception.threadname);
-		printf("Module ID - %08X\n", g_exception.modid);
+		printf("Module ID - 0x%08X\n", g_exception.modid);
 		printf("Mod Name  - %s\n", g_exception.modulename);
-		printf("EPC       - %08X\n", g_exception.regs.epc);
-		printf("Cause     - %08X\n", g_exception.regs.cause);
-		printf("Status    - %08X\n", g_exception.regs.status);
-		printf("BadVAddr  - %08X\n", g_exception.regs.badvaddr);
+		printf("EPC       - 0x%08X\n", g_exception.regs.epc);
+		printf("Cause     - 0x%08X\n", g_exception.regs.cause);
+		printf("Status    - 0x%08X\n", g_exception.regs.status);
+		printf("BadVAddr  - 0x%08X\n", g_exception.regs.badvaddr);
 		for(i = 0; i < 32; i+=4)
 		{
-			printf("%s:%08X %s:%08X %s:%08X %s:%08X\n", regName[i], g_exception.regs.r[i],
+			printf("%s:0x%08X %s:0x%08X %s:0x%08X %s:0x%08X\n", regName[i], g_exception.regs.r[i],
 					regName[i+1], g_exception.regs.r[i+1], regName[i+2], 
 					g_exception.regs.r[i+2], regName[i+3], g_exception.regs.r[i+3]);
 		}
@@ -99,59 +96,69 @@ void exceptionPrint(void)
 void psplinkHandleException(PspDebugRegBlock *regs)
 {
 	u32 k1;
+	SceModule *pMod;
+	SceKernelModuleInfo mod;
+	SceKernelThreadInfo thread;
+	u32 addr;
 
 	k1 = psplinkSetK1(0);
-	if(g_debuggermode)
+
+	memset(&g_exception, 0, sizeof(g_exception));
+	memcpy(&g_exception.regs, regs, sizeof(*regs));
+	g_exception.exception = 1;
+	g_exception.thid = sceKernelGetThreadId();
+	if(!sceKernelReferThreadStatus(g_exception.thid, &thread))
 	{
-		/* Do GDB stub */
-		_GdbTrapEntry(regs);
+		strncpy(g_exception.threadname, thread.name, 31);
+		g_exception.threadname[31] = 0;
+	}
+
+	if((g_exception.regs.epc < 0x88000000) || (g_exception.regs.epc > 0x88400000))
+	{
+		addr = g_exception.regs.epc & 0x7FFFFFFF;
 	}
 	else
 	{
-		SceModule *pMod;
-		SceKernelModuleInfo mod;
-		SceKernelThreadInfo thread;
-		u32 addr;
+		addr = g_exception.regs.epc;
+	}
 
-		memset(&g_exception, 0, sizeof(g_exception));
-		memcpy(&g_exception.regs, regs, sizeof(*regs));
-		g_exception.exception = 1;
-		g_exception.thid = sceKernelGetThreadId();
-		if(!sceKernelReferThreadStatus(g_exception.thid, &thread))
+	pMod = sceKernelFindModuleByAddress(addr);
+	if(pMod)
+	{
+		g_exception.modid = pMod->modid;
+		mod.size = sizeof(mod);
+		pspDebugSioDisableKprintf();
+		if(!g_QueryModuleInfo(g_exception.modid, &mod))
 		{
-			strncpy(g_exception.threadname, thread.name, 31);
-			g_exception.threadname[31] = 0;
+			strncpy(g_exception.modulename, mod.name, 31);
+			g_exception.modulename[31] = 0;
 		}
+		pspDebugSioEnableKprintf();
+	}
+	else
+	{
+		g_exception.modid = -1;
+	}
 
-		if((g_exception.regs.epc < 0x88000000) || (g_exception.regs.epc > 0x88400000))
-		{
-			addr = g_exception.regs.epc & 0x7FFFFFFF;
-		}
-		else
-		{
-			addr = g_exception.regs.epc;
-		}
-
-		pMod = sceKernelFindModuleByAddress(addr);
-		if(pMod)
-		{
-			g_exception.modid = pMod->modid;
-			mod.size = sizeof(mod);
-			pspDebugSioDisableKprintf();
-			if(!g_QueryModuleInfo(g_exception.modid, &mod))
-			{
-				strncpy(g_exception.modulename, mod.name, 31);
-				g_exception.modulename[31] = 0;
-			}
-			pspDebugSioEnableKprintf();
-		}
-		else
-		{
-			g_exception.modid = -1;
-		}
+	/* If this was not an exception caused by us then just dump the registers to screen */
+	if(!debugHandleException(&g_exception.regs))
+	{
 		exceptionPrint();
-		psplinkSetK1(k1);
-		sceKernelSleepThread();
+	}
+	psplinkSetK1(k1);
+
+	/* Sleep thread */
+	sceKernelSleepThread();
+
+	memcpy(regs, &g_exception.regs, sizeof(*regs));
+}
+
+void exceptionResume(void)
+{
+	if(g_exception.exception)
+	{
+		g_exception.exception = 0;
+		sceKernelWakeupThread(g_exception.thid);
 	}
 }
 

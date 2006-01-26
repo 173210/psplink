@@ -1,7 +1,8 @@
 TARGET = psplink_user
-OBJS = main.o psplink.o sdkbridge.o
+OBJS = main.o psplink.o
 
 BUILD_PRX=1
+PRX_EXPORTS=exports.exp
 
 INCDIR = 
 CFLAGS = -O2 -G0 -Wall
