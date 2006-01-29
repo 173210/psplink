@@ -61,8 +61,6 @@ struct GlobalContext
 	int sock;
 	enum State state;
 	int promptwait;
-	char line_buffer[16*1024];
-	int  line_pos;
 	char history_file[PATH_MAX];
 };
 
@@ -138,6 +136,8 @@ void cli_handler(char *buf)
 		{
 			/* Exit without exiting the psplink shell */
 			g_context.exit = 1;
+			rl_callback_handler_remove();
+			rl_callback_handler_install("", cli_handler);
 			return;
 		}
 
@@ -145,7 +145,6 @@ void cli_handler(char *buf)
 		rl_callback_handler_remove();
 		rl_callback_handler_install("", cli_handler);
 		g_context.promptwait = 1;
-
 
 		execute_line(buf);
 	}
@@ -358,15 +357,12 @@ int set_socknonblock(int sock, int block)
 
 int read_socket(int sock)
 {
+	static char linebuf[16*1024];
+	static int pos = 0;
 	char buf[1024];
 	char prompt[1024];
 	int len;
 	int promptfind = 0;
-
-	/* TODO: Support for better reading of the prompt data */
-	/* If not waiting for a prompt then print directly, otherwise start adding to a buffer. */
-	/* If we get a 0xFF then start the prompt pending, if we get a linefeed before it completes then
-	 * we just dump the line as is */
 
 	len = read(sock, buf, sizeof(buf)-1);
 	if(len < 0)
@@ -387,18 +383,47 @@ int read_socket(int sock)
 	{
 		char *start;
 
-		start = strchr(buf, 0xFF);
-		if(start)
+		if(pos == 0)
+		{
+			start = strchr(buf, 0xFF);
+			if(start)
+			{
+				char *end;
+
+				end = strchr(start+1, 0xFF);
+				if(end)
+				{
+					*end = 0;
+					strcpy(prompt, start+1);
+					strcpy(start, end+1);
+					promptfind = 1;
+				}
+				else
+				{
+					*start = 0;
+					strcpy(linebuf, start+1);
+					pos = strlen(linebuf);
+				}
+			}
+		}
+		else
 		{
 			char *end;
 
-			end = strchr(start+1, 0xFF);
+			end = strchr(buf, 0xFF);
 			if(end)
 			{
 				*end = 0;
-				strcpy(prompt, start+1);
-				strcpy(start, end+1);
+				snprintf(prompt, sizeof(prompt), "%s%s", linebuf, buf);
+				strcpy(buf, end+1);
+				pos = 0;
 				promptfind = 1;
+			}
+			else
+			{
+				strncat(linebuf, buf, sizeof(linebuf) - pos);
+				linebuf[sizeof(linebuf)-1] = 0;
+				pos = strlen(linebuf);
 			}
 		}
 	}
@@ -453,6 +478,7 @@ int on_idle(void)
 		tcsetattr(g_context.sock, TCSANOW, &options);
 		FD_SET(g_context.sock, &g_context.readsave);
 		g_context.state = STATE_CONNECTED;
+		write(g_context.sock, "\n", 1);
 	}
 	else
 #endif
@@ -522,6 +548,7 @@ int on_connecting(void)
 	g_context.state = STATE_CONNECTED;
 	FD_SET(g_context.sock, &g_context.readsave);
 	FD_CLR(g_context.sock, &g_context.writesave);
+	write(g_context.sock, "\n", 1);
 
 	return 1;
 }
