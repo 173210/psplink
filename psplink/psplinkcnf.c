@@ -88,7 +88,23 @@ const char* psplinkConfigReadNext(struct ConfigFile *cnf, const char **name)
 
 			*eq_pos = 0;
 			*name = cnf->str_buf;
-			pVal = eq_pos + 1;
+			eq_pos++;
+			if(*eq_pos == '"')
+			{
+				char *qend;
+				eq_pos++;
+				qend = strchr(eq_pos, '"');
+				if(qend == NULL)
+				{
+					Kprintf("Error on line %d of configuration file. No closing quote\n", cnf->line);
+					continue;
+				}
+				else
+				{
+					*qend = 0;
+				}
+			}
+			pVal = eq_pos;
 		}
 	}
 	while(0);

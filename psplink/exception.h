@@ -17,6 +17,7 @@ extern struct ExceptionContext g_exception;
 
 void exceptionInit(void);
 void exceptionPrint(void);
+void exceptionFpuPrint(void);
 u32 *exceptionGetReg(const char *reg);
 void exceptionResume(void);
 

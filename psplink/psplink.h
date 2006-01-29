@@ -63,7 +63,7 @@ struct GlobalContext
 	/* The program to execute */
 	char execfile[MAXPATHLEN];
 	int resetonexit;
-	int passprompt;
+	int pcterm;
 	SceUID netshelluid;
 };
 

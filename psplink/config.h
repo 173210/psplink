@@ -24,7 +24,7 @@ struct ConfigContext
 	int  wifi;
 	int  wifishell;
 	int  sioshell;
-	int  passprompt;
+	int  pcterm;
 	int  baudrate;
 };
 

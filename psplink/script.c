@@ -43,7 +43,7 @@ static int is_num(int ch)
 }
 
 /* Go through the line and replace $1-$n with the argument strings */
-static int process_arguments(char *line, int argc, char **argv)
+static int process_arguments(char *line, int argc, char **argv, const char *lastmod)
 {
 	char tmpbuf[MAX_BUFFER];
 	int inptr, outptr;
@@ -56,11 +56,7 @@ static int process_arguments(char *line, int argc, char **argv)
 		if(line[inptr] == '$')
 		{
 			inptr += 1;
-			if(!is_num(line[inptr]))
-			{
-				tmpbuf[outptr++] = line[inptr++];
-			}
-			else
+			if(is_num(line[inptr]))
 			{
 				int numsize;
 				char num[16];
@@ -84,6 +80,21 @@ static int process_arguments(char *line, int argc, char **argv)
 					}
 				}
 			}
+			else if(line[inptr] == '!')
+			{
+				const char *str;
+
+				inptr++;
+				str = lastmod;
+				while((*str) && (outptr < (MAX_BUFFER-1)))
+				{
+					tmpbuf[outptr++] = *str++;
+				}
+			}
+			else
+			{
+				tmpbuf[outptr++] = line[inptr++];
+			}
 		}
 		else
 		{
@@ -98,7 +109,7 @@ static int process_arguments(char *line, int argc, char **argv)
 }
 
 /* Run a shell script (with possible arguments */
-int scriptRun(const char *filename, int argc, char **argv, int print)
+int scriptRun(const char *filename, int argc, char **argv, const char *lastmod, int print)
 {
 	PspFile file;
 	char line[MAX_BUFFER];
@@ -112,7 +123,17 @@ int scriptRun(const char *filename, int argc, char **argv, int print)
 			i++;
 			strip_whitesp(line);
 			/* Fill in arguments */
-			if(!process_arguments(line, argc, argv))
+			if(strcmp(line, "echo on") == 0)
+			{
+				print = 1;
+				continue;
+			}
+			else if(strcmp(line, "echo off") == 0)
+			{
+				print = 0;
+				continue;
+			}
+			else if(!process_arguments(line, argc, argv, lastmod))
 			{
 				printf("Error processing arguments on line %d\n", i);
 				ret = CMD_ERROR;

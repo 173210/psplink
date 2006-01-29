@@ -14,6 +14,6 @@
 #ifndef __SCRIPT_H__
 #define __SCRIPT_H__
 
-int scriptRun(const char *filename, int argc, char **argv, int print);
+int scriptRun(const char *filename, int argc, char **argv, const char *lastmod, int print);
 
 #endif

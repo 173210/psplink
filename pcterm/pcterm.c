@@ -101,22 +101,20 @@ void execute_line(const char *buf)
 	{
 		int len;
 
-		len = fixed_write(g_context.sock, buf, strlen(buf));
-		if(len < 0)
+		len = strlen(buf);
+
+		if(len > 0)
 		{
-			close(g_context.sock);
-			g_context.sock = -1;
-			g_context.state = STATE_IDLE;
+			len = fixed_write(g_context.sock, buf, len);
+			if(len < 0)
+			{
+				close(g_context.sock);
+				g_context.sock = -1;
+				g_context.state = STATE_IDLE;
+			}
 		}
 
-		if(g_context.args.serialmode)
-		{
-			len = fixed_write(g_context.sock, "\n", 1);
-		}
-		else
-		{
-			len = fixed_write(g_context.sock, "\r\n", 2);
-		}
+		len = fixed_write(g_context.sock, "\n", 1);
 
 		if(len < 0)
 		{
@@ -129,7 +127,7 @@ void execute_line(const char *buf)
 
 void cli_handler(char *buf)
 {
-	if ((buf) && (*buf))
+	if((buf) && (*buf))
 	{
 		add_history(rl_line_buffer);
 		if(strcmp(rl_line_buffer, "exit") == 0)

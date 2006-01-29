@@ -54,6 +54,18 @@ enum Operator
 	OP_AND,
 	OP_OR,
 	OP_XOR,
+	OP_SHL,
+	OP_SHR,
+	OP_LAND,
+	OP_LOR,
+	OP_NEQ,
+	OP_EQ,
+	OP_LT,
+	OP_LEQ,
+	OP_GT,
+	OP_GEQ,
+	OP_MUL,
+	OP_DIV,
 };
 
 static unsigned int do_op(enum Operator op, int not, unsigned int left, unsigned int right)
@@ -77,6 +89,37 @@ static unsigned int do_op(enum Operator op, int not, unsigned int left, unsigned
 		case OP_OR:  ret = left | right;
 					 break;
 		case OP_XOR: ret = left ^ right;
+					 break;
+		case OP_SHL: ret = left << right;
+					 break;
+		case OP_SHR: ret = left >> right;
+					 break;
+		case OP_LAND: ret = left && right;
+					  break;
+		case OP_LOR: ret = left || right;
+					 break;
+		case OP_NEQ: ret = left != right;
+					 break;
+		case OP_EQ: ret = left == right;
+					break;
+		case OP_LT: ret = left < right;
+					break;
+		case OP_GT: ret = left > right;
+					break;
+		case OP_LEQ: ret = left <= right;
+					 break;
+		case OP_GEQ: ret = left >= right;
+					 break;
+		case OP_MUL: ret = left * right;
+					 break;
+		case OP_DIV: if(right != 0)
+					 {
+						 ret = left / right;
+					 }
+					 else
+					 {
+						 printf("Division by zero\n");
+					 }
 					 break;
 		default:     ret = right;
 					 break;
@@ -111,12 +154,20 @@ static int deref_addr(unsigned int *val, int deref)
 	return 1;
 }
 
-static int get_modaddr(const char *name, unsigned int *val)
+static int get_modaddr(char *name, unsigned int *val)
 {
+	char *pcolon;
 	SceKernelModuleInfo info;
 	SceModule *pMod;
 	SceUID uid = 0;
 	int ret = 0;
+
+	pcolon = strchr(name, ':');
+	if(pcolon)
+	{
+		*pcolon = 0;
+		pcolon++;
+	}
 
 	pMod = sceKernelFindModuleByName(name);
 	if(pMod == NULL)
@@ -135,26 +186,78 @@ static int get_modaddr(const char *name, unsigned int *val)
 		uid = pMod->modid;
 	}
 
-	memset(&info, 0, sizeof(info));
-	info.size = sizeof(info);
-	pspDebugSioDisableKprintf();
-	ret = g_QueryModuleInfo(uid, &info);
-	pspDebugSioEnableKprintf();
-	if(ret < 0)
+	if(!refer_module(uid, &info))
 	{
-		printf("Error, could not get module info\n");
-		return 0;
+		if(ret < 0)
+		{
+			printf("Error, could not get module info\n");
+			return 0;
+		}
 	}
 
-	*val = info.text_addr;
+	if((pcolon == NULL) || (strcmp(pcolon, "text") == 0))
+	{
+		*val = info.text_addr;
+	}
+	else if(strcmp(pcolon, "stext") == 0)
+	{
+		*val = info.text_size;
+	}
+	else if(strcmp(pcolon, "sdata") == 0)
+	{
+		*val = info.data_size;
+	}
+	else if(strcmp(pcolon, "sbss") == 0)
+	{
+		*val = info.bss_size;
+	}
+	else if((pcolon[0] == 's') && (pcolon[1] >= '1') && (pcolon[1] <= '4') && (pcolon[2] == 0))
+	{
+		int id = pcolon[1] - '1';
+
+		if(id < info.nsegment)
+		{
+			*val = info.segmentsize[id];
+		}
+		else
+		{
+			*val = 0;
+		}
+	}
+	else if((pcolon[0] >= '1') && (pcolon[0] <= '4') && (pcolon[1] == 0))
+	{
+		int id = pcolon[0] - '1';
+
+		if(id < info.nsegment)
+		{
+			*val = info.segmentaddr[id];
+		}
+		else
+		{
+			*val = 0;
+		}
+	}
+	else
+	{
+		printf("Error, invalid module address extension %s\n", pcolon);
+		return 0;
+	}
 
 	return 1;
 }
 
-static int get_threadaddr(const char *name, unsigned int *val)
+static int get_threadaddr(char *name, unsigned int *val)
 {
+	char *pcolon;
 	SceKernelThreadInfo info;
 	SceUID uid;
+
+	pcolon = strchr(name, ':');
+	if(pcolon)
+	{
+		*pcolon = 0;
+		pcolon++;
+	}
 
 	if(pspSdkReferThreadStatusByName(name, &uid, NULL))
 	{
@@ -176,7 +279,23 @@ static int get_threadaddr(const char *name, unsigned int *val)
 		return 0;
 	}
 
-	*val = (u32) info.entry;
+	if(pcolon == NULL)
+	{
+		*val = (u32) info.entry;
+	}
+	else if(strcmp(pcolon, "stack") == 0)
+	{
+		*val = (u32) info.stack;
+	}
+	else if(strcmp(pcolon, "sstack") == 0)
+	{
+		*val = info.stackSize;
+	}
+	else
+	{
+		printf("Error, invalid thread address extension %s\n", pcolon);
+		return 0;
+	}
 
 	return 1;
 }
@@ -197,7 +316,7 @@ static int parse_line(char *line, unsigned int *val)
 			line++;
 			continue;
 		}
-		else if(*line == '*')
+		else if((*line == '*') && ((op == OP_START) || (op != OP_NONE)))
 		{
 			deref++;
 			line++;
@@ -365,11 +484,87 @@ static int parse_line(char *line, unsigned int *val)
 						  break;
 				case '-': op = OP_MINUS;
 						  break;
-				case '&': op = OP_AND;
+				case '&': 
+						  if(*(line+1) == '&')
+						  {
+							  op = OP_LAND;
+							  line++;
+						  }
+						  else
+						  {
+							  op = OP_AND;
+						  }
 						  break;
-				case '|': op = OP_OR;
+				case '|': 
+						  if(*(line+1) == '|')
+						  {
+							  op = OP_LOR;
+							  line++;
+						  }
+						  else
+						  {
+							  op = OP_OR;
+						  }
 						  break;
 				case '^': op = OP_XOR;
+						  break;
+				case '=': 
+						  if(*(line+1) == '=')
+						  {
+							  op = OP_EQ;
+							  line++;
+						  }
+						  else
+						  {
+							  printf("Missing second '=' from equals operator\n");
+							  return 0;
+						  }
+						  break;
+				case '!': 
+						  if(*(line+1) == '=')
+						  {
+							  op = OP_NEQ;
+							  line++;
+						  }
+						  else
+						  {
+							  printf("Missing second '=' from not equals operator\n");
+							  return 0;
+						  }
+						  break;
+				case '<': if(*(line+1) == '<')
+						  {
+							  op = OP_SHL;
+							  line++;
+						  }
+						  else if(*(line+1) == '=')
+						  {
+							  op = OP_LEQ;
+							  line++;
+						  }
+						  else
+						  {
+							  op = OP_LT;
+						  }
+						  break;
+				case '>': if(*(line+1) == '>')
+						  {
+							  op = OP_SHR;
+							  line++;
+						  }
+						  else if(*(line+1) == '=')
+						  {
+							  op = OP_GEQ;
+							  line++;
+						  }
+						  else
+						  {
+							  op = OP_GT;
+						  }
+						  break;
+				case '*': op = OP_MUL;
+						  break;
+				case '/': op = OP_DIV;
 						  break;
 				default : printf("Invalid character %c\n", *line);
 						  return 0;

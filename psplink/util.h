@@ -55,6 +55,12 @@ int memcmp_mask(void *data1, void *data2, void *mask, int len);
 int decode_hexstr(const char *str, unsigned char *data, int max);
 SceUID refer_module_by_addr(unsigned int addr, SceKernelModuleInfo *info);
 SceUID refer_module_by_name(const char *name, SceKernelModuleInfo *info);
+int refer_module(SceUID uid, SceKernelModuleInfo *info);
+
+#define MODE_GENERIC 0
+#define MODE_EXP 1
+#define MODE_FLOAT_ONLY 2
+void f_cvt(float val, char *buf, int bufsize, int precision, int mode);
 
 extern int (*g_QueryModuleInfo)(SceUID modid, SceKernelModuleInfo *info);
 extern int (*g_GetModuleIdList)(SceUID *readbuf, int readbufsize, int *idcount);

@@ -12,6 +12,7 @@
  */
 #include <pspkernel.h>
 #include <pspdebug.h>
+#include <pspsdk.h>
 #include <stdio.h>
 #include <string.h>
 #include "exception.h"
@@ -85,6 +86,29 @@ void exceptionPrint(void)
 			printf("%s:0x%08X %s:0x%08X %s:0x%08X %s:0x%08X\n", regName[i], g_exception.regs.r[i],
 					regName[i+1], g_exception.regs.r[i+1], regName[i+2], 
 					g_exception.regs.r[i+2], regName[i+3], g_exception.regs.r[i+3]);
+		}
+	}
+	else
+	{
+		printf("No exception occurred\n");
+	}
+}
+
+void exceptionFpuPrint(void)
+{
+	if(g_exception.exception)
+	{
+		int i;
+
+		pspSdkDisableFPUExceptions();
+
+		for(i = 0; i < 32; i+=2)
+		{
+			char left[64], right[64];
+
+			f_cvt(g_exception.regs.fpr[i], left, sizeof(left), 6, MODE_GENERIC);
+			f_cvt(g_exception.regs.fpr[i+1], right, sizeof(right), 6, MODE_GENERIC);
+			printf("fpr%02d: %-20s - fpr%02d: %-20s\n", i, left, i+1, right);
 		}
 	}
 	else

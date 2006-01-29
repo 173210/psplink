@@ -82,6 +82,8 @@ static SceUID g_cli_sema = -1;
 static SceUID g_command_event = -1;
 /* Indicates whether we are directly connected to a terminal (i.e. sio) */
 static int g_direct_term = 1;
+/* Indicates the name of the last module we loaded */
+static char g_lastmod[32] = "";
 
 #define COMMAND_EVENT_DONE 1
 
@@ -148,7 +150,7 @@ void print_prompt(void)
 	out = 0;
 	in = 0;
 
-	if(g_context.passprompt)
+	if(g_context.pcterm)
 	{
 		tmp[out++] = PASSPROMPT_VAL;
 	}
@@ -180,7 +182,7 @@ void print_prompt(void)
 		}
 	}
 
-	if(g_context.passprompt)
+	if(g_context.pcterm)
 	{
 		tmp[out++] = PASSPROMPT_VAL;
 	}
@@ -916,12 +918,22 @@ static int modstart_cmd(int argc, char **argv)
 static int modload_cmd(int argc, char **argv)
 {
 	SceUID modid;
+	SceKernelModuleInfo info;
 	char path[1024];
 
 	if(handlepath(g_context.currdir, argv[0], path, TYPE_FILE, 1))
 	{
 		modid = sceKernelLoadModule(path, 0, NULL);
-		printf("Module Load '%s' UID: 0x%08X\n", path, modid);
+		if(!refer_module(modid, &info))
+		{
+			printf("Module Load '%s' UID: 0x%08X\n", path, modid);
+		}
+		else
+		{
+			printf("Module Load '%s' UID: 0x%08X Name: %s\n", path, modid, info.name);
+			strncpy(g_lastmod, info.name, 31);
+			g_lastmod[31] = 0;
+		}
 	}
 	else
 	{
@@ -958,6 +970,7 @@ static int modexec_cmd(int argc, char **argv)
 static int ldstart_cmd(int argc, char **argv)
 {
 	char path[1024];
+	SceKernelModuleInfo info;
 	int ret = CMD_ERROR;
 
 	if(argc > 0)
@@ -969,7 +982,16 @@ static int ldstart_cmd(int argc, char **argv)
 			modid = load_start_module(path, argc-1, &argv[1]);
 			if(modid >= 0)
 			{
-				printf("Load/Start module UID: 0x%08X\n", modid);
+				if(!refer_module(modid, &info))
+				{
+					printf("Load/Start %s UID: 0x%08X\n", path, modid);
+				}
+				else
+				{
+					printf("Load/Start %s UID: 0x%08X Name: %s\n", path, modid, info.name);
+					strncpy(g_lastmod, info.name, 31);
+					g_lastmod[31] = 0;
+				}
 			}
 			else
 			{
@@ -985,6 +1007,12 @@ static int ldstart_cmd(int argc, char **argv)
 	}
 
 	return ret;
+}
+
+/* TODO: Kill command obviously */
+static int kill_cmd(int argc, char **argv)
+{
+	return CMD_ERROR;
 }
 
 static int calc_cmd(int argc, char **argv)
@@ -1009,6 +1037,7 @@ static int calc_cmd(int argc, char **argv)
 					  break;
 			case 'O': printf("Result = %o\n", val);
 					  break;
+			default :
 			case 'X': printf("Result = 0x%08X\n", val);
 					  break;
 		};
@@ -1432,22 +1461,57 @@ static int memreg_cmd(int argc, char **argv)
 
 /* Maximum memory dump size (per screen) */
 #define MAX_MEMDUMP_SIZE 256
+#define MEMDUMP_TYPE_BYTE 1
+#define MEMDUMP_TYPE_HALF 2
+#define MEMDUMP_TYPE_WORD 3
 
 /* Print a row of a memory dump, up to row_size */
-static void print_row(const u32* row, s32 row_size, u32 addr)
+static void print_row(const u32* row, s32 row_size, u32 addr, int type)
 {
 	int i = 0;
 
 	printf("%08x - ", addr);
-	for(i = 0; i < 16; i++)
+
+	if(type == MEMDUMP_TYPE_WORD)
 	{
-		if(i < row_size)
+		for(i = 0; i < 16; i+=4)
 		{
-			printf("%02x ", row[i]);
+			if(i < row_size)
+			{
+				printf("%02x%02X%02X%02X ", row[i+3], row[i+2], row[i+1], row[i]);
+			}
+			else
+			{
+				printf("-------- ");
+			}
 		}
-		else
+	}
+	else if(type == MEMDUMP_TYPE_HALF)
+	{
+		for(i = 0; i < 16; i+=2)
 		{
-			printf("-- ");
+			if(i < row_size)
+			{
+				printf("%02x%02X ", row[i+1], row[i]);
+			}
+			else
+			{
+				printf("---- ");
+			}
+		}
+	}
+	else
+	{
+		for(i = 0; i < 16; i++)
+		{
+			if(i < row_size)
+			{
+				printf("%02x ", row[i]);
+			}
+			else
+			{
+				printf("-- ");
+			}
 		}
 	}
 
@@ -1474,17 +1538,29 @@ static void print_row(const u32* row, s32 row_size, u32 addr)
 	printf("\n");
 }
 
-
 /* Print a memory dump to SIO */
-static void print_memdump(u32 addr, s32 size)
+static void print_memdump(u32 addr, s32 size, int type)
 {
 	int size_left;
 	u32 row[16];
 	int row_size;
 	u8 *p_addr = (u8 *) addr;
 
-	printf("         - 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f - 0123456789abcdef\n");
-	printf("-----------------------------------------------------------------------------\n");
+	if(type == MEMDUMP_TYPE_WORD)
+	{
+		printf("         - 00       04       08       0c       - 0123456789abcdef\n");
+		printf("-----------------------------------------------------------------\n");
+	}
+	else if(type == MEMDUMP_TYPE_HALF)
+	{
+		printf("         - 00   02   04   06   08   0a   0c   0e   - 0123456789abcdef\n");
+		printf("---------------------------------------------------------------------\n");
+	}
+	else 
+	{
+		printf("         - 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f - 0123456789abcdef\n");
+		printf("-----------------------------------------------------------------------------\n");
+	}
 
 	size_left = size > MAX_MEMDUMP_SIZE ? MAX_MEMDUMP_SIZE : size;
 	row_size = 0;
@@ -1496,7 +1572,7 @@ static void print_memdump(u32 addr, s32 size)
 		if(row_size == 16)
 		{
 			// draw row
-			print_row(row, row_size, (u32) p_addr);
+			print_row(row, row_size, (u32) p_addr, type);
 			p_addr += 16;
 			row_size = 0;
 		}
@@ -1508,15 +1584,35 @@ static void print_memdump(u32 addr, s32 size)
 static int memdump_cmd(int argc, char **argv)
 {
 	static u32 addr = 0;
+	static int type = MEMDUMP_TYPE_BYTE;
 	s32 size_left;
 
 	/* Get memory address */
 	if(argc > 0)
 	{
-		if(!memDecode(argv[0], &addr))
+		if(argv[0][0] == '-')
 		{
-			printf("Error, invalid memory address %s\n", argv[0]);
-			return CMD_ERROR;
+			addr -= (MAX_MEMDUMP_SIZE * 2);
+		}
+		else
+		{
+			if(!memDecode(argv[0], &addr))
+			{
+				printf("Error, invalid memory address %s\n", argv[0]);
+				return CMD_ERROR;
+			}
+		}
+
+		if(argc > 1)
+		{
+			if(argv[1][0] == 'w')
+			{
+				type = MEMDUMP_TYPE_WORD;
+			}
+			else if(argv[1][0] == 'h')
+			{
+				type = MEMDUMP_TYPE_HALF;
+			}
 		}
 	}
 	else if(addr == 0)
@@ -1536,7 +1632,7 @@ static int memdump_cmd(int argc, char **argv)
 		{
 			char ch;
 
-			print_memdump(addr, size_left);
+			print_memdump(addr, size_left, type);
 
 			if(g_direct_term)
 			{
@@ -1842,12 +1938,37 @@ static int peekw_cmd(int argc, char **argv)
 	if(memDecode(argv[0], &addr))
 	{
 		int size_left;
+		char fmt = 'x';
+
+		if(argc > 1)
+		{
+			fmt = argv[1][0];
+		}
 
 		addr &= ~3;
 		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_WORD);
 		if(size_left >= sizeof(u32))
 		{
-			printf("%08X: 0x%08X\n", addr, _lw(addr));
+			switch(fmt)
+			{
+				case 'f': {
+							  char floatbuf[64];
+							  float *pdata;
+
+							  pspSdkDisableFPUExceptions();
+							  pdata = (float *) addr;
+							  f_cvt(*pdata, floatbuf, sizeof(floatbuf), 6, MODE_GENERIC);
+							  printf("0x%08X: %s\n", addr, floatbuf);
+						  }
+						  break;
+				case 'd': printf("0x%08X: %d\n", addr, _lw(addr));
+						  break;
+				case 'o': printf("0x%08X: %o\n", addr, _lw(addr));
+						  break;
+				case 'x':
+				default:  printf("0x%08X: 0x%08X\n", addr, _lw(addr));
+						  break;
+			};
 		}
 		else
 		{
@@ -1866,12 +1987,27 @@ static int peekh_cmd(int argc, char **argv)
 	if(memDecode(argv[0], &addr))
 	{
 		int size_left;
+		char fmt = 'x';
+
+		if(argc > 1)
+		{
+			fmt = argv[1][0];
+		}
 
 		addr &= ~1;
 		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_HALF);
 		if(size_left >= sizeof(u16))
 		{
-			printf("%08X: %04X\n", addr, _lh(addr));
+			switch(fmt)
+			{
+				case 'd': printf("0x%08X: %d\n", addr, _lh(addr));
+						  break;
+				case 'o': printf("0x%08X: %o\n", addr, _lh(addr));
+						  break;
+				case 'x':
+				default:  printf("0x%08X: 0x%04X\n", addr, _lh(addr));
+						  break;
+			};
 		}
 		else
 		{
@@ -1890,11 +2026,26 @@ static int peekb_cmd(int argc, char **argv)
 	if(memDecode(argv[0], &addr))
 	{
 		int size_left;
+		char fmt = 'x';
+
+		if(argc > 1)
+		{
+			fmt = argv[1][0];
+		}
 
 		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
 		if(size_left > 0)
 		{
-			printf("%08X: %02X\n", addr, _lb(addr));
+			switch(fmt)
+			{
+				case 'd': printf("0x%08X: %d\n", addr, _lb(addr));
+						  break;
+				case 'o': printf("0x%08X: %o\n", addr, _lb(addr));
+						  break;
+				case 'x':
+				default:  printf("0x%08X: 0x%02X\n", addr, _lb(addr));
+						  break;
+			};
 		}
 		else
 		{
@@ -2054,6 +2205,16 @@ static int findstr_cmd(int argc, char **argv)
 	}
 
 	return CMD_OK;
+}
+
+static int findw_cmd(int argc, char **argv)
+{
+	return CMD_ERROR;
+}
+
+static int findh_cmd(int argc, char **argv)
+{
+	return CMD_ERROR;
 }
 
 static int findhex_cmd(int argc, char **argv)
@@ -2273,7 +2434,7 @@ static int run_cmd(int argc, char **argv)
 
 	if(handlepath(g_context.currdir, argv[0], path, TYPE_FILE, 1))
 	{
-		ret = scriptRun(path, argc, argv, 0);
+		ret = scriptRun(path, argc, argv, g_lastmod, 0);
 	}
 	else
 	{
@@ -2409,9 +2570,66 @@ static int exprint_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int exprfpu_cmd(int argc, char **argv)
+{
+	exceptionFpuPrint();
+
+	return CMD_OK;
+}
+
 static int exresume_cmd(int argc, char **argv)
 {
+	if(argc > 0)
+	{
+		u32 addr;
+
+		if(memDecode(argv[0], &addr))
+		{
+			u32 *epc;
+
+			epc = exceptionGetReg("epc");
+			if(epc != NULL)
+			{
+				*epc = addr;
+			}
+			else
+			{
+				printf("Could not get EPC register\n");
+			}
+		}
+		else
+		{
+			return CMD_ERROR;
+		}
+	}
+
 	exceptionResume();
+
+	return CMD_OK;
+}
+
+static int setreg_cmd(int argc, char **argv)
+{
+	u32 addr;
+	u32 *reg;
+
+	if(memDecode(argv[0], &addr))
+	{
+		if(argv[0][0] != '$')
+		{
+			printf("Error register must start with a $\n");
+			return CMD_ERROR;
+		}
+
+		reg = exceptionGetReg(&argv[0][1]);
+		if(reg == NULL)
+		{
+			printf("Error could not find register %s\n", argv[0]);
+			return CMD_ERROR;
+		}
+
+		*reg = addr;
+	}
 
 	return CMD_OK;
 }
@@ -2609,34 +2827,37 @@ struct sh_command commands[] = {
 	{ "modload","md", modload_cmd, 1, "Load a module", "md path", SHELL_TYPE_CMD },
 	{ "modstart","mt", modstart_cmd, 1, "Start a module", "mt uid|@name [args]", SHELL_TYPE_CMD },
 	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me path [args]", SHELL_TYPE_CMD },
-	{ "modaddr","ma", modaddr_cmd, 1, "Display info about the module at a specified address", "ma address", SHELL_TYPE_CMD },
+	{ "modaddr","ma", modaddr_cmd, 1, "Display info about the module at a specified address", "ma addr", SHELL_TYPE_CMD },
 	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path] [args]", SHELL_TYPE_CMD },
 	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path [args]", SHELL_TYPE_CMD },
+	{ "kill", "k", kill_cmd, 1, "Kill a module and all it's threads", "k uid|@name", SHELL_TYPE_CMD },
 	
 	{ "memory", NULL, NULL, 0, "Commands to manipulate memory", NULL, SHELL_TYPE_CATEGORY },
 	{ "meminfo", "mf", meminfo_cmd, 0, "Print free memory info", "mf [partitionid]", SHELL_TYPE_CMD },
 	{ "memreg",  "mr", memreg_cmd, 0, "Print available memory regions (for other commands)", "mr", SHELL_TYPE_CMD },
-	{ "memdump", "dm", memdump_cmd, 0, "Dump memory to screen", "md address", SHELL_TYPE_CMD },
-	{ "savemem", "sm", savemem_cmd, 3, "Save memory to a file", "sm adresss size file", SHELL_TYPE_CMD },
-	{ "loadmem", "lm", loadmem_cmd, 2, "Load memory from a file", "lm address file [maxsize]", SHELL_TYPE_CMD },
-	{ "pokew",   "pw", pokew_cmd, 2, "Poke words into memory", "pw address val1 [val2..valN]", SHELL_TYPE_CMD },
-	{ "pokeh",   "pw", pokeh_cmd, 2, "Poke half words into memory", "ph address val1 [val2..valN]", SHELL_TYPE_CMD },
-	{ "pokeb",   "pw", pokeb_cmd, 2, "Poke bytes into memory", "pb address val1 [val2..valN]", SHELL_TYPE_CMD },
-	{ "peekw",   "kw", peekw_cmd, 1, "Peek the word at address", "kw address", SHELL_TYPE_CMD },
-	{ "peekh",   "kh", peekh_cmd, 1, "Peek the half word at address", "kh address", SHELL_TYPE_CMD },
-	{ "peekb",   "kb", peekb_cmd, 1, "Peek the byte at address", "kb address", SHELL_TYPE_CMD },
-	{ "fillw",   "fw", fillw_cmd, 3, "Fill a block of memory with a word value", "fw address size val", SHELL_TYPE_CMD },
-	{ "fillh",   "fh", fillh_cmd, 3, "Fill a block of memory with a half value", "fb address size val", SHELL_TYPE_CMD },
-	{ "fillb",   "fb", fillb_cmd, 3, "Fill a block of memory with a byte value", "fb address size val", SHELL_TYPE_CMD },
+	{ "memdump", "dm", memdump_cmd, 0, "Dump memory to screen", "md [addr|-] [b|h|w]", SHELL_TYPE_CMD },
+	{ "savemem", "sm", savemem_cmd, 3, "Save memory to a file", "sm addr size path", SHELL_TYPE_CMD },
+	{ "loadmem", "lm", loadmem_cmd, 2, "Load memory from a file", "lm addr path [maxsize]", SHELL_TYPE_CMD },
+	{ "pokew",   "pw", pokew_cmd, 2, "Poke words into memory", "pw addr val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "pokeh",   "pw", pokeh_cmd, 2, "Poke half words into memory", "ph addr val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "pokeb",   "pw", pokeb_cmd, 2, "Poke bytes into memory", "pb addr val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "peekw",   "kw", peekw_cmd, 1, "Peek the word at address", "kw addr [o|b|x|f]", SHELL_TYPE_CMD },
+	{ "peekh",   "kh", peekh_cmd, 1, "Peek the half word at address", "kh addr [o|b|x]", SHELL_TYPE_CMD },
+	{ "peekb",   "kb", peekb_cmd, 1, "Peek the byte at address", "kb addr [o|b|x]", SHELL_TYPE_CMD },
+	{ "fillw",   "fw", fillw_cmd, 3, "Fill a block of memory with a word value", "fw addr size val", SHELL_TYPE_CMD },
+	{ "fillh",   "fh", fillh_cmd, 3, "Fill a block of memory with a half value", "fb addr size val", SHELL_TYPE_CMD },
+	{ "fillb",   "fb", fillb_cmd, 3, "Fill a block of memory with a byte value", "fb addr size val", SHELL_TYPE_CMD },
 	{ "copymem", "cm", copymem_cmd, 3, "Copy a block of memory", "cm srcaddr destaddr size", SHELL_TYPE_CMD },
-	{ "findstr", "fs", findstr_cmd, 3, "Find an ASCII string", "fs address size str", SHELL_TYPE_CMD },
-	{ "findhex", "fx", findhex_cmd, 3, "Find an hexstring string", "fx address size hexstr [mask]", SHELL_TYPE_CMD },
+	{ "findstr", "ns", findstr_cmd, 3, "Find an ASCII string", "fs addr size str", SHELL_TYPE_CMD },
+	{ "findhex", "nx", findhex_cmd, 3, "Find an hexstring string", "fx addr size hexstr [mask]", SHELL_TYPE_CMD },
+	{ "findw",   "nw", findw_cmd, 3, "Find a list of words", "fw addr size val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "findh",   "nh", findh_cmd, 3, "Find a list of half words", "fh addr size val1 [val2..valN]", SHELL_TYPE_CMD },
 	{ "dcache",  "dc", dcache_cmd, 1, "Perform a data cache operation", "dc w|i|wi [addr size]", SHELL_TYPE_CMD },
 	{ "icache",  "ic", icache_cmd, 0, "Perform an instruction cache operation", "ic [addr size]", SHELL_TYPE_CMD },
 	{ "disasm",  "di", disasm_cmd, 1, "Disassemble instructions", "di address [count]", SHELL_TYPE_CMD },
 	
 	{ "fileio", NULL, NULL, 0, "Commands to handle file io", NULL, SHELL_TYPE_CATEGORY },
-	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "ls [path]", SHELL_TYPE_CMD },
+	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "ls [path1..pathN]", SHELL_TYPE_CMD },
 	{ "chdir", "cd", chdir_cmd, 1, "Change the current directory", "cd path", SHELL_TYPE_CMD },
 	{ "cp",  "copy", cp_cmd, 2, "Copy a file", "cp source destination", SHELL_TYPE_CMD },
 	{ "mkdir", "md", mkdir_cmd, 1, "Make a Directory", "mkdir dir", SHELL_TYPE_CMD },
@@ -2647,8 +2868,10 @@ struct sh_command commands[] = {
 
 	{ "debugger", NULL, NULL, 0, "Debug commands", NULL, SHELL_TYPE_CATEGORY },
 	{ "exprint", "ep", exprint_cmd, 0, "Print the current exception info", "exprint", SHELL_TYPE_CMD },
-	{ "exresume", "c", exresume_cmd, 0, "Resume from the exception", "exresume [address]", SHELL_TYPE_CMD },
-	{ "bpset", "bp", bpset_cmd, 1, "Set a break point", "bpset address", SHELL_TYPE_CMD },
+	{ "exresume", "c", exresume_cmd, 0, "Resume from the exception", "exresume [addr]", SHELL_TYPE_CMD },
+	{ "exprfpu", "ef", exprfpu_cmd, 0, "Print the current FPU registers", "exprfpu", SHELL_TYPE_CMD },
+	{ "setreg", "str", setreg_cmd, 2, "Set the value of an exception register", "str $reg value", SHELL_TYPE_CMD },
+	{ "bpset", "bp", bpset_cmd, 1, "Set a break point", "bpset addr", SHELL_TYPE_CMD },
 	{ "bpprint", "bt", bpprint_cmd, 0, "Print the current breakpoints", "bpprint", SHELL_TYPE_CMD },
 	{ "step", "s", step_cmd, 0, "Step the next instruction", "step", SHELL_TYPE_CMD },
 	{ "skip", "k", skip_cmd, 0, "Skip the next instruction (i.e. jump over jals)", "skip", SHELL_TYPE_CMD },
@@ -2667,10 +2890,10 @@ struct sh_command commands[] = {
 	{ "set", NULL, set_cmd, 0, "Set a shell variable", "set [var=value]", SHELL_TYPE_CMD },
 	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "ss file", SHELL_TYPE_CMD },
 	{ "run",  NULL, run_cmd, 1, "Run a shell script", "run file [args]", SHELL_TYPE_CMD },
-	{ "calc", NULL, calc_cmd, 1, "Do a simple address calculation", "calc exp [d|o|x]", SHELL_TYPE_CMD },
+	{ "calc", NULL, calc_cmd, 1, "Do a simple address calculation", "calc addr [d|o|x]", SHELL_TYPE_CMD },
 	{ "reset", "r", reset_cmd, 0, "Reset", "r", SHELL_TYPE_CMD },
 	{ "ver", "v", version_cmd, 0, "Print version of psplink", SHELL_TYPE_CMD },
-	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command]", SHELL_TYPE_CMD },
+	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command|category]", SHELL_TYPE_CMD },
 	{ NULL, NULL, NULL, 0, NULL, NULL, SHELL_TYPE_CMD }
 };
 
@@ -2719,19 +2942,37 @@ int shellParse(char *command)
 	{
 		struct sh_command *found_cmd;
 
+		/* See if there is a dir slash in the command, if so load start it */
 		cmd = argv[0];
-		found_cmd = find_command(cmd);
-		if((found_cmd) && (found_cmd->type != SHELL_TYPE_CATEGORY))
+		if(strchr(cmd, '/'))
 		{
-			if((found_cmd->min_args > (argc - 1)) || ((ret = found_cmd->func(argc-1, &argv[1])) == CMD_ERROR))
+			char *ext;
+
+			ext = strrchr(cmd, '.');
+			if((ext) && ((strcmp(ext, ".sh") == 0) || (strcmp(ext, ".SH") == 0)))
 			{
-				printf("Usage: %s\n", found_cmd->help);
+				ret = run_cmd(argc, argv);
+			}
+			else
+			{
+				ret = ldstart_cmd(argc, argv);
 			}
 		}
 		else
 		{
-			printf("Unknown command %s\n", cmd);
-			ret = CMD_ERROR;
+			found_cmd = find_command(cmd);
+			if((found_cmd) && (found_cmd->type != SHELL_TYPE_CATEGORY))
+			{
+				if((found_cmd->min_args > (argc - 1)) || ((ret = found_cmd->func(argc-1, &argv[1])) == CMD_ERROR))
+				{
+					printf("Usage: %s\n", found_cmd->help);
+				}
+			}
+			else
+			{
+				printf("Unknown command %s\n", cmd);
+				ret = CMD_ERROR;
+			}
 		}
 	}
 
@@ -2809,8 +3050,9 @@ static int process_cli()
 {
 	int ret;
 
-    putchar(13);
-    putchar(10);
+	putchar(13);
+	putchar(10);
+
 	g_cli[g_cli_pos] = 0;
 	g_cli_pos = 0;
 	memcpy(&g_lastcli[g_lastcli_pos][0], g_cli, CLI_MAX);
@@ -2946,6 +3188,7 @@ int shellProcessChar(int ch)
 					  exit_shell = 1;
 				  }
 				  break;
+				  /* TODO: CTRL + P and CTRL + N */
 		case 11 : /* CTRL + K */
 				  debugStep(1);
 				  break;
@@ -2976,16 +3219,68 @@ void shellStart(void)
 	int exit_shell = 0;
 
 	print_prompt();
-	g_cli_pos = 0;
-	g_cli_size = 0;
-	memset(g_cli, 0, CLI_MAX);
 
-	while(!exit_shell) {
-		int ch;
+	if(g_context.pcterm)
+	{
+		char cli[1024];
+		int  pos = 0;
 
-		ch = g_readchar();
+		while(!exit_shell)
+		{
+			int ch;
+			int ret;
 
-		exit_shell = shellProcessChar(ch);
+			ch = g_readchar();
+			switch(ch)
+			{
+				case 10:
+				case 13: cli[pos] = 0;
+						 ret = psplinkParseCommand(cli, 0);
+						 if(ret != CMD_EXITSHELL)
+						 {
+							print_prompt();
+							pos = 0;
+						 }
+						 else
+						 {
+							 exit_shell = 1;
+						 }
+
+						 break;
+				/* TODO: CTRL + P and CTRL + N */
+				case 11 : /* CTRL + K */
+					  debugStep(1);
+					  break;
+				case 18 : /* CTRL + R */
+					  psplinkReset();
+					  break;
+				case 19 : /* CTRL + S */
+					  debugStep(0);
+					  break;
+				default: if(ch >= 32)
+						 {
+							 if(pos < (sizeof(cli)-1))
+							 {
+								 cli[pos++] = ch;
+							 }
+						 }
+						 break;
+			};
+		}
+	}
+	else
+	{
+		g_cli_pos = 0;
+		g_cli_size = 0;
+		memset(g_cli, 0, CLI_MAX);
+
+		while(!exit_shell) {
+			int ch;
+
+			ch = g_readchar();
+
+			exit_shell = shellProcessChar(ch);
+		}
 	}
 }
 
