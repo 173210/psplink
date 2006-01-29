@@ -38,6 +38,7 @@
 #include "decodeaddr.h"
 #include "debug.h"
 #include "symbols.h"
+#include "libs.h"
 
 #define MAX_SHELL_VAR      128
 #define SHELL_PROMPT	"psplink %d>"
@@ -915,6 +916,31 @@ static int modstart_cmd(int argc, char **argv)
 	return ret;
 }
 
+static int modexp_cmd(int argc, char **argv)
+{
+	SceUID uid;
+	int ret = CMD_ERROR;
+
+	uid = get_module_uid(argv[0]);
+	if(uid >= 0)
+	{
+		if(libsPrintEntries(uid))
+		{
+			ret = CMD_OK;
+		}
+		else
+		{
+			printf("ERROR: Couldn't find module %s\n", argv[0]);
+		}
+	}
+	else
+	{
+		printf("ERROR: Invalid argument %s\n", argv[0]);
+	}
+
+	return ret;
+}
+
 static int modload_cmd(int argc, char **argv)
 {
 	SceUID modid;
@@ -1456,6 +1482,28 @@ static int meminfo_cmd(int argc, char **argv)
 static int memreg_cmd(int argc, char **argv)
 {
 	memPrintRegions();
+	return CMD_OK;
+}
+
+static int memblocks_cmd(int argc, char **argv)
+{
+	if(argc > 0)
+	{
+		switch(argv[0][0])
+		{
+			case 'f': sceKernelSysMemDump();
+					  break;
+			case 't': sceKernelSysMemDumpTail();
+					  break;
+			default: return CMD_ERROR;
+					 
+		};
+	}
+	else
+	{
+		sceKernelSysMemDumpBlock();
+	}
+
 	return CMD_OK;
 }
 
@@ -2195,7 +2243,7 @@ static int findstr_cmd(int argc, char **argv)
 			found = memmem_mask(curr, NULL, size, argv[2], searchlen);
 			if(found)
 			{
-				printf("Found match at address %p\n", found);
+				printf("Found match at address 0x%p\n", found);
 				found++;
 				size -= (found - curr);
 				curr = found;
@@ -2209,12 +2257,112 @@ static int findstr_cmd(int argc, char **argv)
 
 static int findw_cmd(int argc, char **argv)
 {
-	return CMD_ERROR;
+	u32 addr;
+
+	if(memDecode(argv[0], &addr))
+	{
+		int size;
+		u32 size_left;
+		int searchlen;
+		void *curr, *found;
+		uint8_t search[128];
+		int i;
+
+		if(strtoint(argv[1], (u32 *) &size) == 0)
+		{
+			printf("Invalid size argument %s\n", argv[1]);
+			return CMD_ERROR;
+		}
+
+		searchlen = 0;
+		for(i = 2; i < argc; i++)
+		{
+			u32 val;
+
+			if(strtoint(argv[i], &val) == 0)
+			{
+				printf("Invalid search value %s\n", argv[i]);
+				return CMD_ERROR;
+			}
+
+			memcpy(&search[searchlen], &val, sizeof(val));
+			searchlen += sizeof(val);
+		}
+
+		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+		size = size_left > size ? size : size_left;
+		curr = (void *) addr;
+		
+		do
+		{
+			found = memmem_mask(curr, NULL, size, search, searchlen);
+			if(found)
+			{
+				printf("Found match at address 0x%p\n", found);
+				found++;
+				size -= (found - curr);
+				curr = found;
+			}
+		}
+		while((found) && (size > 0));
+	}
+
+	return CMD_OK;
 }
 
 static int findh_cmd(int argc, char **argv)
 {
-	return CMD_ERROR;
+	u32 addr;
+
+	if(memDecode(argv[0], &addr))
+	{
+		int size;
+		u32 size_left;
+		int searchlen;
+		void *curr, *found;
+		uint8_t search[128];
+		int i;
+
+		if(strtoint(argv[1], (u32 *) &size) == 0)
+		{
+			printf("Invalid size argument %s\n", argv[1]);
+			return CMD_ERROR;
+		}
+
+		searchlen = 0;
+		for(i = 2; i < argc; i++)
+		{
+			u32 val;
+
+			if(strtoint(argv[i], &val) == 0)
+			{
+				printf("Invalid search value %s\n", argv[i]);
+				return CMD_ERROR;
+			}
+
+			memcpy(&search[searchlen], &val, sizeof(u16));
+			searchlen += sizeof(u16);
+		}
+
+		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+		size = size_left > size ? size : size_left;
+		curr = (void *) addr;
+		
+		do
+		{
+			found = memmem_mask(curr, NULL, size, search, searchlen);
+			if(found)
+			{
+				printf("Found match at address 0x%p\n", found);
+				found++;
+				size -= (found - curr);
+				curr = found;
+			}
+		}
+		while((found) && (size > 0));
+	}
+
+	return CMD_OK;
 }
 
 static int findhex_cmd(int argc, char **argv)
@@ -2272,7 +2420,7 @@ static int findhex_cmd(int argc, char **argv)
 			found = memmem_mask(curr, mask, size, hex, hexsize);
 			if(found)
 			{
-				printf("Found match at address %p\n", found);
+				printf("Found match at address 0x%p\n", found);
 				found++;
 				size -= (found - curr);
 				curr = found;
@@ -2769,6 +2917,16 @@ static int version_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int pspver_cmd(int argc, char **argv)
+{
+	unsigned int ver;
+
+	ver = sceKernelDevkitVersion();
+	printf("Version: %d.%d\n", (ver >> 24) & 0xFF, (ver >> 16) & 0xFF);
+
+	return CMD_OK;
+}
+
 static int exit_cmd(int argc, char **argv)
 {
 	return CMD_EXITSHELL;
@@ -2831,11 +2989,13 @@ struct sh_command commands[] = {
 	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path] [args]", SHELL_TYPE_CMD },
 	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path [args]", SHELL_TYPE_CMD },
 	{ "kill", "k", kill_cmd, 1, "Kill a module and all it's threads", "k uid|@name", SHELL_TYPE_CMD },
+	{ "modexp", "mp", modexp_cmd, 1, "List the exports from a module", "mp uid|@name", SHELL_TYPE_CMD },
 	
 	{ "memory", NULL, NULL, 0, "Commands to manipulate memory", NULL, SHELL_TYPE_CATEGORY },
 	{ "meminfo", "mf", meminfo_cmd, 0, "Print free memory info", "mf [partitionid]", SHELL_TYPE_CMD },
 	{ "memreg",  "mr", memreg_cmd, 0, "Print available memory regions (for other commands)", "mr", SHELL_TYPE_CMD },
 	{ "memdump", "dm", memdump_cmd, 0, "Dump memory to screen", "md [addr|-] [b|h|w]", SHELL_TYPE_CMD },
+	{ "memblocks", "mk", memblocks_cmd, 0, "Dump the sysmem block table", "mk [f|t]", SHELL_TYPE_CMD },
 	{ "savemem", "sm", savemem_cmd, 3, "Save memory to a file", "sm addr size path", SHELL_TYPE_CMD },
 	{ "loadmem", "lm", loadmem_cmd, 2, "Load memory from a file", "lm addr path [maxsize]", SHELL_TYPE_CMD },
 	{ "pokew",   "pw", pokew_cmd, 2, "Poke words into memory", "pw addr val1 [val2..valN]", SHELL_TYPE_CMD },
@@ -2893,6 +3053,7 @@ struct sh_command commands[] = {
 	{ "calc", NULL, calc_cmd, 1, "Do a simple address calculation", "calc addr [d|o|x]", SHELL_TYPE_CMD },
 	{ "reset", "r", reset_cmd, 0, "Reset", "r", SHELL_TYPE_CMD },
 	{ "ver", "v", version_cmd, 0, "Print version of psplink", SHELL_TYPE_CMD },
+	{ "pspver", NULL, pspver_cmd, 0, "Print the version of PSP", SHELL_TYPE_CMD },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command|category]", SHELL_TYPE_CMD },
 	{ NULL, NULL, NULL, 0, NULL, NULL, SHELL_TYPE_CMD }
 };

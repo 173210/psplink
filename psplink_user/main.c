@@ -62,7 +62,6 @@ int main(int argc, char **argv)
 	pspDebugScreenInit();
 	pspDebugInstallErrorHandler(ExceptionHandler);
 	pspDebugScreenPrintf("PSPLINK User Module v%s\n", PSPLINK_VERSION);
-	printf("PSPLINKUSER loaded\n");
 	sceKernelExitDeleteThread(0);
 
 	return 0;

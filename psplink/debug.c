@@ -234,9 +234,12 @@ static struct BreakPoint *find_bp(unsigned int address)
 {
 	int i;
 
+	/* Mask out top nibble so we match whether we end up in kmem,
+	 * user mem or cached mem */
+	address &= 0x0FFFFFFF;
 	for(i = 0; i < MAX_BPS; i++)
 	{
-		if((g_bps[i].active) && (g_bps[i].address == address))
+		if((g_bps[i].active) && ((g_bps[i].address & 0x0FFFFFFF) == address))
 		{
 			return &g_bps[i];
 		}
@@ -366,9 +369,9 @@ int debugHandleException(PspDebugRegBlock *pRegs)
 			pBp->active = 0;
 		}
 
-		printf("%s\n", PSPdis(address));
 		sceKernelDcacheWritebackInvalidateAll();
 		sceKernelIcacheInvalidateAll();
+		printf("%s\n", PSPdis(address));
 
 		ret = 1;
 	}
