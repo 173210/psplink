@@ -595,6 +595,11 @@ void shell(void)
 		ret = select(FD_SETSIZE, &readset, &writeset, NULL, NULL);
 		if(ret < 0)
 		{
+			if(errno == EINTR)
+			{
+				continue;
+			}
+
 			perror("select");
 			break;
 		}
@@ -656,19 +661,6 @@ void sig_call(int sig)
 	}
 }
 
-int setup_signals(void)
-{
-	struct sigaction sa;
-
-	memset(&sa, 0, sizeof(sa));
-	sa.sa_handler = sig_call;
-	sa.sa_flags = SA_RESTART;
-	(void) sigaction(SIGINT, &sa, NULL);
-	(void) sigaction(SIGTERM, &sa, NULL);
-
-	return 0;
-}
-
 void build_histfile(void)
 {
 	if(g_context.args.hist == NULL)
@@ -698,7 +690,6 @@ int main(int argc, char **argv)
 	if(parse_args(argc, argv, &g_context.args))
 	{
 		build_histfile();
-		setup_signals();
 		shell();
 		if(g_context.sock >= 0)
 		{
