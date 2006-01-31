@@ -28,7 +28,8 @@ struct _uidList {
 };
 typedef struct _uidList uidList;
 
+uidList* findObjectByUID(SceUID uid);
 u32 findUIDByName(const char *name);
-void printUIDList(void);
+void printUIDList(const char *name);
 
 #endif

@@ -39,6 +39,7 @@
 #include "debug.h"
 #include "symbols.h"
 #include "libs.h"
+#include "thctx.h"
 
 #define MAX_SHELL_VAR      128
 #define SHELL_PROMPT	"psplink %d>"
@@ -483,6 +484,22 @@ static int thtdel_cmd(int argc, char **argv)
 	return ret;
 }
 
+static int thctx_cmd(int argc, char **argv)
+{
+	SceUID uid;
+	int ret = CMD_ERROR;
+
+	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
+
+	if(uid >= 0)
+	{
+		threadFindContext(uid);
+		ret = CMD_OK;
+	}
+
+	return ret;
+}
+
 static int print_eventinfo(SceUID uid, int verbose)
 {
 	SceKernelEventFlagInfo info;
@@ -739,7 +756,13 @@ static int mppinfo_cmd(int argc, char **argv)
 
 static int uidlist_cmd(int argc, char **argv)
 {
-	printUIDList();
+	const char *name = NULL;
+
+	if(argc > 0)
+	{
+		name = argv[0];
+	}
+	printUIDList(name);
 
 	return CMD_OK;
 }
@@ -2959,7 +2982,8 @@ struct sh_command commands[] = {
 	{ "thwake", "tw", thwake_cmd, 1, "Wakeup a thread", "tw uid|@name" , SHELL_TYPE_CMD},
 	{ "thterm", "tt", thterm_cmd, 1, "Terminate a thread", "tt uid|@name" , SHELL_TYPE_CMD},
 	{ "thdel", "td", thdel_cmd, 1, "Delete a thread", "td uid|@name" , SHELL_TYPE_CMD},
-	{ "thtdel", "tx", thtdel_cmd, 1, "Terminate and delete a thread", "tx uid|@name" , SHELL_TYPE_CMD},
+	{ "thtdel", "tx", thtdel_cmd, 1, "Terminate and delete a thread", "tx uid|@name" , SHELL_TYPE_CMD },
+	{ "thctx",  "tt", thctx_cmd, 1, "Find and print the full thread context", "tc uid|@name", SHELL_TYPE_CMD },
 	{ "evlist", "el", evlist_cmd, 0, "List the event flags in the system", "el [v]", SHELL_TYPE_CMD },
 	{ "evinfo", "ei", evinfo_cmd, 1, "Print info about an event flag", "ei uid|@name", SHELL_TYPE_CMD },
 	{ "smlist", "sl", smlist_cmd, 0, "List the semaphores in the system", "sl [v]", SHELL_TYPE_CMD },
@@ -3045,7 +3069,7 @@ struct sh_command commands[] = {
 	{ "usbon", "un", usbon_cmd, 0, "Enable USB mass storage device", "usbon", SHELL_TYPE_CMD },
 	{ "usboff", "uf", usboff_cmd, 0, "Disable USB mass storage device", "usboff", SHELL_TYPE_CMD },
 	{ "usbstat", "us", usbstat_cmd, 0, "Display the status of the USB connection", "usbstat", SHELL_TYPE_CMD },
-    { "uidlist","ul", uidlist_cmd, 0, "List the system UIDS", "ul", SHELL_TYPE_CMD },
+    { "uidlist","ul", uidlist_cmd, 0, "List the system UIDS", "ul [root]", SHELL_TYPE_CMD },
 	{ "exit", "quit", exit_cmd, 0, "Exit the shell", "exit", SHELL_TYPE_CMD },
 	{ "set", NULL, set_cmd, 0, "Set a shell variable", "set [var=value]", SHELL_TYPE_CMD },
 	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "ss file", SHELL_TYPE_CMD },

@@ -66,12 +66,25 @@ u32 *exceptionGetReg(const char *reg)
 	return NULL;
 }
 
+void exceptionPrintCPURegs(u32 *pRegs)
+{
+	int i;
+
+	printf("%s:0x00000000 %s:0x%08X %s:0x%08X %s:0x%08X\n", regName[0], 
+			regName[1], pRegs[1], regName[2], 
+			pRegs[2], regName[3], pRegs[3]);
+	for(i = 4; i < 32; i+=4)
+	{
+		printf("%s:0x%08X %s:0x%08X %s:0x%08X %s:0x%08X\n", regName[i], pRegs[i],
+				regName[i+1], pRegs[i+1], regName[i+2], 
+				pRegs[i+2], regName[i+3], pRegs[i+3]);
+	}
+}
+
 void exceptionPrint(void)
 {
 	if(g_exception.exception)
 	{
-		int i;
-
 		printf("Exception - %s\n", codeTxt[(g_exception.regs.cause >> 2) & 31]);
 		printf("Thread ID - 0x%08X\n", g_exception.thid);
 		printf("Th Name   - %s\n", g_exception.threadname);
@@ -81,12 +94,7 @@ void exceptionPrint(void)
 		printf("Cause     - 0x%08X\n", g_exception.regs.cause);
 		printf("Status    - 0x%08X\n", g_exception.regs.status);
 		printf("BadVAddr  - 0x%08X\n", g_exception.regs.badvaddr);
-		for(i = 0; i < 32; i+=4)
-		{
-			printf("%s:0x%08X %s:0x%08X %s:0x%08X %s:0x%08X\n", regName[i], g_exception.regs.r[i],
-					regName[i+1], g_exception.regs.r[i+1], regName[i+2], 
-					g_exception.regs.r[i+2], regName[i+3], g_exception.regs.r[i+3]);
-		}
+		exceptionPrintCPURegs(g_exception.regs.r);
 	}
 	else
 	{
@@ -94,22 +102,27 @@ void exceptionPrint(void)
 	}
 }
 
+void exceptionPrintFPURegs(float *pFpu)
+{
+	int i;
+
+	pspSdkDisableFPUExceptions();
+
+	for(i = 0; i < 32; i+=2)
+	{
+		char left[64], right[64];
+
+		f_cvt(pFpu[i], left, sizeof(left), 6, MODE_GENERIC);
+		f_cvt(pFpu[i+1], right, sizeof(right), 6, MODE_GENERIC);
+		printf("fpr%02d: %-20s - fpr%02d: %-20s\n", i, left, i+1, right);
+	}
+}
+
 void exceptionFpuPrint(void)
 {
 	if(g_exception.exception)
 	{
-		int i;
-
-		pspSdkDisableFPUExceptions();
-
-		for(i = 0; i < 32; i+=2)
-		{
-			char left[64], right[64];
-
-			f_cvt(g_exception.regs.fpr[i], left, sizeof(left), 6, MODE_GENERIC);
-			f_cvt(g_exception.regs.fpr[i+1], right, sizeof(right), 6, MODE_GENERIC);
-			printf("fpr%02d: %-20s - fpr%02d: %-20s\n", i, left, i+1, right);
-		}
+		exceptionPrintFPURegs(g_exception.regs.fpr);
 	}
 	else
 	{
