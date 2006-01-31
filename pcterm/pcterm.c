@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <sys/select.h>
 #include <sys/socket.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <limits.h>
