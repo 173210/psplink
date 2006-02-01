@@ -20,7 +20,7 @@ void exceptionPrint(void);
 void exceptionFpuPrint(void);
 u32 *exceptionGetReg(const char *reg);
 void exceptionResume(void);
-void exceptionPrintFPURegs(float *pFpu);
+void exceptionPrintFPURegs(float *pFpu, unsigned int fsr, unsigned int fir);
 void exceptionPrintCPURegs(u32 *pRegs);
 
 #endif

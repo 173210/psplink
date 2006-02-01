@@ -44,6 +44,7 @@ char *PSPdis(unsigned long _PC);
 
 void psplinkReset(void);
 u32  psplinkSetK1(u32 k1);
+void psplinkGetCop0(u32 *regs);
 int psplinkParseComamnd(char *command);
 
 struct GlobalContext

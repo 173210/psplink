@@ -767,6 +767,29 @@ static int uidlist_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int cop0_cmd(int argc, char **argv)
+{
+	u32 regs[64];
+	int i;
+
+	psplinkGetCop0(regs);
+
+	printf("MXC0 Regs:\n");
+	for(i = 0; i < 32; i += 2)
+	{
+		printf("$%02d: 0x%08X  -  $%02d: 0x%08X\n", i, regs[i], i+1, regs[i+1]);
+	}
+	printf("\n");
+
+	printf("CXC0 Regs:\n");
+	for(i = 0; i < 32; i += 2)
+	{
+		printf("$%02d: 0x%08X  -  $%02d: 0x%08X\n", i, regs[i+32], i+1, regs[i+33]);
+	}
+
+	return CMD_OK;
+}
+
 static int print_modinfo(SceUID uid, int verbose)
 {
 	SceKernelModuleInfo info;
@@ -3070,6 +3093,7 @@ struct sh_command commands[] = {
 	{ "usboff", "uf", usboff_cmd, 0, "Disable USB mass storage device", "usboff", SHELL_TYPE_CMD },
 	{ "usbstat", "us", usbstat_cmd, 0, "Display the status of the USB connection", "usbstat", SHELL_TYPE_CMD },
     { "uidlist","ul", uidlist_cmd, 0, "List the system UIDS", "ul [root]", SHELL_TYPE_CMD },
+	{ "cop0", "c0", cop0_cmd, 0, "Print the cop0 registers", "c0", SHELL_TYPE_CMD },
 	{ "exit", "quit", exit_cmd, 0, "Exit the shell", "exit", SHELL_TYPE_CMD },
 	{ "set", NULL, set_cmd, 0, "Set a shell variable", "set [var=value]", SHELL_TYPE_CMD },
 	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "ss file", SHELL_TYPE_CMD },
