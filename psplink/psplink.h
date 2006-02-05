@@ -46,6 +46,9 @@ void psplinkReset(void);
 u32  psplinkSetK1(u32 k1);
 void psplinkGetCop0(u32 *regs);
 int psplinkParseComamnd(char *command);
+SceUID load_wifi(const char *bootpath, int ap);
+SceUID load_wifishell(const char *bootpath);
+SceUID load_netgdb(const char *bootpath, int argc, char **argv);
 
 struct GlobalContext
 {
@@ -66,6 +69,9 @@ struct GlobalContext
 	int resetonexit;
 	int pcterm;
 	SceUID netshelluid;
+	int wifi;
+	int wifishell;
+	int gdb;
 };
 
 #endif

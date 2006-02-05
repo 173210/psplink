@@ -1188,6 +1188,39 @@ static int kill_cmd(int argc, char **argv)
 	return ret;
 }
 
+static int debug_cmd(int argc, char **argv)
+{
+	char path[1024];
+	int  ret = CMD_ERROR;
+
+	if(handlepath(g_context.currdir, argv[0], path, TYPE_FILE, 1))
+	{
+		if(g_context.wifi == 0)
+		{
+			/* Default to AP 1 */
+			load_wifi(g_context.bootpath, 1);
+		}
+
+		if(g_context.gdb == 0)
+		{
+			argv[0] = path;
+			load_netgdb(g_context.bootpath, argc, argv);
+		}
+		else
+		{
+			printf("Error GDB already running, please reset\n");
+		}
+
+		ret = CMD_OK;
+	}
+	else
+	{
+		printf("Error invalid file %s\n", path);
+	}
+
+	return ret;
+}
+
 static int calc_cmd(int argc, char **argv)
 {
 	u32 val;
@@ -3074,6 +3107,44 @@ static int pspver_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int wifi_cmd(int argc, char **argv)
+{
+	if(g_context.wifi == 0)
+	{
+		int ap = 1;
+		if(argc > 0)
+		{
+			ap = atoi(argv[1]);
+		}
+
+		load_wifi(g_context.bootpath, ap);
+	}
+	else
+	{
+		printf("Wifi already enabled: ap %d\n", g_context.wifi);
+	}
+
+	return CMD_OK;
+}
+
+static int wifishell_cmd(int argc, char **argv)
+{
+	if(g_context.wifi == 0)
+	{
+		int ap = 1;
+		if(argc > 0)
+		{
+			ap = atoi(argv[1]);
+		}
+
+		load_wifi(g_context.bootpath, ap);
+	}
+
+	load_wifishell(g_context.bootpath);
+
+	return CMD_OK;
+}
+
 static int exit_cmd(int argc, char **argv)
 {
 	return CMD_EXITSHELL;
@@ -3137,6 +3208,7 @@ struct sh_command commands[] = {
 	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path] [args]", SHELL_TYPE_CMD },
 	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path [args]", SHELL_TYPE_CMD },
 	{ "kill", "k", kill_cmd, 1, "Kill a module and all it's threads", "k uid|@name", SHELL_TYPE_CMD },
+	{ "debug", "d", debug_cmd, 1, "Start a module under NetGDB", "d program.elf [args]", SHELL_TYPE_CMD },
 	{ "modexp", "mp", modexp_cmd, 1, "List the exports from a module", "mp uid|@name", SHELL_TYPE_CMD },
 	{ "modfindx", "mfx", modfindx_cmd, 3, "Find a module's export address", "mfx uid|@name library nid|@name", SHELL_TYPE_CMD },
 	
@@ -3202,6 +3274,8 @@ struct sh_command commands[] = {
 	{ "run",  NULL, run_cmd, 1, "Run a shell script", "run file [args]", SHELL_TYPE_CMD },
 	{ "calc", NULL, calc_cmd, 1, "Do a simple address calculation", "calc addr [d|o|x]", SHELL_TYPE_CMD },
 	{ "reset", "r", reset_cmd, 0, "Reset", "r", SHELL_TYPE_CMD },
+	{ "wifi", NULL, wifi_cmd, 0, "Enable WIFI with a specified AP config", "wifi [ap]", SHELL_TYPE_CMD },
+	{ "wifishell", NULL, wifishell_cmd, 0, "Enable WIFI Shell with a specified AP config", "wifishell [ap]", SHELL_TYPE_CMD },
 	{ "ver", "v", version_cmd, 0, "Print version of psplink", SHELL_TYPE_CMD },
 	{ "pspver", NULL, pspver_cmd, 0, "Print the version of PSP", SHELL_TYPE_CMD },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command|category]", SHELL_TYPE_CMD },

@@ -149,6 +149,7 @@ SceUID load_wifi(const char *bootpath, int ap)
 	args[1] = NULL;
 	strcpy(prx_path, bootpath);
 	strcat(prx_path, "modnet.prx");
+	g_context.wifi = ap;
 	return load_start_module(prx_path, 1, args);
 }
 
@@ -158,7 +159,18 @@ SceUID load_wifishell(const char *bootpath)
 
 	strcpy(prx_path, bootpath);
 	strcat(prx_path, "netshell.prx");
+	g_context.wifishell = 1;
 	return load_start_module(prx_path, 0, NULL);
+}
+
+SceUID load_netgdb(const char *bootpath, int argc, char **argv)
+{
+	char prx_path[MAXPATHLEN];
+
+	strcpy(prx_path, bootpath);
+	strcat(prx_path, "netgdb.prx");
+	g_context.gdb = 1;
+	return load_start_module(prx_path, argc, argv);
 }
 
 void exit_reset(void)

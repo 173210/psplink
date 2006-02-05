@@ -3,6 +3,7 @@ all:
 	$(MAKE) -C psplink_user all
 	$(MAKE) -C modnet all
 	$(MAKE) -C netshell all
+	$(MAKE) -C netgdb   all
 	$(MAKE) -C bootstrap all
 	$(MAKE) -C bootstrap kxploit
 
@@ -15,6 +16,7 @@ release: all
 	cp psplink_user/psplink_user.prx release/v1.0/psplink
 	cp modnet/modnet.prx release/v1.0/psplink
 	cp netshell/netshell.prx release/v1.0/psplink
+	cp netgdb/netgdb.prx release/v1.0/psplink
 	cp -R bootstrap/psplink release/v1.5
 	cp -R bootstrap/psplink% release/v1.5
 	cp psplink/psplink.prx release/v1.5/psplink
@@ -22,6 +24,7 @@ release: all
 	cp psplink_user/psplink_user.prx release/v1.5/psplink
 	cp modnet/modnet.prx release/v1.5/psplink
 	cp netshell/netshell.prx release/v1.5/psplink
+	cp netgdb/netgdb.prx release/v1.5/psplink
 	cp README release
 	cp LICENSE release
 
@@ -30,5 +33,6 @@ clean:
 	$(MAKE) -C psplink_user clean
 	$(MAKE) -C modnet clean
 	$(MAKE) -C netshell clean
+	$(MAKE) -C netgdb   clean
 	$(MAKE) -C bootstrap clean
 	rm -rf release
