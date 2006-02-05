@@ -697,8 +697,7 @@ SceUID refer_module_by_addr(unsigned int addr, SceKernelModuleInfo *info)
 	if(pMod)
 	{
 		uid = pMod->modid;
-		uid = pMod->modid;
-		if(refer_module(pMod->modid, info) == 0)
+		if(psplinkReferModule(pMod->modid, info) == 0)
 		{
 			uid = -1;
 		}
@@ -716,7 +715,7 @@ SceUID refer_module_by_name(const char *name, SceKernelModuleInfo *info)
 	if(pMod)
 	{
 		uid = pMod->modid;
-		if(refer_module(pMod->modid, info) == 0)
+		if(psplinkReferModule(pMod->modid, info) == 0)
 		{
 			uid = -1;
 		}
@@ -725,7 +724,7 @@ SceUID refer_module_by_name(const char *name, SceKernelModuleInfo *info)
 	return uid;
 }
 
-int refer_module(SceUID uid, SceKernelModuleInfo *info)
+int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info)
 {
 	int ret;
 

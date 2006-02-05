@@ -55,7 +55,7 @@ int memcmp_mask(void *data1, void *data2, void *mask, int len);
 int decode_hexstr(const char *str, unsigned char *data, int max);
 SceUID refer_module_by_addr(unsigned int addr, SceKernelModuleInfo *info);
 SceUID refer_module_by_name(const char *name, SceKernelModuleInfo *info);
-int refer_module(SceUID uid, SceKernelModuleInfo *info);
+int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info);
 
 #define MODE_GENERIC 0
 #define MODE_EXP 1

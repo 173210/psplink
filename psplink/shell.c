@@ -987,6 +987,54 @@ static int modexp_cmd(int argc, char **argv)
 	return ret;
 }
 
+static int modfindx_cmd(int argc, char **argv)
+{
+	SceUID uid;
+	int ret = CMD_ERROR;
+	u32 addr = 0;
+
+	uid = get_module_uid(argv[0]);
+	if(uid >= 0)
+	{
+		if(argv[2][0] == '@')
+		{
+			addr = libsFindExportByName(uid, argv[1], &argv[2][1]);
+		}
+		else
+		{
+			char *endp;
+			u32 nid;
+
+			nid = strtoul(argv[2], &endp, 16);
+			if(*endp != 0)
+			{
+				printf("ERROR: Invalid nid %s\n", argv[2]);
+			}
+			else
+			{
+				addr = libsFindExportByNid(uid, argv[1], nid);
+			}
+		}
+	}
+	else
+	{
+		printf("ERROR: Invalid argument %s\n", argv[0]);
+	}
+
+	if(addr != 0)
+	{
+		printf("Library: %s, Exp %s, Addr: 0x%08X\n", argv[1], argv[2], addr);
+
+		ret = CMD_OK;
+	}
+	else
+	{
+		printf("Couldn't find module export\n");
+	}
+
+	return ret;
+}
+
 static int modload_cmd(int argc, char **argv)
 {
 	SceUID modid;
@@ -996,7 +1044,7 @@ static int modload_cmd(int argc, char **argv)
 	if(handlepath(g_context.currdir, argv[0], path, TYPE_FILE, 1))
 	{
 		modid = sceKernelLoadModule(path, 0, NULL);
-		if(!refer_module(modid, &info))
+		if(!psplinkReferModule(modid, &info))
 		{
 			printf("Module Load '%s' UID: 0x%08X\n", path, modid);
 		}
@@ -1054,7 +1102,7 @@ static int ldstart_cmd(int argc, char **argv)
 			modid = load_start_module(path, argc-1, &argv[1]);
 			if(modid >= 0)
 			{
-				if(!refer_module(modid, &info))
+				if(!psplinkReferModule(modid, &info))
 				{
 					printf("Load/Start %s UID: 0x%08X\n", path, modid);
 				}
@@ -1081,10 +1129,63 @@ static int ldstart_cmd(int argc, char **argv)
 	return ret;
 }
 
-/* TODO: Kill command obviously */
 static int kill_cmd(int argc, char **argv)
 {
-	return CMD_ERROR;
+	SceUID uid;
+	int ret = CMD_ERROR;
+
+	do
+	{
+		uid = get_module_uid(argv[0]);
+		if(uid >= 0)
+		{
+			SceUID thids[100];
+			SceKernelThreadInfo info;
+			SceKernelModuleInfo modinfo;
+			int count;
+			int i;
+			int status;
+			int error;
+
+			error = sceKernelStopModule(uid, 0, NULL, &status, NULL);
+			if(error < 0)
+			{
+				printf("Error could not stop module 0x%08X\n", error);
+				break;
+			}
+
+			printf("Stop status %08X\n", status);
+			memset(thids, 0, sizeof(thids));
+			if(sceKernelGetThreadmanIdList(SCE_KERNEL_TMID_Thread, thids, 100, &count) >= 0)
+			{
+				for(i = 0; i < count; i++)
+				{
+					memset(&info, 0, sizeof(info));
+					info.size = sizeof(info);
+					if(sceKernelReferThreadStatus(thids[i], &info) < 0)
+					{
+						continue;
+					}
+
+					if(refer_module_by_addr((u32) info.entry, &modinfo) == uid)
+					{
+						sceKernelTerminateDeleteThread(thids[i]);
+					}
+				}
+			}
+
+			if(sceKernelUnloadModule(uid) < 0)
+			{
+				printf("Error could not unload module\n");
+				break;
+			}
+
+			ret = CMD_OK;
+		}
+	}
+	while(0);
+
+	return ret;
 }
 
 static int calc_cmd(int argc, char **argv)
@@ -3037,6 +3138,7 @@ struct sh_command commands[] = {
 	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path [args]", SHELL_TYPE_CMD },
 	{ "kill", "k", kill_cmd, 1, "Kill a module and all it's threads", "k uid|@name", SHELL_TYPE_CMD },
 	{ "modexp", "mp", modexp_cmd, 1, "List the exports from a module", "mp uid|@name", SHELL_TYPE_CMD },
+	{ "modfindx", "mfx", modfindx_cmd, 3, "Find a module's export address", "mfx uid|@name library nid|@name", SHELL_TYPE_CMD },
 	
 	{ "memory", NULL, NULL, 0, "Commands to manipulate memory", NULL, SHELL_TYPE_CATEGORY },
 	{ "meminfo", "mf", meminfo_cmd, 0, "Print free memory info", "mf [partitionid]", SHELL_TYPE_CMD },

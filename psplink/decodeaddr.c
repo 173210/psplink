@@ -186,7 +186,7 @@ static int get_modaddr(char *name, unsigned int *val)
 		uid = pMod->modid;
 	}
 
-	if(!refer_module(uid, &info))
+	if(!psplinkReferModule(uid, &info))
 	{
 		if(ret < 0)
 		{
