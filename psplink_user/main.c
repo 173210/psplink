@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "psplink_user.h"
 #include "../psplink/version.h"
 
 PSP_MODULE_INFO("PSPLINK_USER", 0, 1, 1);
@@ -25,28 +26,32 @@ PSP_MAIN_THREAD_NAME("PsplinkUser");
 int psplinkHandleException(PspDebugRegBlock *regs);
 void pspDebugResumeFromException(void);
 
-typedef void (*GdbHandler)(PspDebugRegBlock *regs);
-
 static GdbHandler g_gdbhandler = NULL;
 
 void ExceptionHandler(PspDebugRegBlock *regs)
 {
 	PspDebugRegBlock regsave;
+	int intc;
+	int handled = 0;
 
-	/* Suspend interrupts ? */
+	intc = pspSdkDisableInterrupts();
 	/* Save regs onto the stack */
 	memcpy(&regsave, regs, sizeof(regsave));
+	pspSdkEnableInterrupts(intc);
 
 	if(g_gdbhandler)
 	{
-		g_gdbhandler(&regsave);
+		handled = g_gdbhandler(&regsave);
 	}
-	else
+
+	if(handled == 0)
 	{
 		psplinkHandleException(&regsave);
 	}
 
+	intc = pspSdkDisableInterrupts();
 	memcpy(regs, &regsave, sizeof(regsave));
+	pspSdkEnableInterrupts(intc);
 
 	pspDebugResumeFromException();
 }
