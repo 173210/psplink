@@ -205,7 +205,6 @@ int module_stop(SceSize args, void *argp)
 	{
 		sceNetInetClose(g_servsock);
 	}
-	(void) pspSdkInetTerm();
 
 	return 0;
 }
