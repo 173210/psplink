@@ -20,4 +20,4 @@
 /* Parse a command string */
 int shellParse(char *command);
 void shellStart(void);
-int shellInit(const char *cliprompt);
+int shellInit(const char *cliprompt, const char *path);

@@ -20,6 +20,7 @@ struct ConfigContext
 	/* Indicates whether to enable the psplink user module */
 	int  enableuser;
 	char cliprompt[128];
+	char path[128];
 	int  resetonexit;
 	int  wifi;
 	int  wifishell;

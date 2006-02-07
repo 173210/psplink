@@ -183,7 +183,7 @@ static int normalize_path(char *path)
 	return ret;
 }
 
-int handlepath(char *currentdir, char *relative, char *path, int type, int valid)
+int handlepath(const char *currentdir, const char *relative, char *path, int type, int valid)
 {
 	int len, fd;
 
@@ -255,6 +255,59 @@ int handlepath(char *currentdir, char *relative, char *path, int type, int valid
 	}
 
 	return 1;
+}
+
+/* We do not handle paths relative to current dir (i.e. no . specifiers in the path */
+/* Returns 1 if found and places the result in output */
+/* Not very safe but hey we are not here for that kinda thing :P */
+int findinpath(const char *relative, char *output, const char *pathvar)
+{
+	int found = 0;
+	int pathlen;
+	int fd;
+	const char *currpath;
+	const char *nextpath;
+
+	/* Only continue if we have a valid pathvar */
+	if(pathvar)
+	{
+		currpath = pathvar;
+		do
+		{
+			/* Path separator is semi-colon */
+			nextpath = strchr(currpath, ';');
+			if(nextpath)
+			{
+				memcpy(output, currpath, nextpath-currpath);
+				output[nextpath-currpath] = 0;
+				nextpath++;
+			}
+			else
+			{
+				strcpy(output, currpath);
+			}
+			pathlen = strlen(output);
+			/* Why bother if the path is empty */
+			if(pathlen > 0)
+			{
+				strcat(output, "/");
+				strcat(output, relative);
+				printf("%s\n", output);
+				fd = sceIoOpen(output, PSP_O_RDONLY, 0777);
+				if(fd >= 0)
+				{
+					sceIoClose(fd);
+					found = 1;
+					break;
+				}
+			}
+
+			currpath = nextpath;
+		}
+		while(currpath);
+	}
+
+	return found;
 }
 
 /* Make the character upper case */

@@ -298,7 +298,7 @@ int main_thread(SceSize args, void *argp)
 		}
 	}
 
-	if(shellInit(ctx.cliprompt) < 0)
+	if(shellInit(ctx.cliprompt, ctx.path) < 0)
 	{
 		sceKernelExitGame();
 	}

@@ -93,6 +93,12 @@ static void config_prompt(struct ConfigContext *ctx, const char *szVal, unsigned
 	ctx->cliprompt[sizeof(ctx->cliprompt)-1] = 0;
 }
 
+static void config_path(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	strncpy(ctx->path, szVal, sizeof(ctx->path)-1);
+	ctx->path[sizeof(ctx->path)-1] = 0;
+}
+
 static void config_resetonexit(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
 {
 	ctx->resetonexit = iVal;
@@ -134,6 +140,7 @@ struct psplink_config config_names[] = {
 	{ "sioshell", 1, config_sioshell },
 	{ "pcterm", 1, config_pcterm },
 	{ "wifi", 1, config_wifi },
+	{ "path", 0, config_path },
 	{ NULL, 0, NULL }
 };
 

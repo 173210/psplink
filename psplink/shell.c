@@ -100,6 +100,7 @@ struct shell_variable
 struct shell_variable g_shellvars[] = 
 {
 	{ "prompt", SHELL_PROMPT },
+	{ "path", "" },
 	{ NULL, "" },
 };
 
@@ -1089,7 +1090,7 @@ static int modexec_cmd(int argc, char **argv)
 
 static int ldstart_cmd(int argc, char **argv)
 {
-	char path[1024];
+	char path[MAXPATHLEN];
 	SceKernelModuleInfo info;
 	int ret = CMD_ERROR;
 
@@ -3316,6 +3317,7 @@ int shellParse(char *command)
 	int argc;
 	char *argv[16];
 	char outbuf[MAX_BUFFER];
+	char *ext;
 
 	if(parse_args(command, outbuf, &argc, argv, 16) == 0)
 	{
@@ -3327,13 +3329,29 @@ int shellParse(char *command)
 	{
 		struct sh_command *found_cmd;
 
-		/* See if there is a dir slash in the command, if so load start it */
+		/* See if the command contains a '.', if so this cannot be a command, try and execute it direct */
 		cmd = argv[0];
-		if(strchr(cmd, '/'))
+		ext = strchr(cmd, '.');
+		if(ext)
 		{
-			char *ext;
+			char path[MAXPATHLEN];
 
-			ext = strrchr(cmd, '.');
+			/* Not a relative path, try and find it in our path */
+			if(strchr(cmd, '/') == NULL)
+			{
+				const char *pathvar;
+
+				pathvar = find_shell_var("path");
+
+				if(findinpath(cmd, path, pathvar) == 0)
+				{
+					printf("Could not find %s in the path\n", cmd);
+					return CMD_ERROR;
+				}
+				/* Otherwise assign to argv[0] */
+				argv[0] = path;
+			}
+
 			if((ext) && ((strcmp(ext, ".sh") == 0) || (strcmp(ext, ".SH") == 0)))
 			{
 				ret = run_cmd(argc, argv);
@@ -3736,7 +3754,7 @@ static int help_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
-int shellInit(const char *cliprompt)
+int shellInit(const char *cliprompt, const char *path)
 {
 	int ret;
 
@@ -3744,6 +3762,8 @@ int shellInit(const char *cliprompt)
 	{
 		set_shell_var("prompt", cliprompt);
 	}
+
+	set_shell_var("path", path);
 
 	strcpy(g_context.currdir, "ms0:/");
 
