@@ -27,21 +27,25 @@ struct mem_entry
 	s32 size;
 	u32 attrib;
 	const char *desc;
+	int v1only;
 };
 
 static struct mem_entry g_memareas[] = 
 {
-	{ 0x08800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "User memory" },
-	{ 0x48800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "User memory (uncached)" },
-	{ 0x88000000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (low)" },
-	{ 0xC8000000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (low uncached)" },
+	{ 0x08800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "User memory", 0 },
+	{ 0x48800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "User memory (uncached)", 0 },
+	{ 0x88000000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (low)", 0 },
+	{ 0xA8000000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (low uncached)", 0 },
 	/* Don't use the following 2 on a 1.5, just crashes the psp */
-//	{ 0x88400000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (mid v1.0 only)" },
-//	{ 0xC8400000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (mid v1.0 only uncached)" },
-	{ 0x88800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (high)" },
-	{ 0xC8800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (high uncached)" },
-	{ 0x04000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM" },
-	{ 0x44000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM (uncached)" },
+	{ 0x88400000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (mid v1.0 only)", 1 },
+	{ 0xC8400000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (mid v1.0 only uncached)", 1 },
+	{ 0x88800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (high)", 0 },
+	{ 0xA8800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (high uncached)", 0 },
+	{ 0x04000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM", 0 },
+	{ 0x44000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM (uncached)", 0 },
+	{ 0x00010000, (16 * 1024), MEM_ATTRIB_ALL, "Scratchpad", 0 },
+	{ 0x40010000, (16 * 1024), MEM_ATTRIB_ALL, "Scratchpad (uncached)", 0 },
+	{ 0xBFC00000, (1 * 1024 * 1024), MEM_ATTRIB_ALL, "Internal RAM", 0 },
 	{ 0, 0, 0, NULL }
 };
 
@@ -615,7 +619,10 @@ int memValidate(u32 addr, u32 attrib)
 			/* Only pass through areas with valid attributes (e.g. write or execute) */
 			if((entry->attrib & attrib) == attrib)
 			{
-				size_left = entry->size - (int) (addr - entry->addr);
+				if((!entry->v1only) || (g_isv1))
+				{
+					size_left = entry->size - (int) (addr - entry->addr);
+				}
 			}
 			break;
 		}
@@ -633,8 +640,11 @@ void memPrintRegions(void)
 	i = 0;
 	while(g_memareas[i].addr)
 	{
-		printf("Region %d: Base %08X - Size %08X - %s\n", i,
+		if((!g_memareas[i].v1only) || (g_isv1))
+		{
+			printf("Region %2d: Base %08X - Size %08X - %s\n", i,
 				g_memareas[i].addr, g_memareas[i].size, g_memareas[i].desc);
+		}
 		i++;
 	}
 }

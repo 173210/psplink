@@ -65,5 +65,6 @@ void f_cvt(float val, char *buf, int bufsize, int precision, int mode);
 
 extern int (*g_QueryModuleInfo)(SceUID modid, SceKernelModuleInfo *info);
 extern int (*g_GetModuleIdList)(SceUID *readbuf, int readbufsize, int *idcount);
+extern int g_isv1;
 
 #endif

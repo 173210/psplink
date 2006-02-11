@@ -43,6 +43,8 @@ int (*g_GetModuleIdList)(SceUID *readbuf, int readbufsize, int *idcount) = NULL;
 extern int g_debuggermode;
 extern void set_swbp(u32 addr);
 
+int g_isv1 = 0;
+
 int is_alnum(char ch)
 {
 	int c;
@@ -387,11 +389,13 @@ void map_firmwarerev(void)
 	{
 		g_QueryModuleInfo = pspSdkQueryModuleInfoV1;
 		g_GetModuleIdList = pspSdkGetModuleIdList;
+		g_isv1 = 1;
 	}
 	else
 	{
 		g_QueryModuleInfo = sceKernelQueryModuleInfo;
 		g_GetModuleIdList = sceKernelGetModuleIdList;
+		g_isv1 = 0;
 	}
 }
 

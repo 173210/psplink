@@ -3238,7 +3238,7 @@ struct sh_command commands[] = {
 	{ "memory", NULL, NULL, 0, "Commands to manipulate memory", NULL, SHELL_TYPE_CATEGORY },
 	{ "meminfo", "mf", meminfo_cmd, 0, "Print free memory info", "mf [partitionid]", SHELL_TYPE_CMD },
 	{ "memreg",  "mr", memreg_cmd, 0, "Print available memory regions (for other commands)", "mr", SHELL_TYPE_CMD },
-	{ "memdump", "dm", memdump_cmd, 0, "Dump memory to screen", "md [addr|-] [b|h|w]", SHELL_TYPE_CMD },
+	{ "memdump", "dm", memdump_cmd, 0, "Dump memory to screen", "dm [addr|-] [b|h|w]", SHELL_TYPE_CMD },
 	{ "memblocks", "mk", memblocks_cmd, 0, "Dump the sysmem block table", "mk [f|t]", SHELL_TYPE_CMD },
 	{ "savemem", "sm", savemem_cmd, 3, "Save memory to a file", "sm addr size path", SHELL_TYPE_CMD },
 	{ "loadmem", "lm", loadmem_cmd, 2, "Load memory from a file", "lm addr path [maxsize]", SHELL_TYPE_CMD },
