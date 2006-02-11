@@ -24,6 +24,7 @@ struct SymfileEntry
 
 const struct SymfileEntry* symbolFindByAddress(unsigned int addr, unsigned int *baseaddr);
 const char *symbolFindNameByAddress(unsigned int addr);
+int symbolFindNameByAddressEx(unsigned int addr, char *output, int size);
 unsigned int symbolFindByName(const char *name);
 void symbolPrintLoadList(void);
 void symbolPrintSymbols(const char *modname);

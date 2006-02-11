@@ -29,8 +29,8 @@
 #include "util.h"
 #include "sio.h"
 #include "shell.h"
+#include "disasm.h"
 #include "config.h"
-
 
 struct psplink_config
 {
@@ -129,6 +129,11 @@ static void config_wifi(struct ConfigContext *ctx, const char *szVal, unsigned i
 	ctx->wifi = iVal;
 }
 
+static void config_disopt(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	disasmSetOpts(szVal, 1);
+}
+
 struct psplink_config config_names[] = {
 	{ "usb", 1, config_usb },
 	{ "baud", 1, config_baud },
@@ -141,6 +146,7 @@ struct psplink_config config_names[] = {
 	{ "pcterm", 1, config_pcterm },
 	{ "wifi", 1, config_wifi },
 	{ "path", 0, config_path },
+	{ "disopt", 0, config_disopt },
 	{ NULL, 0, NULL }
 };
 

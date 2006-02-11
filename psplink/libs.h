@@ -16,5 +16,7 @@
 int libsPrintEntries(SceUID uid);
 u32 libsFindExportByName(SceUID uid, const char *library, const char *name);
 u32 libsFindExportByNid(SceUID uid, const char *library, u32 nid);
+void* libsFindExportAddrByName(SceUID uid, const char *library, const char *name);
+void* libsFindExportAddrByNid(SceUID uid, const char *library, u32 nid);
 
 #endif

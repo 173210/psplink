@@ -39,7 +39,7 @@ PSP_MAIN_THREAD_NAME("NetShell");
 int psplinkParseCommand(char *command, int direct_term);
 void psplinkPrintPrompt(void);
 void psplinkExitShell(void);
-void stdoutSetWifiHandler(PspDebugPrintHandler wifiHandler);
+void ttySetWifiHandler(PspDebugPrintHandler wifiHandler);
 
 int g_currsock = -1;
 int g_servsock = -1;
@@ -93,7 +93,7 @@ void start_server(const char *szIpAddr)
 	char cli[1024];
 	char data;
 
-	stdoutSetWifiHandler(wifiPrint);
+	ttySetWifiHandler(wifiPrint);
 
 	/* Create a socket for listening */
 	sock = make_socket(SERVER_PORT);

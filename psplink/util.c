@@ -750,7 +750,7 @@ SceUID refer_module_by_addr(unsigned int addr, SceKernelModuleInfo *info)
 	if(pMod)
 	{
 		uid = pMod->modid;
-		if(psplinkReferModule(pMod->modid, info) == 0)
+		if((info) && (psplinkReferModule(pMod->modid, info) == 0))
 		{
 			uid = -1;
 		}
@@ -768,7 +768,7 @@ SceUID refer_module_by_name(const char *name, SceKernelModuleInfo *info)
 	if(pMod)
 	{
 		uid = pMod->modid;
-		if(psplinkReferModule(pMod->modid, info) == 0)
+		if((info) && (psplinkReferModule(pMod->modid, info) == 0))
 		{
 			uid = -1;
 		}

@@ -40,6 +40,7 @@
 #include "symbols.h"
 #include "libs.h"
 #include "thctx.h"
+#include "disasm.h"
 
 #define MAX_SHELL_VAR      128
 #define SHELL_PROMPT	"psplink %d>"
@@ -2672,10 +2673,31 @@ static int disasm_cmd(int argc, char **argv)
 
 		for(i = 0; i < count; i++)
 		{
-			printf("%s\n", PSPdis(addr));
+			printf("%s\n", disasmInstruction(_lw(addr), addr, NULL));
 			addr += 4;
 		}
 	}
+
+	return CMD_OK;
+}
+
+static int disset_cmd(int argc, char **argv)
+{
+	disasmSetOpts(argv[0], 1);
+
+	return CMD_OK;
+}
+
+static int disclear_cmd(int argc, char **argv)
+{
+	disasmSetOpts(argv[0], 0);
+
+	return CMD_OK;
+}
+
+static int disopts_cmd(int argc, char **argv)
+{
+	printf("Disassembler Options: %s\n", disasmGetOpts());
 
 	return CMD_OK;
 }
@@ -3237,6 +3259,9 @@ struct sh_command commands[] = {
 	{ "dcache",  "dc", dcache_cmd, 1, "Perform a data cache operation", "dc w|i|wi [addr size]", SHELL_TYPE_CMD },
 	{ "icache",  "ic", icache_cmd, 0, "Perform an instruction cache operation", "ic [addr size]", SHELL_TYPE_CMD },
 	{ "disasm",  "di", disasm_cmd, 1, "Disassemble instructions", "di address [count]", SHELL_TYPE_CMD },
+	{ "disopts", NULL, disopts_cmd, 0, "Print the current disassembler options", "disopts", SHELL_TYPE_CMD },
+	{ "disset", NULL, disset_cmd, 1, "Set some disassembler options", "disset options", SHELL_TYPE_CMD },
+	{ "disclear", NULL, disclear_cmd, 1, "Clear some disassembler options", "disclear options", SHELL_TYPE_CMD },
 	
 	{ "fileio", NULL, NULL, 0, "Commands to handle file io", NULL, SHELL_TYPE_CATEGORY },
 	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "ls [path1..pathN]", SHELL_TYPE_CMD },

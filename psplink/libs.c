@@ -52,10 +52,10 @@ static struct SceLibraryEntryTable *_libsFindLibrary(SceUID uid, const char *lib
 	return NULL;
 }
 
-u32 libsFindExportByNid(SceUID uid, const char *library, u32 nid)
+void* libsFindExportAddrByNid(SceUID uid, const char *library, u32 nid)
 {
 	struct SceLibraryEntryTable *entry;
-	u32 addr = 0;
+	u32 *addr = NULL;
 
 	entry = _libsFindLibrary(uid, library);
 	if(entry)
@@ -73,7 +73,7 @@ u32 libsFindExportByNid(SceUID uid, const char *library, u32 nid)
 			{
 				if(vars[count] == nid)
 				{
-					return vars[count+total];
+					return &vars[count+total];
 				}
 			}
 		}
@@ -82,7 +82,7 @@ u32 libsFindExportByNid(SceUID uid, const char *library, u32 nid)
 	return addr;
 }
 
-u32 libsFindExportByName(SceUID uid, const char *library, const char *name)
+void* libsFindExportAddrByName(SceUID uid, const char *library, const char *name)
 {
 	u8 digest[20];
 	u32 nid;
@@ -90,11 +90,37 @@ u32 libsFindExportByName(SceUID uid, const char *library, const char *name)
 	if(sceKernelUtilsSha1Digest((u8 *) name, strlen(name), digest) >= 0)
 	{
 		nid = digest[0] | (digest[1] << 8) | (digest[2] << 16) | (digest[3] << 24);
-		printf("nid: %08X\n", nid);
-		return libsFindExportByNid(uid, library, nid);
+		//printf("nid: %08X\n", nid);
+		return libsFindExportAddrByNid(uid, library, nid);
 	}
 
-	return 0;
+	return NULL;
+}
+
+u32 libsFindExportByName(SceUID uid, const char *library, const char *name)
+{
+	u32 *addr;
+
+	addr = libsFindExportAddrByName(uid, library, name);
+	if(!addr)
+	{
+		return 0;
+	}
+
+	return *addr;
+}
+
+u32 libsFindExportByNid(SceUID uid, const char *library, u32 nid)
+{
+	u32 *addr;
+
+	addr = libsFindExportAddrByNid(uid, library, nid);
+	if(!addr)
+	{
+		return 0;
+	}
+
+	return *addr;
 }
 
 int libsPrintEntries(SceUID uid)

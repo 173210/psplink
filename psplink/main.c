@@ -32,6 +32,10 @@
 #include "shell.h"
 #include "config.h"
 #include "exception.h"
+#include "apihook.h"
+#include "tty.h"
+#include "disasm.h"
+#include "symbols.h"
 
 PSP_MODULE_INFO("PSPLINK", 0x1000, 1, 1);
 
@@ -43,11 +47,7 @@ struct GlobalContext g_context;
 
 /* The thread ID of the loader */
 static int g_loaderthid = 0;
-/* The two instruction pre-amble from the original exitgame function */
-static u32 g_exitgame[2];
 
-void stdoutInit(void);
-void stdoutSetSioHandler(PspDebugPrintHandler sioHandler);
 void save_execargs(int argc, char **argv);
 
 int unload_loader(void)
@@ -188,6 +188,7 @@ void exit_reset(void)
 	}
 }
 
+#if 0
 /* Do some kernel patching */
 static void patch_kernel(void)
 {
@@ -223,6 +224,8 @@ static void unpatch_kernel(void)
 	sceKernelIcacheInvalidateAll();
 }
 
+#endif
+
 void psplinkReset(void)
 {
 	struct SceKernelLoadExecParam le;
@@ -246,7 +249,7 @@ void psplinkReset(void)
 
 void psplinkExitShell(void)
 {
-	unpatch_kernel();
+	//unpatch_kernel();
 	sceKernelExitGame();
 }
 
@@ -266,7 +269,8 @@ int main_thread(SceSize args, void *argp)
 	g_context.netshelluid = -1;
 	parse_sceargs(args, argp);
 	configLoad(g_context.bootpath, &ctx);
-	stdoutInit();
+	disasmSetSymResolver(symbolFindNameByAddressEx);
+	ttyInit();
 	if(ctx.sioshell)
 	{
 		if(ctx.baudrate == 0)
@@ -275,10 +279,12 @@ int main_thread(SceSize args, void *argp)
 		}
 
 		sioInit(ctx.baudrate);
-		stdoutSetSioHandler(pspDebugSioPutText);
+		ttySetSioHandler(pspDebugSioPutText);
 	}
 	sceUmdActivate(1, "disc0:");
-	patch_kernel();
+
+	/* Hook sceKernelExitGame */
+	apiHookByNid(refer_module_by_name("sceLoadExec", NULL), "LoadExecForUser", 0x05572A5F, exit_reset);
 
 	sceKernelWaitThreadEnd(g_loaderthid, NULL);
 	unload_loader();

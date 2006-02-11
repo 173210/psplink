@@ -244,6 +244,41 @@ const char *symbolFindNameByAddress(unsigned int addr)
 	return "Unknown";
 }
 
+int symbolFindNameByAddressEx(unsigned int addr, char *output, int size)
+{
+	const struct SymfileEntry *pSym;
+	unsigned int baseaddr;
+	char symtemp[256];
+
+	if((output == NULL) || (size <= 0))
+	{
+		return 0;
+	}
+
+	pSym = symbolFindByAddress(addr, &baseaddr);
+	if(pSym)
+	{
+		if((baseaddr + pSym->addr) < addr)
+		{
+			sprintf(symtemp, "%s+0x%x", pSym->name,
+					addr - (baseaddr + pSym->addr));
+		}
+		else
+		{
+			sprintf(symtemp, "%s", pSym->name);
+		}
+	}
+	else
+	{
+		return 0;
+	}
+
+	strncpy(output, symtemp, size);
+	output[size-1] = 0;
+
+	return 1;
+}
+
 unsigned int symbolFindByName(const char *name)
 {
 	const char *modname = NULL;

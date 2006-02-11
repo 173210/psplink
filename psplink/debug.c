@@ -19,6 +19,7 @@
 #include "exception.h"
 #include "util.h"
 #include "psplink.h"
+#include "disasm.h"
 
 #define MAX_BPS 16
 #define SW_BREAK_INST	0x0000000d
@@ -371,7 +372,7 @@ int debugHandleException(PspDebugRegBlock *pRegs)
 
 		sceKernelDcacheWritebackInvalidateAll();
 		sceKernelIcacheInvalidateAll();
-		printf("%s\n", PSPdis(address));
+		printf("%s\n", disasmInstruction(_lw(address), address, &pRegs->r[0]));
 
 		ret = 1;
 	}
