@@ -192,7 +192,7 @@ int cli_skip()
 	{
 		if(g_context.sock >= 0)
 		{
-			char ch = 19;
+			char ch = 11;
 			write(g_context.sock, &ch, 1);
 		}
 	}
