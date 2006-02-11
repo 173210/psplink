@@ -3356,7 +3356,7 @@ int shellParse(char *command)
 
 		/* See if the command contains a '.', if so this cannot be a command, try and execute it direct */
 		cmd = argv[0];
-		ext = strchr(cmd, '.');
+		ext = strrchr(cmd, '.');
 		if(ext)
 		{
 			char path[MAXPATHLEN];
@@ -3377,7 +3377,7 @@ int shellParse(char *command)
 				argv[0] = path;
 			}
 
-			if((ext) && ((strcmp(ext, ".sh") == 0) || (strcmp(ext, ".SH") == 0)))
+			if((strcmp(ext, ".sh") == 0) || (strcmp(ext, ".SH") == 0))
 			{
 				ret = run_cmd(argc, argv);
 			}
