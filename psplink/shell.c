@@ -41,6 +41,7 @@
 #include "libs.h"
 #include "thctx.h"
 #include "disasm.h"
+#include "apihook.h"
 
 #define MAX_SHELL_VAR      128
 #define SHELL_PROMPT	"psplink %d>"
@@ -389,7 +390,7 @@ static int thresm_cmd(int argc, char **argv)
 		err = sceKernelResumeThread(uid);
 		if(err < 0)
 		{
-			printf("Cannot suspend thread 0x%08X\n", err);
+			printf("Cannot resume thread 0x%08X\n", err);
 		}
 
 		ret = CMD_OK;
@@ -1035,6 +1036,87 @@ static int modfindx_cmd(int argc, char **argv)
 	}
 
 	return ret;
+}
+
+static int apihook_common(int argc, char **argv, int sleep)
+{
+	SceUID uid;
+	int ret = CMD_ERROR;
+	const char *param = "";
+
+	if(argc > 3)
+	{
+		param = argv[3];
+	}
+
+	uid = get_module_uid(argv[0]);
+	if(uid >= 0)
+	{
+		if(argv[2][0] == '@')
+		{
+			if(apiHookGenericByName(uid, argv[1], &argv[2][1], param, sleep))
+			{
+				ret = CMD_OK;
+			}
+		}
+		else
+		{
+			char *endp;
+			u32 nid;
+
+			nid = strtoul(argv[2], &endp, 16);
+			if(*endp != 0)
+			{
+				printf("ERROR: Invalid nid %s\n", argv[2]);
+			}
+			else
+			{
+				if(apiHookGenericByNid(uid, argv[1], nid, param, 0))
+				{
+					ret = CMD_OK;
+				}
+			}
+		}
+	}
+	else
+	{
+		printf("ERROR: Invalid argument %s\n", argv[0]);
+	}
+
+	return ret;
+}
+
+static int apihook_cmd(int argc, char **argv)
+{
+	return apihook_common(argc, argv, 0);
+}
+
+static int apihooks_cmd(int argc, char **argv)
+{
+	return apihook_common(argc, argv, 1);
+}
+
+static int apihp_cmd(int argc, char **argv)
+{
+	apiHookGenericPrint();
+	return CMD_OK;
+}
+
+static int apihd_cmd(int argc, char **argv)
+{
+	u32 id;
+
+	if(strtoint(argv[0], &id))
+	{
+		apiHookGenericDelete(id);
+	}
+	else
+	{
+		printf("Invalid ID for delete\n");
+		return CMD_ERROR;
+	}
+
+	return CMD_OK;
 }
 
 static int modload_cmd(int argc, char **argv)
@@ -3234,6 +3316,10 @@ struct sh_command commands[] = {
 	{ "debug", "d", debug_cmd, 1, "Start a module under NetGDB", "d program.elf [args]", SHELL_TYPE_CMD },
 	{ "modexp", "mp", modexp_cmd, 1, "List the exports from a module", "mp uid|@name", SHELL_TYPE_CMD },
 	{ "modfindx", "mfx", modfindx_cmd, 3, "Find a module's export address", "mfx uid|@name library nid|@name", SHELL_TYPE_CMD },
+	{ "apihook", NULL, apihook_cmd, 3, "Hook a user mode API call", "apihook uid|@name library nid|@name [param]", SHELL_TYPE_CMD },
+	{ "apihooks", NULL, apihooks_cmd, 3, "Hook a user mode API call with sleep", "apihooks uid|@name library nid|@name [param]", SHELL_TYPE_CMD },
+	{ "apihp", NULL, apihp_cmd, 0, "Print the user mode API hooks", "apihp", SHELL_TYPE_CMD },
+	{ "apihd", NULL, apihd_cmd, 1, "Delete an user mode API hook", "apihd", SHELL_TYPE_CMD },
 	
 	{ "memory", NULL, NULL, 0, "Commands to manipulate memory", NULL, SHELL_TYPE_CATEGORY },
 	{ "meminfo", "mf", meminfo_cmd, 0, "Print free memory info", "mf [partitionid]", SHELL_TYPE_CMD },

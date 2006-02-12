@@ -165,7 +165,7 @@ _apiHookEntry:
 	sw		$t0, 20($sp)
 	sw		$t1, 24($sp)
 	move	$a0, $v0		# Copy api hook number into first arg
-	jal		_apiHookEntry
+	jal		_apiHookHandle
 	addiu	$a1, $sp, 4		# Copy pointer to args into second arg
 
 	lw		$ra, 0($sp)		 # Restore $ra and args

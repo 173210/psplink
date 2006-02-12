@@ -673,7 +673,7 @@ static char *print_imm(int ofs, char *output)
 	if(g_hexints)
 	{
 		unsigned int val = ofs;
-		ofs &= 0xFFFF;
+		val &= 0xFFFF;
 		len = sprintf(output, "0x%04X", val);
 	}
 	else
@@ -720,7 +720,7 @@ static char *print_ofs(int ofs, int reg, char *output, unsigned int *realregs)
 		if(g_hexints)
 		{
 			unsigned int val = ofs;
-			ofs &= 0xFFFF;
+			val &= 0xFFFF;
 			len = sprintf(output, "0x%04X(", val);
 		}
 		else

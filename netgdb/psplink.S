@@ -9,7 +9,7 @@
 	STUB_FUNC  0xE3010EA1,psplinkPrintPrompt
 	STUB_FUNC  0xB03642D9,psplinkExitShell
 	STUB_FUNC  0x8F31ACE7,psplinkReferModule
-	STUB_FUNC  0x3591BDA6,stdoutSetWifiHandler
+	STUB_FUNC  0x4DFA5010,ttySetWifiHandler
 	STUB_FUNC  0x565C0B0E,sceKernelRegisterDefaultExceptionHandler
 	STUB_FUNC  0x79D1C3FA,sceKernelDcacheWritebackAll
 	STUB_FUNC  0x864A9D72,sceKernelDcacheInvalidateAll
