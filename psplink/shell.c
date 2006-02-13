@@ -1925,6 +1925,10 @@ static int memdump_cmd(int argc, char **argv)
 			{
 				type = MEMDUMP_TYPE_HALF;
 			}
+			else if(argv[1][0] == 'b')
+			{
+				type = MEMDUMP_TYPE_BYTE;
+			}
 		}
 	}
 	else if(addr == 0)
