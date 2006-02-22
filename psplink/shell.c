@@ -1790,7 +1790,7 @@ static void print_row(const u32* row, s32 row_size, u32 addr, int type)
 		{
 			if(i < row_size)
 			{
-				printf("%02x%02X%02X%02X ", row[i+3], row[i+2], row[i+1], row[i]);
+				printf("%02X%02X%02X%02X ", row[i+3], row[i+2], row[i+1], row[i]);
 			}
 			else
 			{
@@ -1804,7 +1804,7 @@ static void print_row(const u32* row, s32 row_size, u32 addr, int type)
 		{
 			if(i < row_size)
 			{
-				printf("%02x%02X ", row[i+1], row[i]);
+				printf("%02X%02X ", row[i+1], row[i]);
 			}
 			else
 			{
@@ -1818,7 +1818,7 @@ static void print_row(const u32* row, s32 row_size, u32 addr, int type)
 		{
 			if(i < row_size)
 			{
-				printf("%02x ", row[i]);
+				printf("%02X ", row[i]);
 			}
 			else
 			{

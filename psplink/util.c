@@ -460,7 +460,7 @@ int stop_usb(void)
 		return 0;
 	}
 
-	retVal = sceUsbDeactivate();
+	retVal = sceUsbDeactivate(0x1c8);
 	if (retVal != 0) {
 	    Kprintf("Error calling sceUsbDeactivate (0x%08X)\n", retVal);
     }
