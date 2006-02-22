@@ -1692,10 +1692,10 @@ static int cp_cmd(int argc, char **argv)
 	while(1) {
 		n = sceIoRead(in, buff, 2048);
 
-		if(n == 0)
+		if(n <= 0)
 			break;
 		
-		write(out, buff, n);
+		sceIoWrite(out, buff, n);
 	}
 	
 	sceIoClose(in);
