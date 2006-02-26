@@ -1393,7 +1393,7 @@ static int exec_cmd(int argc, char **argv)
 				size = build_bootargs(args, g_context.bootfile, file, argc-1, &argv[1]);
 			}
 
-			stop_usb();
+			stop_usbmass();
 
 			le.size = sizeof(le);
 			le.args = size;
@@ -1557,16 +1557,30 @@ static int pwd_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
-static int usbon_cmd(int argc, char **argv)
+static int usbmasson_cmd(int argc, char **argv)
 {
-	(void) init_usb();
+	(void) init_usbmass();
 
 	return CMD_OK;
 }
 
-static int usboff_cmd(int argc, char **argv)
+static int usbmassoff_cmd(int argc, char **argv)
 {
-	(void) stop_usb();
+	(void) stop_usbmass();
+
+	return CMD_OK;
+}
+
+static int usbhoston_cmd(int argc, char **argv)
+{
+	(void) init_usbhost(g_context.bootpath);
+
+	return CMD_OK;
+}
+
+static int usbhostoff_cmd(int argc, char **argv)
+{
+	(void) stop_usbhost();
 
 	return CMD_OK;
 }
@@ -3379,8 +3393,10 @@ struct sh_command commands[] = {
 	{ "symbyname", "syn", symbyname_cmd, 1, "Print the specified symbol address", "syn module:symname", SHELL_TYPE_CMD },
 
 	{ "misc", NULL, NULL, 0, "Miscellaneous commands (e.g. USB, exit)", NULL, SHELL_TYPE_CATEGORY },
-	{ "usbon", "un", usbon_cmd, 0, "Enable USB mass storage device", "usbon", SHELL_TYPE_CMD },
-	{ "usboff", "uf", usboff_cmd, 0, "Disable USB mass storage device", "usboff", SHELL_TYPE_CMD },
+	{ "usbmon", "umn", usbmasson_cmd, 0, "Enable USB mass storage device", "usbon", SHELL_TYPE_CMD },
+	{ "usbmoff", "umf", usbmassoff_cmd, 0, "Disable USB mass storage device", "usboff", SHELL_TYPE_CMD },
+	{ "usbhon", "uhn", usbhoston_cmd, 0, "Enable USB hostfs device", "usbon", SHELL_TYPE_CMD },
+	{ "usbhoff", "uhf", usbhostoff_cmd, 0, "Disable USB hostfs device", "usboff", SHELL_TYPE_CMD },
 	{ "usbstat", "us", usbstat_cmd, 0, "Display the status of the USB connection", "usbstat", SHELL_TYPE_CMD },
     { "uidlist","ul", uidlist_cmd, 0, "List the system UIDS", "ul [root]", SHELL_TYPE_CMD },
 	{ "cop0", "c0", cop0_cmd, 0, "Print the cop0 registers", "c0", SHELL_TYPE_CMD },
@@ -3869,7 +3885,7 @@ static int help_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
-int shellInit(const char *cliprompt, const char *path)
+int shellInit(const char *cliprompt, const char *path, const char *init_dir)
 {
 	int ret;
 
@@ -3880,7 +3896,7 @@ int shellInit(const char *cliprompt, const char *path)
 
 	set_shell_var("path", path);
 
-	strcpy(g_context.currdir, "ms0:/");
+	strcpy(g_context.currdir, init_dir);
 
 	g_command_thid = sceKernelCreateThread("PspLinkParse", shellParseThread, 9, 0x10000, 0, NULL);
 	if(g_command_thid < 0)

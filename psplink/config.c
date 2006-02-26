@@ -39,12 +39,14 @@ struct psplink_config
 	void (*handler)(struct ConfigContext *ctx, const char *szVal, unsigned int iVal);
 };
 
-static void config_usb(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+static void config_usbmass(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
 {
-	if(iVal != 0)
-	{
-		init_usb();
-	}
+	ctx->usbmass = iVal;
+}
+
+static void config_usbhost(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	ctx->usbhost = iVal;
 }
 
 static void config_baud(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
@@ -135,7 +137,8 @@ static void config_disopt(struct ConfigContext *ctx, const char *szVal, unsigned
 }
 
 struct psplink_config config_names[] = {
-	{ "usb", 1, config_usb },
+	{ "usbmass", 1, config_usbmass },
+	{ "usbhost", 1, config_usbhost },
 	{ "baud", 1, config_baud },
 	{ "modload", 0, config_modload },
 	{ "pluser", 1, config_pluser },

@@ -21,18 +21,20 @@
 #include <pspusbstor.h>
 #include <pspumd.h>
 #include <psputilsforkernel.h>
+#include <usbhostfs.h>
 #include "psplink.h"
 #include "util.h"
 
 enum UsbStates 
 {
 	USB_NOSTART = 0,
-	USB_ON      = 1,
-	USB_OFF     = 2
+	USB_ON  = 1,
+	USB_OFF = 2,
 };
 
 /* Indicates whether the usb drivers have been loaded */
-static enum UsbStates g_usbstate = USB_NOSTART;
+static enum UsbStates g_usbmassstate = USB_NOSTART;
+static enum UsbStates g_usbhoststate = USB_NOSTART;
 
 /* Global functions which are setup to point to the correct function
    for the firmware */
@@ -399,19 +401,19 @@ void map_firmwarerev(void)
 	}
 }
 
-int init_usb(void)
+int init_usbmass(void)
 {
 	int retVal;
 
 	do
 	{
-		if(g_usbstate == USB_ON)
+		if((g_usbmassstate == USB_ON) || (g_usbhoststate == USB_ON))
 		{
 			retVal = 0;
 			break;
 		}
 
-		if(g_usbstate == USB_NOSTART)
+		if(g_usbmassstate == USB_NOSTART)
 		{
 			load_start_module("flash0:/kd/semawm.prx", 0, NULL);
 			load_start_module("flash0:/kd/usbstor.prx", 0, NULL);
@@ -443,7 +445,7 @@ int init_usb(void)
 
 		if(retVal == 0)
 		{
-			g_usbstate = USB_ON;
+			g_usbmassstate = USB_ON;
 		}
 	}
 	while(0);
@@ -451,11 +453,11 @@ int init_usb(void)
 	return retVal;
 }
 
-int stop_usb(void)
+int stop_usbmass(void)
 {
 	int retVal;
 
-	if(g_usbstate != USB_ON)
+	if((g_usbmassstate != USB_ON) || (g_usbhoststate == USB_ON))
 	{
 		return 0;
 	}
@@ -476,7 +478,81 @@ int stop_usb(void)
 		Kprintf("Error stopping USB BUS driver (0x%08X)\n", retVal);
 	}
 
-	g_usbstate = USB_OFF;
+	g_usbmassstate = USB_OFF;
+
+	return 0;
+}
+
+int init_usbhost(const char *bootpath)
+{
+	int retVal;
+	char prx_path[MAXPATHLEN];
+
+	do
+	{
+		if((g_usbmassstate == USB_ON) || (g_usbhoststate == USB_ON))
+		{
+			retVal = 0;
+			break;
+		}
+
+		if(g_usbhoststate == USB_NOSTART)
+		{
+			strcpy(prx_path, bootpath);
+			strcat(prx_path, "usbhostfs.prx");
+			load_start_module(prx_path, 0, NULL);
+		}
+
+		retVal = sceUsbStart(PSP_USBBUS_DRIVERNAME, 0, 0);
+		if (retVal != 0) {
+			Kprintf("Error starting USB Bus driver (0x%08X)\n", retVal);
+			break;
+		}
+		retVal = sceUsbStart(HOSTFSDRIVER_NAME, 0, 0);
+		if (retVal != 0) {
+			Kprintf("Error starting USB Host driver (0x%08X)\n",
+			   retVal);
+			break;
+		}
+
+		retVal = sceUsbActivate(HOSTFSDRIVER_PID);
+
+		if(retVal == 0)
+		{
+			g_usbhoststate = USB_ON;
+		}
+	}
+	while(0);
+
+	return retVal;
+}
+
+int stop_usbhost(void)
+{
+	int retVal;
+
+	if((g_usbhoststate != USB_ON) || (g_usbmassstate == USB_ON))
+	{
+		return 0;
+	}
+
+	retVal = sceUsbDeactivate(HOSTFSDRIVER_PID);
+	if (retVal != 0) {
+	    Kprintf("Error calling sceUsbDeactivate (0x%08X)\n", retVal);
+    }
+
+    retVal = sceUsbStop(HOSTFSDRIVER_NAME, 0, 0);
+    if (retVal != 0) {
+		Kprintf("Error stopping USB Mass Storage driver (0x%08X)\n",
+	       retVal);
+	}
+
+    retVal = sceUsbStop(PSP_USBBUS_DRIVERNAME, 0, 0);
+    if (retVal != 0) {
+		Kprintf("Error stopping USB BUS driver (0x%08X)\n", retVal);
+	}
+
+	g_usbhoststate = USB_OFF;
 
 	return 0;
 }

@@ -18,8 +18,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pspusb.h>
-#include <pspusbstor.h>
 #include <pspumd.h>
 #include <psputilsforkernel.h>
 #include <pspsysmem_kernel.h>
@@ -188,44 +186,6 @@ void exit_reset(void)
 	}
 }
 
-#if 0
-/* Do some kernel patching */
-static void patch_kernel(void)
-{
-	u32 *jump;
-	u32 *patch;
-
-	jump = (u32 *) sceKernelExitGame;
-	patch = (u32 *) (0x80000000 | ((*jump & 0x03FFFFFF) << 2));
-
-	g_exitgame[0] = patch[0];
-	g_exitgame[1] = patch[1];
-
-	/* Patch in a jump to the reset function */
-	patch[0] = 0x08000000 | ((((u32) exit_reset) & 0x0FFFFFFF) >> 2);
-	patch[1] = 0;
-	sceKernelDcacheWritebackAll();
-	sceKernelIcacheInvalidateAll();
-}
-
-/* Do some kernel patching */
-static void unpatch_kernel(void)
-{
-	u32 *jump;
-	u32 *patch;
-
-	jump = (u32 *) sceKernelExitGame;
-	patch = (u32 *) (0x80000000 | ((*jump & 0x03FFFFFF) << 2));
-
-	patch[0] = g_exitgame[0];
-	patch[1] = g_exitgame[1];
-
-	sceKernelDcacheWritebackAll();
-	sceKernelIcacheInvalidateAll();
-}
-
-#endif
-
 void psplinkReset(void)
 {
 	struct SceKernelLoadExecParam le;
@@ -233,7 +193,7 @@ void psplinkReset(void)
 
 	psplinkSetK1(0);
 	printf("Resetting psplink\n");
-	stop_usb();
+	stop_usbmass();
 	if(g_context.netshelluid >= 0)
 	{
 		sceKernelStopModule(g_context.netshelluid, 0, NULL, &status, NULL);
@@ -249,7 +209,6 @@ void psplinkReset(void)
 
 void psplinkExitShell(void)
 {
-	//unpatch_kernel();
 	sceKernelExitGame();
 }
 
@@ -262,6 +221,7 @@ int psplinkPresent(void)
 int main_thread(SceSize args, void *argp)
 {
 	struct ConfigContext ctx;
+	const char *init_dir = "ms0:/";
 
 	map_firmwarerev();
 	memset(&g_context, 0, sizeof(g_context));
@@ -271,6 +231,16 @@ int main_thread(SceSize args, void *argp)
 	configLoad(g_context.bootpath, &ctx);
 	disasmSetSymResolver(symbolFindNameByAddressEx);
 	ttyInit();
+	if(ctx.usbhost)
+	{
+		init_usbhost(g_context.bootpath);
+		init_dir = "host0:/";
+	}
+	else if(ctx.usbmass)
+	{
+		init_usbmass();
+	}
+
 	if(ctx.sioshell)
 	{
 		if(ctx.baudrate == 0)
@@ -304,7 +274,7 @@ int main_thread(SceSize args, void *argp)
 		}
 	}
 
-	if(shellInit(ctx.cliprompt, ctx.path) < 0)
+	if(shellInit(ctx.cliprompt, ctx.path, init_dir) < 0)
 	{
 		sceKernelExitGame();
 	}

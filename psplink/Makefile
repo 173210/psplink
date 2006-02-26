@@ -7,7 +7,7 @@ USE_KERNEL_LIBC = 1
 # Use only kernel libraries
 USE_KERNEL_LIBS = 1
 
-INCDIR = 
+INCDIR = ../usbhostfs
 #CFLAGS = -O2 -G0 -Wall -DDEBUG
 CFLAGS = -O2 -G0 -Wall -fno-builtin-printf
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti

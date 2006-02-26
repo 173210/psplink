@@ -27,6 +27,8 @@ struct ConfigContext
 	int  sioshell;
 	int  pcterm;
 	int  baudrate;
+	int  usbmass;
+	int  usbhost;
 };
 
 void configLoad(const char *bootpath, struct ConfigContext *ctx);
