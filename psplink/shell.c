@@ -1279,7 +1279,7 @@ static int debug_cmd(int argc, char **argv)
 
 	if(handlepath(g_context.currdir, argv[0], path, TYPE_FILE, 1))
 	{
-		if(g_context.wifi == 0)
+		if((!g_context.usbgdb) && (g_context.wifi == 0))
 		{
 			/* Default to AP 1 */
 			load_wifi(g_context.bootpath, 1);
@@ -1288,7 +1288,7 @@ static int debug_cmd(int argc, char **argv)
 		if(g_context.gdb == 0)
 		{
 			argv[0] = path;
-			load_netgdb(g_context.bootpath, argc, argv);
+			load_gdb(g_context.bootpath, argc, argv);
 		}
 		else
 		{

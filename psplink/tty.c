@@ -30,6 +30,7 @@
 
 static PspDebugPrintHandler g_sioHandler = NULL;
 static PspDebugPrintHandler g_wifiHandler = NULL;
+static PspDebugPrintHandler g_usbHandler = NULL;
 
 /* STDIN buffer */
 static char g_stdinbuf[STDIN_BUFSIZE];
@@ -52,6 +53,11 @@ static int outputHandler(const char *data, int size)
 		g_wifiHandler(data, size);
 	}
 
+	if(g_usbHandler)
+	{
+		g_usbHandler(data, size);
+	}
+
 	return size;
 }
 
@@ -72,6 +78,11 @@ void ttySetWifiHandler(PspDebugPrintHandler wifiHandler)
 void ttySetSioHandler(PspDebugPrintHandler sioHandler)
 {
 	g_sioHandler = sioHandler;
+}
+
+void ttySetUsbHandler(PspDebugPrintHandler usbHandler)
+{
+	g_usbHandler = usbHandler;
 }
 
 void ttyAddInputData(void *data, int size)

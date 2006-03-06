@@ -1,5 +1,5 @@
-TARGET = usbhostfs
-OBJS = main.o host_driver.o kmode.o exports.o
+TARGET = usbshell
+OBJS = main.o psplink.o USBHostFS.o exports.o
 
 # Use the kernel's small inbuilt libc
 USE_KERNEL_LIBC = 1
@@ -14,7 +14,7 @@ ASFLAGS = $(CFLAGS)
 
 LIBDIR =
 
-LIBS = -lpspusbbus_driver
+LIBS = 
 
 PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build_prx.mak

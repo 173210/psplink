@@ -21,12 +21,16 @@
 #define SONY_VID (0x54C)
 
 #define HOSTFS_MAGIC 0x782F0812
+#define ASYNC_MAGIC  0x782F0813
 
 #define HOSTFS_PATHMAX (4096)
 
 #define HOSTFS_MAX_BLOCK (64*1024)
 
 #define HOSTFS_RENAME_BUFSIZE (1024)
+
+#define MAX_ASYNC_BUFFER 4096
+#define MAX_ASYNC_CHANNELS 2
 
 enum HostFsCommands
 {
@@ -308,6 +312,12 @@ struct HostFsChdirResp
 {
 	struct HostFsCmd cmd;
 	int32_t res;
+} __attribute__((packed));
+
+struct AsyncCommand
+{
+	uint32_t magic;
+	uint32_t channel;
 } __attribute__((packed));
 
 #ifndef PC_SIDE

@@ -161,12 +161,29 @@ SceUID load_wifishell(const char *bootpath)
 	return load_start_module(prx_path, 0, NULL);
 }
 
-SceUID load_netgdb(const char *bootpath, int argc, char **argv)
+SceUID load_usbshell(const char *bootpath)
 {
 	char prx_path[MAXPATHLEN];
 
 	strcpy(prx_path, bootpath);
-	strcat(prx_path, "netgdb.prx");
+	strcat(prx_path, "usbshell.prx");
+	g_context.usbshell = 1;
+	return load_start_module(prx_path, 0, NULL);
+}
+
+SceUID load_gdb(const char *bootpath, int argc, char **argv)
+{
+	char prx_path[MAXPATHLEN];
+
+	strcpy(prx_path, bootpath);
+	if(g_context.usbgdb)
+	{
+		strcat(prx_path, "usbgdb.prx");
+	}
+	else
+	{
+		strcat(prx_path, "netgdb.prx");
+	}
 	g_context.gdb = 1;
 	return load_start_module(prx_path, argc, argv);
 }
@@ -230,6 +247,7 @@ int main_thread(SceSize args, void *argp)
 	parse_sceargs(args, argp);
 	configLoad(g_context.bootpath, &ctx);
 	disasmSetSymResolver(symbolFindNameByAddressEx);
+	g_context.usbgdb = ctx.usbgdb;
 	ttyInit();
 	if(ctx.usbhost)
 	{
@@ -251,6 +269,12 @@ int main_thread(SceSize args, void *argp)
 		sioInit(ctx.baudrate);
 		ttySetSioHandler(pspDebugSioPutText);
 	}
+
+	if(ctx.usbshell)
+	{
+		load_usbshell(g_context.bootpath);
+	}
+
 	sceUmdActivate(1, "disc0:");
 
 	/* Hook sceKernelExitGame */

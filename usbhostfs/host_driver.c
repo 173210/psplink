@@ -110,15 +110,13 @@ static int io_close(PspIoDrvFileArg *arg)
 	return ret;
 }
 
-static int io_read(PspIoDrvFileArg *arg, char *data, int len)
+int usb_read_data(int fd, void *data, int len)
 {
 	struct HostFsReadCmd cmd;
 	struct HostFsReadResp resp;
 	int blocks;
 	int residual;
 	int ret = 0;
-
-	DEBUG_PRINTF("read: arg %p, data %p, len %d\n", arg, data, len);
 
 	if(len < 0)
 	{
@@ -148,7 +146,7 @@ static int io_read(PspIoDrvFileArg *arg, char *data, int len)
 		cmd.cmd.command = HOSTFS_CMD_READ;
 		cmd.cmd.extralen = 0;
 		cmd.len = HOSTFS_MAX_BLOCK;
-		cmd.fid = (int) (arg->arg);
+		cmd.fid = fd;
 
 		if(usb_connected())
 		{
@@ -199,7 +197,7 @@ static int io_read(PspIoDrvFileArg *arg, char *data, int len)
 			cmd.cmd.command = HOSTFS_CMD_READ;
 			cmd.cmd.extralen = 0;
 			cmd.len = residual;
-			cmd.fid = (int) (arg->arg);
+			cmd.fid = fd;
 
 			if(usb_connected())
 			{
@@ -243,15 +241,20 @@ static int io_read(PspIoDrvFileArg *arg, char *data, int len)
 	return ret;
 }
 
-static int io_write(PspIoDrvFileArg *arg, const char *data, int len)
+static int io_read(PspIoDrvFileArg *arg, char *data, int len)
+{
+	DEBUG_PRINTF("read: arg %p, data %p, len %d\n", arg, data, len);
+
+	return usb_read_data((int) arg->arg, data, len);
+}
+
+int usb_write_data(int fd, const void *data, int len)
 {
 	struct HostFsWriteCmd cmd;
 	struct HostFsWriteResp resp;
 	int blocks;
 	int residual;
 	int ret = 0;
-
-	DEBUG_PRINTF("write: arg %p, data %p, len %d\n", arg, data, len);
 
 	if(len < 0)
 	{
@@ -281,7 +284,7 @@ static int io_write(PspIoDrvFileArg *arg, const char *data, int len)
 		cmd.cmd.magic = HOSTFS_MAGIC;
 		cmd.cmd.command = HOSTFS_CMD_WRITE;
 		cmd.cmd.extralen = HOSTFS_MAX_BLOCK;
-		cmd.fid = (int) (arg->arg);
+		cmd.fid = fd;
 
 		if(usb_connected())
 		{
@@ -332,7 +335,7 @@ static int io_write(PspIoDrvFileArg *arg, const char *data, int len)
 			cmd.cmd.magic = HOSTFS_MAGIC;
 			cmd.cmd.command = HOSTFS_CMD_WRITE;
 			cmd.cmd.extralen = residual;
-			cmd.fid = (int) (arg->arg);
+			cmd.fid = fd;
 
 			if(usb_connected())
 			{
@@ -373,6 +376,13 @@ static int io_write(PspIoDrvFileArg *arg, const char *data, int len)
 	while(0);
 
 	return ret;
+}
+
+static int io_write(PspIoDrvFileArg *arg, const char *data, int len)
+{
+	DEBUG_PRINTF("write: arg %p, data %p, len %d\n", arg, data, len);
+
+	return usb_write_data((int) arg->arg, data, len);
 }
 
 static int io_lseek(PspIoDrvFileArg *arg, u32 unk, long long ofs, int whence)

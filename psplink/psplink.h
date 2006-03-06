@@ -47,7 +47,7 @@ void psplinkGetCop0(u32 *regs);
 int psplinkParseComamnd(char *command);
 SceUID load_wifi(const char *bootpath, int ap);
 SceUID load_wifishell(const char *bootpath);
-SceUID load_netgdb(const char *bootpath, int argc, char **argv);
+SceUID load_gdb(const char *bootpath, int argc, char **argv);
 
 struct GlobalContext
 {
@@ -71,6 +71,8 @@ struct GlobalContext
 	int wifi;
 	int wifishell;
 	int gdb;
+	int usbshell;
+	int usbgdb;
 };
 
 #endif

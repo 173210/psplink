@@ -131,6 +131,20 @@ static void config_wifi(struct ConfigContext *ctx, const char *szVal, unsigned i
 	ctx->wifi = iVal;
 }
 
+static void config_usbshell(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	if(iVal)
+	{
+		ctx->usbhost = 1;
+		ctx->usbshell = 1;
+	}
+}
+
+static void config_usbgdb(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	ctx->usbgdb = iVal;
+}
+
 static void config_disopt(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
 {
 	disasmSetOpts(szVal, 1);
@@ -150,6 +164,8 @@ struct psplink_config config_names[] = {
 	{ "wifi", 1, config_wifi },
 	{ "path", 0, config_path },
 	{ "disopt", 0, config_disopt },
+	{ "usbshell", 1, config_usbshell },
+	{ "usbgdb", 1, config_usbgdb },
 	{ NULL, 0, NULL }
 };
 
@@ -201,7 +217,7 @@ void configLoad(const char *bootpath, struct ConfigContext *ctx)
 	}
 
 	/* Always enable at least the sio shell */
-	if(ctx->wifishell == 0)
+	if((ctx->usbshell == 0) && (ctx->wifishell == 0))
 	{
 		ctx->sioshell = 1;
 	}

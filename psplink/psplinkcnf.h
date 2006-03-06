@@ -15,8 +15,6 @@
 #include "psplink.h"
 #include "util.h"
 
-#define MAX_BUFFER 1024
-
 struct ConfigFile
 {
 	PspFile file;

@@ -15,7 +15,7 @@
 #ifndef __UTIL_H__
 #define __UTIL_H__
 
-#define MAX_BUFFER 1024
+#define MAX_BUFFER 2048
 #define TYPE_FILE	1
 #define TYPE_DIR	2
 #define TYPE_ETHER	3

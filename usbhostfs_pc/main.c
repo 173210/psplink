@@ -23,12 +23,21 @@
 #include <errno.h>
 #include <time.h>
 #include <sys/stat.h>
+#include <sys/select.h>
 #include <utime.h>
+#include <signal.h>
+#include <pthread.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
 #include "psp_fileio.h"
 
 #define MAX_FILES 256
 #define MAX_DIRS  256
 #define MAX_TOKENS 256
+
+#define BASE_PORT 10000
 
 /* TODO: Make the response encode the errno so newlib handles it correctly
  * i.e. setting 0x8001<errno>
@@ -63,12 +72,17 @@ struct DirHandle
 struct FileHandle open_files[MAX_FILES];
 struct DirHandle  open_dirs[MAX_DIRS];
 
-//char g_rootdir[PATH_MAX];
-//char g_currdir[PATH_MAX];
+static usb_dev_handle *g_hDev = NULL;
+static int g_shellserv = -1;
+static int g_shellsock = -1;
+static int g_gdbserv = -1;
+static int g_gdbsock = -1;
 
 struct HostDrive g_drives[MAX_HOSTDRIVES];
 
 int  g_verbose = 0;
+unsigned short g_shellport = BASE_PORT;
+unsigned short g_gdbport = BASE_PORT+1;
 
 #define V_PRINTF(fmt, ...) { if(g_verbose) { fprintf(stderr, fmt, ## __VA_ARGS__); } }
 
@@ -206,6 +220,7 @@ void close_device(struct usb_dev_handle *hDev)
 	if(hDev)
 	{
 		usb_release_interface(hDev, 0);
+		usb_reset(hDev);
 		usb_close(hDev);
 	}
 	seteuid(getuid());
@@ -1601,11 +1616,8 @@ usb_dev_handle *wait_for_device(void)
 			break;
 		}
 
-		/* Sleep for two seconds */
-		if(sleep(2) < 0)
-		{
-			break;
-		}
+		/* Sleep for one second */
+		sleep(1);
 	}
 
 	return hDev;
@@ -1629,7 +1641,7 @@ void close_hostfs(void)
 {
 	int i;
 
-	for(i = 0; i < MAX_FILES; i++)
+	for(i = 3; i < MAX_FILES; i++)
 	{
 		if(open_files[i].opened)
 		{
@@ -1647,152 +1659,202 @@ void close_hostfs(void)
 	}
 }
 
+void do_hostfs(struct HostFsCmd *cmd, int readlen)
+{
+	V_PRINTF("Magic: %08X\n", LE32(cmd->magic));
+	V_PRINTF("Command Num: %08X\n", LE32(cmd->command));
+	V_PRINTF("Extra Len: %d\n", LE32(cmd->extralen));
+
+	switch(LE32(cmd->command))
+	{
+		case HOSTFS_CMD_HELLO: if(handle_hello(g_hDev) < 0)
+							   {
+								   fprintf(stderr, "Error sending hello response\n");
+							   }
+							   break;
+		case HOSTFS_CMD_OPEN:  if(handle_open(g_hDev, (struct HostFsOpenCmd *) cmd, readlen) < 0)
+							   {
+								   fprintf(stderr, "Error in open command\n");
+							   }
+							   break;
+		case HOSTFS_CMD_CLOSE: if(handle_close(g_hDev, (struct HostFsCloseCmd *) cmd, readlen) < 0)
+							   {
+								   fprintf(stderr, "Error in close command\n");
+							   }
+							   break;
+		case HOSTFS_CMD_WRITE: if(handle_write(g_hDev, (struct HostFsWriteCmd *) cmd, readlen) < 0)
+							   {
+								   fprintf(stderr, "Error in write command\n");
+							   }
+							   break;
+		case HOSTFS_CMD_READ:  if(handle_read(g_hDev, (struct HostFsReadCmd *) cmd, readlen) < 0)
+							   {
+								   fprintf(stderr, "Error in read command\n");
+							   }
+							   break;
+		case HOSTFS_CMD_LSEEK: if(handle_lseek(g_hDev, (struct HostFsLseekCmd *) cmd, readlen) < 0)
+							   {
+								   fprintf(stderr, "Error in lseek command\n");
+							   }
+							   break;
+		case HOSTFS_CMD_DOPEN: if(handle_dopen(g_hDev, (struct HostFsDopenCmd *) cmd, readlen) < 0)
+							   {
+								   fprintf(stderr, "Error in dopen command\n");
+							   }
+							   break;
+		case HOSTFS_CMD_DCLOSE: if(handle_dclose(g_hDev, (struct HostFsDcloseCmd *) cmd, readlen) < 0)
+								{
+									fprintf(stderr, "Error in dclose command\n");
+								}
+								break;
+		case HOSTFS_CMD_DREAD: if(handle_dread(g_hDev, (struct HostFsDreadCmd *) cmd, readlen) < 0)
+							   {
+									fprintf(stderr, "Error in dread command\n");
+							   }
+							   break;
+		case HOSTFS_CMD_REMOVE: if(handle_remove(g_hDev, (struct HostFsRemoveCmd *) cmd, readlen) < 0)
+								{
+									fprintf(stderr, "Error in remove command\n");
+								}
+								break;
+		case HOSTFS_CMD_RMDIR: if(handle_rmdir(g_hDev, (struct HostFsRmdirCmd *) cmd, readlen) < 0)
+								{
+									fprintf(stderr, "Error in rmdir command\n");
+								}
+								break;
+		case HOSTFS_CMD_MKDIR: if(handle_mkdir(g_hDev, (struct HostFsMkdirCmd *) cmd, readlen) < 0)
+								{
+									fprintf(stderr, "Error in mkdir command\n");
+								}
+								break;
+		case HOSTFS_CMD_CHDIR: if(handle_chdir(g_hDev, (struct HostFsChdirCmd *) cmd, readlen) < 0)
+								{
+									fprintf(stderr, "Error in chdir command\n");
+								}
+								break;
+		case HOSTFS_CMD_RENAME: if(handle_rename(g_hDev, (struct HostFsRenameCmd *) cmd, readlen) < 0)
+								{
+									fprintf(stderr, "Error in rename command\n");
+								}
+								break;
+		case HOSTFS_CMD_GETSTAT:if(handle_getstat(g_hDev, (struct HostFsGetstatCmd *) cmd, readlen) < 0)
+								{
+									fprintf(stderr, "Error in getstat command\n");
+								}
+								break;
+		case HOSTFS_CMD_CHSTAT: if(handle_chstat(g_hDev, (struct HostFsChstatCmd *) cmd, readlen) < 0)
+								{
+									fprintf(stderr, "Error in chstat command\n");
+								}
+								break;
+		case HOSTFS_CMD_IOCTL: if(handle_ioctl(g_hDev, (struct HostFsIoctlCmd *) cmd, readlen) < 0)
+							   {
+								   fprintf(stderr, "Error in ioctl command\n");
+							   }
+							   break;
+		case HOSTFS_CMD_DEVCTL: if(handle_devctl(g_hDev, (struct HostFsDevctlCmd *) cmd, readlen) < 0)
+							   {
+								   fprintf(stderr, "Error in devctl command\n");
+							   }
+							   break;
+		default: fprintf(stderr, "Error, unknown command %08X\n", cmd->command);
+							 break;
+	};
+}
+
+
+void do_async(struct AsyncCommand *cmd, int readlen)
+{
+	uint8_t *data;
+
+	if(readlen > sizeof(struct AsyncCommand))
+	{
+		data = (uint8_t *) cmd + sizeof(struct AsyncCommand);
+		switch(cmd->channel)
+		{
+			case 0: if(g_shellsock >= 0)
+					{
+						write(g_shellsock, data, readlen - sizeof(struct AsyncCommand));
+					}
+					break;
+			case 1: if(g_gdbsock >= 0)
+					{
+						write(g_gdbsock, data, readlen - sizeof(struct AsyncCommand));
+					}
+					break;
+			default: /* Do nothing */
+					break;
+		};
+	}
+}
+
 int start_hostfs(void)
 {
-	usb_dev_handle *hDev = NULL;
-	char data[512];
+	uint32_t data[512/sizeof(uint32_t)];
 	int readlen;
-	int hellorecv = 0;
 
 	while(1)
 	{
 		init_hostfs();
 
-		hDev = wait_for_device();
+		g_hDev = wait_for_device();
 
-		if(hDev)
+		if(g_hDev)
 		{
-			while(1)
+			uint32_t magic;
+
+			magic = LE32(HOSTFS_MAGIC);
+
+			if(euid_usb_bulk_write(g_hDev, 0x2, (char *) &magic, sizeof(magic), 1000) == sizeof(magic))
 			{
-				struct HostFsCmd *cmd;
-
-				readlen = euid_usb_bulk_read(hDev, 0x81, data, 512, 0);
-				if(readlen == 0)
+				while(1)
 				{
-					fprintf(stderr, "Read cancelled (remote disconnected)\n");
-					break;
-				}
-
-				if(readlen < sizeof(struct HostFsCmd))
-				{
-					fprintf(stderr, "Error reading command header %d\n", readlen);
-					break;
-				}
-
-				cmd = (struct HostFsCmd *) data;
-
-				V_PRINTF("Magic: %08X\n", LE32(cmd->magic));
-				V_PRINTF("Command Num: %08X\n", LE32(cmd->command));
-				V_PRINTF("Extra Len: %d\n", LE32(cmd->extralen));
-
-				if(LE32(cmd->magic) != HOSTFS_MAGIC)
-				{
-					fprintf(stderr, "Error, invalid magic for command %08X\n", LE32(cmd->magic));
-					continue;
-				}
-
-				if((hellorecv) || (LE32(cmd->command) == HOSTFS_CMD_HELLO))
-				{
-					switch(LE32(cmd->command))
+					readlen = euid_usb_bulk_read(g_hDev, 0x81, (char*) data, 512, 0);
+					if(readlen == 0)
 					{
-						case HOSTFS_CMD_HELLO: if(handle_hello(hDev) < 0)
-											   {
-												   fprintf(stderr, "Error sending hello response\n");
-											   }
-											   hellorecv = 1;
-											   break;
-						case HOSTFS_CMD_OPEN:  if(handle_open(hDev, (struct HostFsOpenCmd *) cmd, readlen) < 0)
-											   {
-												   fprintf(stderr, "Error in open command\n");
-											   }
-											   break;
-						case HOSTFS_CMD_CLOSE: if(handle_close(hDev, (struct HostFsCloseCmd *) cmd, readlen) < 0)
-											   {
-												   fprintf(stderr, "Error in close command\n");
-											   }
-											   break;
-						case HOSTFS_CMD_WRITE: if(handle_write(hDev, (struct HostFsWriteCmd *) cmd, readlen) < 0)
-											   {
-												   fprintf(stderr, "Error in write command\n");
-											   }
-											   break;
-						case HOSTFS_CMD_READ:  if(handle_read(hDev, (struct HostFsReadCmd *) cmd, readlen) < 0)
-											   {
-												   fprintf(stderr, "Error in read command\n");
-											   }
-											   break;
-						case HOSTFS_CMD_LSEEK: if(handle_lseek(hDev, (struct HostFsLseekCmd *) cmd, readlen) < 0)
-											   {
-												   fprintf(stderr, "Error in lseek command\n");
-											   }
-											   break;
-						case HOSTFS_CMD_DOPEN: if(handle_dopen(hDev, (struct HostFsDopenCmd *) cmd, readlen) < 0)
-											   {
-												   fprintf(stderr, "Error in dopen command\n");
-											   }
-											   break;
-						case HOSTFS_CMD_DCLOSE: if(handle_dclose(hDev, (struct HostFsDcloseCmd *) cmd, readlen) < 0)
-												{
-													fprintf(stderr, "Error in dclose command\n");
-												}
-												break;
-						case HOSTFS_CMD_DREAD: if(handle_dread(hDev, (struct HostFsDreadCmd *) cmd, readlen) < 0)
-											   {
-													fprintf(stderr, "Error in dread command\n");
-											   }
-											   break;
-						case HOSTFS_CMD_REMOVE: if(handle_remove(hDev, (struct HostFsRemoveCmd *) cmd, readlen) < 0)
-												{
-													fprintf(stderr, "Error in remove command\n");
-												}
-												break;
-						case HOSTFS_CMD_RMDIR: if(handle_rmdir(hDev, (struct HostFsRmdirCmd *) cmd, readlen) < 0)
-												{
-													fprintf(stderr, "Error in rmdir command\n");
-												}
-												break;
-						case HOSTFS_CMD_MKDIR: if(handle_mkdir(hDev, (struct HostFsMkdirCmd *) cmd, readlen) < 0)
-												{
-													fprintf(stderr, "Error in mkdir command\n");
-												}
-												break;
-						case HOSTFS_CMD_CHDIR: if(handle_chdir(hDev, (struct HostFsChdirCmd *) cmd, readlen) < 0)
-												{
-													fprintf(stderr, "Error in chdir command\n");
-												}
-												break;
-						case HOSTFS_CMD_RENAME: if(handle_rename(hDev, (struct HostFsRenameCmd *) cmd, readlen) < 0)
-												{
-													fprintf(stderr, "Error in rename command\n");
-												}
-												break;
-						case HOSTFS_CMD_GETSTAT:if(handle_getstat(hDev, (struct HostFsGetstatCmd *) cmd, readlen) < 0)
-												{
-													fprintf(stderr, "Error in getstat command\n");
-												}
-												break;
-						case HOSTFS_CMD_CHSTAT: if(handle_chstat(hDev, (struct HostFsChstatCmd *) cmd, readlen) < 0)
-												{
-													fprintf(stderr, "Error in chstat command\n");
-												}
-												break;
-						case HOSTFS_CMD_IOCTL: if(handle_ioctl(hDev, (struct HostFsIoctlCmd *) cmd, readlen) < 0)
-											   {
-												   fprintf(stderr, "Error in ioctl command\n");
-											   }
-											   break;
-						case HOSTFS_CMD_DEVCTL: if(handle_devctl(hDev, (struct HostFsDevctlCmd *) cmd, readlen) < 0)
-											   {
-												   fprintf(stderr, "Error in devctl command\n");
-											   }
-											   break;
-						default: fprintf(stderr, "Error, unknown command %08X\n", cmd->command);
-								 break;
-					};
+						fprintf(stderr, "Read cancelled (remote disconnected)\n");
+						break;
+					}
+					else if(readlen == -ETIMEDOUT)
+					{
+						continue;
+					}
+
+					if(readlen < sizeof(uint32_t))
+					{
+						fprintf(stderr, "Error could not read magic\n");
+						break;
+					}
+
+					if(LE32(data[0]) == HOSTFS_MAGIC)
+					{
+						if(readlen < sizeof(struct HostFsCmd))
+						{
+							fprintf(stderr, "Error reading command header %d\n", readlen);
+							break;
+						}
+
+						do_hostfs((struct HostFsCmd *) data, readlen);
+					}
+					else if(LE32(data[0]) == ASYNC_MAGIC)
+					{
+						if(readlen < sizeof(struct AsyncCommand))
+						{
+							fprintf(stderr, "Error reading async header %d\n", readlen);
+							break;
+						}
+
+						do_async((struct AsyncCommand *) data, readlen);
+					}
+					else
+					{
+						fprintf(stderr, "Error, invalid magic %08X\n", LE32(data[0]));
+					}
 				}
 			}
 
-			close_device(hDev);
+			close_device(g_hDev);
+			g_hDev = NULL;
 		}
 
 		close_hostfs();
@@ -1880,9 +1942,231 @@ void print_help(void)
 	fprintf(stderr, "-h                : Print this help\n");
 }
 
+void shutdown_socket(void)
+{
+	if(g_shellsock >= 0)
+	{
+		close(g_shellsock);
+		g_shellsock = -1;
+	}
+
+	if(g_shellserv >= 0)
+	{
+		close(g_shellserv);
+		g_shellserv = -1;
+	}
+
+	if(g_gdbsock >= 0)
+	{
+		close(g_gdbsock);
+		g_gdbsock = -1;
+	}
+
+	if(g_gdbserv >= 0)
+	{
+		close(g_gdbserv);
+		g_gdbserv = -1;
+	}
+}
+
+void signal_handler(int sig)
+{
+	printf("Exiting\n");
+	if(g_hDev)
+	{
+		/* Nuke the connection */
+		seteuid(0);
+		setegid(0);
+		close_device(g_hDev);
+		shutdown_socket();
+	}
+	exit(1);
+}
+
+int make_socket(unsigned short port)
+{
+	int sock;
+	struct sockaddr_in name;
+
+	sock = socket(PF_INET, SOCK_STREAM, 0);
+	if(sock < 0)
+	{
+		perror("socket");
+		return -1;
+	}
+
+	name.sin_family = AF_INET;
+	name.sin_port = htons(port);
+	name.sin_addr.s_addr = htonl(INADDR_ANY);
+	if(bind(sock, (struct sockaddr *) &name, sizeof(name)) < 0)
+	{
+		perror("bind");
+		close(sock);
+		return -1;
+	}
+
+	if(listen(sock, 1) < 0)
+	{
+		perror("listen");
+		close(sock);
+		return -1;
+	}
+
+	return sock;
+}
+
+void *async_thread(void *arg)
+{
+	char shell[512];
+	char gdb[512];
+	char *shdata, *gdbdata;
+	struct AsyncCommand *cmd;
+	fd_set read_set, read_save;
+	struct sockaddr_in client;
+	size_t size;
+	int max_fd = 0;
+	int flag = 1;
+
+	FD_ZERO(&read_save);
+
+	g_shellserv = make_socket(g_shellport);
+	if(g_shellserv >= 0)
+	{
+		FD_SET(g_shellserv, &read_save);
+		if(g_shellserv > max_fd)
+		{
+			max_fd = g_shellserv;
+		}
+	}
+	g_gdbserv = make_socket(g_gdbport);
+	if(g_gdbserv >= 0)
+	{
+		FD_SET(g_gdbserv, &read_save);
+		if(g_gdbserv > max_fd)
+		{
+			max_fd = g_gdbserv;
+		}
+	}
+
+	cmd = (struct AsyncCommand *) shell;
+	cmd->magic = LE32(ASYNC_MAGIC);
+	cmd->channel = LE32(0);
+
+	cmd = (struct AsyncCommand *) gdb;
+	cmd->magic = LE32(ASYNC_MAGIC);
+	cmd->channel = LE32(1);
+
+	shdata = shell + sizeof(struct AsyncCommand);
+	gdbdata = gdb + sizeof(struct AsyncCommand);
+
+	while(1)
+	{
+		read_set = read_save;
+		if(select(max_fd+1, &read_set, NULL, NULL, NULL) > 0)
+		{
+			if(FD_ISSET(g_shellserv, &read_set))
+			{
+				if(g_shellsock >= 0)
+				{
+					FD_CLR(g_shellsock, &read_save);
+					close(g_shellsock);
+				}
+				size = sizeof(client);
+				g_shellsock = accept(g_shellserv, (struct sockaddr *) &client, &size);
+				if(g_shellsock >= 0)
+				{
+					printf("Accepting shell connection from %s\n", inet_ntoa(client.sin_addr));
+					FD_SET(g_shellsock, &read_save);
+					setsockopt(g_shellsock, SOL_TCP, TCP_NODELAY, &flag, sizeof(int));
+					if(g_shellsock > max_fd)
+					{
+						max_fd = g_shellsock;
+					}
+				}
+			}
+
+			if(FD_ISSET(g_gdbserv, &read_set))
+			{
+				if(g_gdbsock >= 0)
+				{
+					FD_CLR(g_gdbsock, &read_save);
+					close(g_gdbsock);
+				}
+				size = sizeof(client);
+				g_gdbsock = accept(g_gdbserv, (struct sockaddr *) &client, &size);
+				if(g_gdbsock >= 0)
+				{
+					printf("Accepting gdb connection from %s\n", inet_ntoa(client.sin_addr));
+					FD_SET(g_gdbsock, &read_save);
+					setsockopt(g_gdbsock, SOL_TCP, TCP_NODELAY, &flag, sizeof(int));
+					if(g_gdbsock > max_fd)
+					{
+						max_fd = g_gdbsock;
+					}
+				}
+			}
+
+			if(g_shellsock >= 0)
+			{
+				if(FD_ISSET(g_shellsock, &read_set))
+				{
+					int readbytes;
+
+					readbytes = read(g_shellsock, shdata, sizeof(shell) - sizeof(struct AsyncCommand));
+					if(readbytes > 0)
+					{
+						if(g_hDev)
+						{
+							euid_usb_bulk_write(g_hDev, 0x3, shell, readbytes+sizeof(struct AsyncCommand), 10000);
+						}
+					}
+					else
+					{
+						FD_CLR(g_shellsock, &read_save);
+						close(g_shellsock);
+						g_shellsock = -1;
+						printf("Closing shell connection\n");
+					}
+				}
+			}
+
+			if(g_gdbsock >= 0)
+			{
+				if(FD_ISSET(g_gdbsock, &read_set))
+				{
+					int readbytes;
+
+					readbytes = read(g_gdbsock, gdbdata, sizeof(gdb) - sizeof(struct AsyncCommand));
+					if(readbytes > 0)
+					{
+						if(g_hDev)
+						{
+							euid_usb_bulk_write(g_hDev, 0x3, gdb, readbytes+sizeof(struct AsyncCommand), 10000);
+						}
+					}
+					else
+					{
+						FD_CLR(g_gdbsock, &read_save);
+						close(g_gdbsock);
+						g_gdbsock = -1;
+						printf("Closing gdb connection\n");
+					}
+				}
+			}
+		}
+	}
+	
+	return NULL;
+}
+
 int main(int argc, char **argv)
 {
+	pthread_t thid;
+	pthread_create(&thid, NULL, async_thread, NULL);
+
 	printf("USBHostFS (c) TyRaNiD 2k6\n");
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
 	if(parse_args(argc, argv))
 	{
 		/* Mask out any executable bits, as they don't make sense */

@@ -21,6 +21,8 @@
 #include <pspusbbus.h>
 #include "usbhostfs.h"
 
+int psplinkSetK1(int k1);
+
 PSP_MODULE_INFO(MODULE_NAME, PSP_MODULE_KERNEL, 1, 1);
 
 /* Main USB event flags */
@@ -28,6 +30,7 @@ enum UsbEvents
 {
 	USB_EVENT_ATTACH = 1,
 	USB_EVENT_DETACH = 2,
+	USB_EVENT_ASYNC  = 4,
 	USB_EVENT_ALL = 0xFFFFFFFF
 };
 
@@ -38,19 +41,35 @@ enum UsbTransEvents
 	USB_TRANSEVENT_BULKIN_DONE = 2,
 };
 
+
+struct AsyncEndpoint
+{
+	unsigned char buffer[MAX_ASYNC_BUFFER];
+	int read_pos;
+	int write_pos;
+	int size;
+};
+
 /* Main USB thread id */
 static SceUID g_thid = -1;
 /* Main USB event flag */
 static SceUID g_mainevent = -1;
 /* Main USB transfer event flag */
 static SceUID g_transevent = -1;
+/* Asynchronous input event flag */
+static SceUID g_asyncevent = -1;
 /* Main USB semaphore */
 static SceUID g_mainsema   = -1;
 /* Static bulkin request structure */
 static struct UsbdDeviceReq g_bulkin_req;
 /* Static bulkout request structure */
 static struct UsbdDeviceReq g_bulkout_req;
+/* Async request */
+static struct UsbdDeviceReq g_async_req;
+/* Indicates we have a connection to the PC */
 static int g_connected = 0;
+/* Buffers for async data */
+static struct AsyncEndpoint g_async_chan[MAX_ASYNC_CHANNELS];
 
 /* HI-Speed device descriptor */
 struct DeviceDescriptor devdesc_hi = 
@@ -282,6 +301,16 @@ int bulkout_req_done(struct UsbdDeviceReq *req, int arg2, int arg3)
 	return 0;
 }
 
+/* Callback for when a bulkout request is done */
+int async_req_done(struct UsbdDeviceReq *req, int arg2, int arg3)
+{
+	DEBUG_PRINTF("async_req_done:\n");
+	DEBUG_PRINTF("size %08X, unkc %08X, recvsize %08X\n", req->size, req->unkc, req->recvsize);
+	DEBUG_PRINTF("retcode %08X, unk1c %08X, arg %p\n", req->retcode, req->unk1c, req->arg);
+	sceKernelSetEventFlag(g_mainevent, USB_EVENT_ASYNC);
+	return 0;
+}
+
 /* Setup a bulkin request */
 int set_bulkin_req(void *data, int size)
 {
@@ -430,11 +459,14 @@ int command_xchg(void *outcmd, int outcmdlen, void *incmd, int incmdlen, const v
 		cmd = (struct HostFsCmd *) outcmd;
 		resp = (struct HostFsCmd *) incmd;
 
-		err = write_data(outcmd, outcmdlen);
-		if(err != outcmdlen)
+		if(outcmdlen > 0)
 		{
-			MODPRINTF("Error writing command %08X %d\n", cmd->command, err);
-			break;
+			err = write_data(outcmd, outcmdlen);
+			if(err != outcmdlen)
+			{
+				MODPRINTF("Error writing command %08X %d\n", cmd->command, err);
+				break;
+			}
 		}
 
 		if(outlen > 0)
@@ -447,29 +479,67 @@ int command_xchg(void *outcmd, int outcmdlen, void *incmd, int incmdlen, const v
 			}
 		}
 
-		err = read_data(incmd, incmdlen);
-		if(err != incmdlen)
+		if(incmdlen > 0)
 		{
-			MODPRINTF("Error reading response for %08X %d\n", cmd->command, err);
-			break;
-		}
-
-		if((resp->magic != HOSTFS_MAGIC) && (resp->command != cmd->command))
-		{
-			MODPRINTF("Invalid response packet magic: %08X, command: %08X\n", resp->magic, resp->command);
-			break;
-		}
-
-		DEBUG_PRINTF("resp->magic %08X, resp->command %08X, resp->extralen %d\n", 
-				resp->magic, resp->command, resp->extralen);
-
-		/* TODO: Should add checks for inlen being less that extra len */
-		if((resp->extralen > 0) && (inlen > 0))
-		{
-			err = read_data(indata, resp->extralen);
-			if(err != resp->extralen)
+			err = read_data(incmd, incmdlen);
+			if(err != incmdlen)
 			{
-				MODPRINTF("Error reading input data %08X, %d\n", cmd->command, err);
+				MODPRINTF("Error reading response for %08X %d\n", cmd->command, err);
+				break;
+			}
+
+			if((resp->magic != HOSTFS_MAGIC) && (resp->command != cmd->command))
+			{
+				MODPRINTF("Invalid response packet magic: %08X, command: %08X\n", resp->magic, resp->command);
+				break;
+			}
+
+			DEBUG_PRINTF("resp->magic %08X, resp->command %08X, resp->extralen %d\n", 
+					resp->magic, resp->command, resp->extralen);
+
+			/* TODO: Should add checks for inlen being less that extra len */
+			if((resp->extralen > 0) && (inlen > 0))
+			{
+				err = read_data(indata, resp->extralen);
+				if(err != resp->extralen)
+				{
+					MODPRINTF("Error reading input data %08X, %d\n", cmd->command, err);
+					break;
+				}
+			}
+		}
+
+		ret = 1;
+	}
+	while(0);
+
+	(void) sceKernelSignalSema(g_mainsema, 1);
+
+	return ret;
+}
+
+/* Send an async write */
+int send_async(void *data, int len)
+{
+	int ret = 0;
+	int err = 0;
+
+	/* TODO: Set timeout on semaphore */
+	err = sceKernelWaitSema(g_mainsema, 1, NULL);
+	if(err < 0)
+	{
+		MODPRINTF("Error waiting on xchg semaphore %08X\n", err);
+		return 0;
+	}
+
+	do
+	{
+		if((data) && (len > 0))
+		{
+			err = write_data(data, len);
+			if(err != len)
+			{
+				MODPRINTF("Error writing async command %d\n", err);
 				break;
 			}
 		}
@@ -496,20 +566,188 @@ int send_hello_cmd(void)
 	return command_xchg(&cmd, sizeof(cmd), &resp, sizeof(resp), NULL, 0, NULL, 0);
 }
 
-/* Call to ensure we are connected to the USB host */
-int usb_connected(void)
+/* Setup a async request */
+int set_ayncreq(void *data, int size)
 {
-	if(!g_connected)
+	u32 addr;
+	u32 blockaddr;
+	u32 topaddr;
+
+	/* Ensure address is uncached */
+	addr = (u32) data;
+	blockaddr = (addr & ~63);
+	topaddr = (addr + size + 63) & ~63;
+
+	if(blockaddr != addr)
 	{
-		g_connected = 0;
-		if(send_hello_cmd())
-		{
-			DEBUG_PRINTF("Hello command sent\n");
-			g_connected = 1;
-		}
+		MODPRINTF("Error read data not cache aligned\n");
+		return -1;
 	}
 
+	/* Invalidate range */
+	sceKernelDcacheInvalidateRange((void*) blockaddr, topaddr - blockaddr);
+	memset(&g_async_req, 0, sizeof(g_async_req));
+	g_async_req.endp = &endp[3];
+	g_async_req.data = (void *) addr;
+	g_async_req.size = size;
+	g_async_req.func = async_req_done;
+	sceKernelClearEventFlag(g_mainevent, USB_EVENT_ASYNC);
+	return sceUsbbdReqRecv(&g_async_req);
+}
+
+/* Call to ensure we are connected to the USB host */
+int usb_connected(void)
+{	
 	return g_connected;
+}
+
+char async_data[512] __attribute__((aligned(64)));
+
+void fill_async(void *async_data, int len)
+{
+	struct AsyncCommand *cmd;
+	unsigned char *data;
+	int sizeleft;
+	int intc;
+
+	if(len > sizeof(struct AsyncCommand))
+	{
+		len -= sizeof(struct AsyncCommand);
+		data = async_data + sizeof(struct AsyncCommand);
+		cmd = (struct AsyncCommand *) async_data;
+		DEBUG_PRINTF("magic %08X, channel %d\n", cmd->magic, cmd->channel);
+		if((cmd->magic == ASYNC_MAGIC) && (cmd->channel >= 0) && (cmd->channel < MAX_ASYNC_CHANNELS))
+		{
+			intc = pspSdkDisableInterrupts();
+			sizeleft = len < (MAX_ASYNC_BUFFER - g_async_chan[cmd->channel].size) ? len 
+						: (MAX_ASYNC_BUFFER - g_async_chan[cmd->channel].size);
+			while(sizeleft > 0)
+			{
+				g_async_chan[cmd->channel].buffer[g_async_chan[cmd->channel].write_pos++] = *data++;
+				g_async_chan[cmd->channel].write_pos %= MAX_ASYNC_BUFFER;
+				g_async_chan[cmd->channel].size++;
+				sizeleft--;
+			}
+			sceKernelSetEventFlag(g_asyncevent, (1 << cmd->channel));
+			DEBUG_PRINTF("Async chan %d - read_pos %d - write_pos %d - size %d\n", cmd->channel, 
+					g_async_chan[cmd->channel].read_pos, g_async_chan[cmd->channel].write_pos,
+					g_async_chan[cmd->channel].size);
+			pspSdkEnableInterrupts(intc);
+		}
+		else
+		{
+			MODPRINTF("Error in command header\n");
+		}
+	}
+}
+
+int usb_read_async_data(unsigned int chan, unsigned char *data, int len)
+{
+	int ret;
+	int intc;
+	int i;
+	int k1;
+
+	k1 = psplinkSetK1(0);
+
+	if(chan >= MAX_ASYNC_CHANNELS)
+	{
+		return -1;
+	}
+
+	ret = sceKernelWaitEventFlag(g_asyncevent, 1 << chan, PSP_EVENT_WAITOR | PSP_EVENT_WAITCLEAR, NULL, NULL);
+	if(ret < 0)
+	{
+		return -1;
+	}
+
+	intc = pspSdkDisableInterrupts();
+	len = len < g_async_chan[chan].size ? len : g_async_chan[chan].size;
+	for(i = 0; i < len; i++)
+	{
+		data[i] = g_async_chan[chan].buffer[g_async_chan[chan].read_pos++];
+		g_async_chan[chan].read_pos %= MAX_ASYNC_BUFFER;
+		g_async_chan[chan].size--;
+	}
+
+	if(g_async_chan[chan].size != 0)
+	{
+		sceKernelSetEventFlag(g_asyncevent, 1 << chan);
+	}
+	pspSdkEnableInterrupts(intc);
+
+	psplinkSetK1(k1);
+
+	return len;
+}
+
+void usb_async_flush(unsigned int chan)
+{
+	int intc;
+
+	if(chan >= MAX_ASYNC_CHANNELS)
+	{
+		return;
+	}
+
+	intc = pspSdkDisableInterrupts();
+	g_async_chan[chan].size = 0;
+	g_async_chan[chan].read_pos = 0;
+	g_async_chan[chan].write_pos = 0;
+	pspSdkEnableInterrupts(intc);
+}
+
+int usb_write_async_data(unsigned int chan, const void *data, int len)
+{
+	int ret = -1;
+	char buffer[512];
+	struct AsyncCommand *cmd;
+	int written = 0;
+	int k1;
+
+	k1 = psplinkSetK1(0);
+
+	do
+	{
+		if(!usb_connected())
+		{
+			DEBUG_PRINTF("Error PC side not connected\n");
+			break;
+		}
+
+		if(chan >= MAX_ASYNC_CHANNELS)
+		{
+			MODPRINTF("Invalid async write channel %d\n", chan);
+			break;
+		}
+
+		cmd = (struct AsyncCommand *) buffer;
+		cmd->magic = ASYNC_MAGIC;
+		cmd->channel = chan;
+
+		while(written < len)
+		{
+			int size;
+
+			size = (len-written) > (sizeof(buffer)-sizeof(struct AsyncCommand)) ? (sizeof(buffer)-sizeof(struct AsyncCommand)) : (len-written);
+			memcpy(&buffer[sizeof(struct AsyncCommand)], data+written, size);
+			if(send_async(buffer, size + sizeof(struct AsyncCommand)))
+			{
+				written += size;
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		ret = written;
+	}
+	while(0);
+
+	psplinkSetK1(k1);
+
+	return ret;
 }
 
 /* USB thread to handle attach/detach */
@@ -528,6 +766,16 @@ int usb_thread(SceSize size, void *argp)
 			sceKernelExitDeleteThread(0);
 		}
 
+		if(result & USB_EVENT_ASYNC)
+		{
+			DEBUG_PRINTF("Async Request Done %d %d\n", g_async_req.retcode, g_async_req.recvsize);
+			if((g_async_req.retcode == 0) && (g_async_req.recvsize > 0))
+			{
+				fill_async(async_data, g_async_req.recvsize);
+				set_ayncreq(async_data, sizeof(async_data));
+			}
+		}
+
 		if(result & USB_EVENT_DETACH)
 		{
 			g_connected = 0;
@@ -536,8 +784,20 @@ int usb_thread(SceSize size, void *argp)
 
 		if(result & USB_EVENT_ATTACH)
 		{
+			uint32_t magic;
 			g_connected = 0;
 			DEBUG_PRINTF("USB Attach occurred\n");
+			if(read_data(&magic, sizeof(magic)) == sizeof(magic))
+			{
+				if(magic == HOSTFS_MAGIC)
+				{
+					if(send_hello_cmd())
+					{
+						set_ayncreq(async_data, sizeof(async_data));
+						g_connected = 1;
+					}
+				}
+			}
 		}
 	}
 
@@ -591,6 +851,8 @@ int start_func(int size, void *p)
 
 	DEBUG_PRINTF("pusbdata %p\n", &usbdata);
 
+	memset(g_async_chan, 0, sizeof(g_async_chan));
+
 	g_mainevent = sceKernelCreateEventFlag("USBEvent", 0, 0, NULL);
 	if(g_mainevent < 0)
 	{
@@ -605,6 +867,13 @@ int start_func(int size, void *p)
 		return -1;
 	}
 
+	g_asyncevent = sceKernelCreateEventFlag("USBEventAsync", 0x200, 0, NULL);
+	if(g_asyncevent < 0)
+	{
+		MODPRINTF("Couldn't create async event flag %08X\n", g_asyncevent);
+		return -1;
+	}
+
 	g_mainsema = sceKernelCreateSema("USBSemaphore", 0, 1, 1, NULL);
 	if(g_mainsema < 0)
 	{
@@ -612,7 +881,7 @@ int start_func(int size, void *p)
 		return -1;
 	}
 
-	g_thid = sceKernelCreateThread("USBThread", usb_thread, 0x16, 0x10000, 0, NULL);
+	g_thid = sceKernelCreateThread("USBThread", usb_thread, 10, 0x10000, 0, NULL);
 	if(g_thid < 0)
 	{
 		MODPRINTF("Couldn't create usb thread %08X\n", g_thid);
@@ -653,6 +922,12 @@ int stop_func(int size, void *p)
 	{
 		sceKernelDeleteEventFlag(g_transevent);
 		g_mainevent = -1;
+	}
+
+	if(g_asyncevent >= 0)
+	{
+		sceKernelDeleteEventFlag(g_asyncevent);
+		g_asyncevent = -1;
 	}
 
 	if(g_mainsema >= 0)

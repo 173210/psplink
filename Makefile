@@ -5,6 +5,8 @@ all:
 	$(MAKE) -C netshell all
 	$(MAKE) -C netgdb   all
 	$(MAKE) -C usbhostfs all
+	$(MAKE) -C usbshell  all
+	$(MAKE) -C usbgdb    all
 	$(MAKE) -C bootstrap all
 	$(MAKE) -C bootstrap kxploit
 
@@ -19,6 +21,8 @@ release: all
 	cp netshell/netshell.prx release/v1.0/psplink
 	cp netgdb/netgdb.prx release/v1.0/psplink
 	cp usbhostfs/usbhostfs.prx release/v1.0/psplink
+	cp usbshell/usbshell.prx release/v1.0/psplink
+	cp usbgdb/usbgdb.prx release/v1.0/psplink
 	cp -R bootstrap/psplink release/v1.5
 	cp -R bootstrap/psplink% release/v1.5
 	cp psplink/psplink.prx release/v1.5/psplink
@@ -28,6 +32,8 @@ release: all
 	cp netshell/netshell.prx release/v1.5/psplink
 	cp netgdb/netgdb.prx release/v1.5/psplink
 	cp usbhostfs/usbhostfs.prx release/v1.5/psplink
+	cp usbshell/usbshell.prx release/v1.5/psplink
+	cp usbgdb/usbgdb.prx release/v1.5/psplink
 	cp README release
 	cp LICENSE release
 	cp psplink_manual.pdf release
@@ -38,6 +44,8 @@ clean:
 	$(MAKE) -C modnet clean
 	$(MAKE) -C netshell clean
 	$(MAKE) -C usbhostfs clean
+	$(MAKE) -C usbshell clean
+	$(MAKE) -C usbgdb   clean
 	$(MAKE) -C netgdb   clean
 	$(MAKE) -C bootstrap clean
 	rm -rf release

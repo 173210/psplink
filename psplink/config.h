@@ -29,6 +29,8 @@ struct ConfigContext
 	int  baudrate;
 	int  usbmass;
 	int  usbhost;
+	int  usbshell;
+	int  usbgdb;
 };
 
 void configLoad(const char *bootpath, struct ConfigContext *ctx);

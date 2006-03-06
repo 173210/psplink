@@ -17,6 +17,7 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <netdb.h>
 #include <limits.h>
 #include <readline/readline.h>
@@ -515,6 +516,7 @@ int on_idle(void)
 int on_connecting(void)
 {
 	int err;
+	int flag = 1;
 	socklen_t len;
 	len = sizeof(err);
 
@@ -548,6 +550,7 @@ int on_connecting(void)
 	g_context.state = STATE_CONNECTED;
 	FD_SET(g_context.sock, &g_context.readsave);
 	FD_CLR(g_context.sock, &g_context.writesave);
+	setsockopt(g_context.sock, SOL_TCP, TCP_NODELAY, &flag, sizeof(int));
 	write(g_context.sock, "\n", 1);
 
 	return 1;

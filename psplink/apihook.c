@@ -116,7 +116,7 @@ void *find_syscall_addr(u32 addr)
 
 	head = (struct SyscallHeader *) *ptr;
 	syscalls = (u32*) (*ptr + 0x10);
-	size = (head->size - 0x10);
+	size = (head->size - 0x10) / sizeof(u32);
 
 	for(i = 0; i < size; i++)
 	{
