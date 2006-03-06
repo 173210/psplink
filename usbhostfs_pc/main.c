@@ -2165,6 +2165,11 @@ int main(int argc, char **argv)
 	pthread_create(&thid, NULL, async_thread, NULL);
 
 	printf("USBHostFS (c) TyRaNiD 2k6\n");
+	if(geteuid() != 0)
+	{
+		fprintf(stderr, "Error this application must be run as root or SUID root\n");
+		return 1;
+	}
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
 	if(parse_args(argc, argv))
