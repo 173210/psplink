@@ -25,6 +25,18 @@ struct ConfigContext
 	int  wifi;
 	int  wifishell;
 	int  sioshell;
+	int  conshell;
+	int  consinterfere;
+	char conscrosscmd[64];    /* custom 0 */
+	char conssquarecmd[64];   /* custom 1 */
+	char constrianglecmd[64]; /* custom 2 */
+	char conscirclecmd[64];   /* custom 3 */
+	char consselectcmd[64];   /* custom 4 */
+	char consstartcmd[64];    /* custom 5 */
+	char consdowncmd[64];     /* custom 6 */
+	char consleftcmd[64];     /* custom 7 */
+	char consupcmd[64];	  /* custom 8 */
+	char consrightcmd[64];    /* custom 9 */
 	int  pcterm;
 	int  baudrate;
 	int  usbmass;

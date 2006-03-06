@@ -3275,6 +3275,8 @@ static int exit_cmd(int argc, char **argv)
 
 static int help_cmd(int argc, char **argv);
 
+static int custom_cmd(int argc, char **argv);
+
 #define SHELL_TYPE_CMD  0
 #define SHELL_TYPE_CATEGORY 1
 
@@ -3411,6 +3413,8 @@ struct sh_command commands[] = {
 	{ "ver", "v", version_cmd, 0, "Print version of psplink", SHELL_TYPE_CMD },
 	{ "pspver", NULL, pspver_cmd, 0, "Print the version of PSP", SHELL_TYPE_CMD },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command|category]", SHELL_TYPE_CMD },
+	{ "custom", "cst", custom_cmd, 1, "Custom command (for Conshell)", "custom commandnumber", SHELL_TYPE_CMD },
+
 	{ NULL, NULL, NULL, 0, NULL, NULL, SHELL_TYPE_CMD }
 };
 
@@ -3883,6 +3887,60 @@ static int help_cmd(int argc, char **argv)
 	}
 
 	return CMD_OK;
+}
+
+static int custom_cmd(int argc, char **argv)
+{
+	int retval = CMD_OK;
+	int cmdnum = atoi(argv[0]);
+	char cmd[64];
+	
+	cmd[0] = 0;
+
+	switch(cmdnum) 
+	{
+	case 0:
+		strcpy(cmd, g_context.conscrosscmd);
+		break;
+	case 1:
+		strcpy(cmd, g_context.conssquarecmd);
+		break;
+	case 2:
+		strcpy(cmd, g_context.constrianglecmd);
+		break;
+	case 3:
+		strcpy(cmd, g_context.conscirclecmd);
+		break;
+	case 4:
+		strcpy(cmd, g_context.consselectcmd);
+		break;
+	case 5:
+		strcpy(cmd, g_context.consstartcmd);
+		break;
+	case 6:
+		strcpy(cmd, g_context.consdowncmd);
+		break;
+	case 7:
+		strcpy(cmd, g_context.consleftcmd);
+		break;
+	case 8:
+		strcpy(cmd, g_context.consupcmd);
+		break;
+	case 9:
+		strcpy(cmd, g_context.consrightcmd);
+		break;
+	default:
+		printf("Error: Illegal custom command\n");
+		break;
+	}
+
+	if(strlen(cmd) > 0)
+	{
+		printf("%s\n", cmd);
+		retval = shellParse(cmd);
+		print_prompt();
+	}
+	return retval;
 }
 
 int shellInit(const char *cliprompt, const char *path, const char *init_dir)

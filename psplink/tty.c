@@ -31,6 +31,7 @@
 static PspDebugPrintHandler g_sioHandler = NULL;
 static PspDebugPrintHandler g_wifiHandler = NULL;
 static PspDebugPrintHandler g_usbHandler = NULL;
+static PspDebugPrintHandler g_consHandler = NULL;
 
 /* STDIN buffer */
 static char g_stdinbuf[STDIN_BUFSIZE];
@@ -40,6 +41,8 @@ static int g_stdinwritepos = 0;
 static int g_stdinsizeleft = STDIN_BUFSIZE;
 /* The waiting thread for stdin data */
 static SceUID g_stdinwaitth = -1;
+
+extern struct GlobalContext g_context;
 
 static int outputHandler(const char *data, int size)
 {
@@ -56,6 +59,14 @@ static int outputHandler(const char *data, int size)
 	if(g_usbHandler)
 	{
 		g_usbHandler(data, size);
+	}
+
+	if(g_consHandler)
+	{
+		if ((!g_context.inexec) || g_context.consinterfere)
+		{
+			g_consHandler(data, size);
+		}
 	}
 
 	return size;
@@ -83,6 +94,11 @@ void ttySetSioHandler(PspDebugPrintHandler sioHandler)
 void ttySetUsbHandler(PspDebugPrintHandler usbHandler)
 {
 	g_usbHandler = usbHandler;
+}
+
+void ttySetConsHandler(PspDebugPrintHandler consHandler)
+{
+	g_consHandler = consHandler;
 }
 
 void ttyAddInputData(void *data, int size)

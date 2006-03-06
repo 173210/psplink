@@ -171,6 +171,30 @@ SceUID load_usbshell(const char *bootpath)
 	return load_start_module(prx_path, 0, NULL);
 }
 
+SceUID load_conshell(const char *bootpath)
+{
+	char prx_path[MAXPATHLEN];
+
+	strcpy(prx_path, bootpath);
+	strcat(prx_path, "conshell.prx");
+	g_context.conshell = 1;
+	return load_start_module(prx_path, 0, NULL);
+}
+
+void copy_conscontext(const struct ConfigContext *cctx, struct GlobalContext *gctx)
+{
+	strcpy(gctx->conscrosscmd, cctx->conscrosscmd);
+	strcpy(gctx->conssquarecmd, cctx->conssquarecmd);
+	strcpy(gctx->constrianglecmd, cctx->constrianglecmd);
+	strcpy(gctx->conscirclecmd, cctx->conscirclecmd);
+	strcpy(gctx->consselectcmd, cctx->consselectcmd);
+	strcpy(gctx->consstartcmd, cctx->consstartcmd);
+	strcpy(gctx->consdowncmd, cctx->consdowncmd);
+	strcpy(gctx->consleftcmd, cctx->consleftcmd);
+	strcpy(gctx->consupcmd, cctx->consupcmd);
+	strcpy(gctx->consrightcmd, cctx->consrightcmd);
+}
+
 SceUID load_gdb(const char *bootpath, int argc, char **argv)
 {
 	char prx_path[MAXPATHLEN];
@@ -215,6 +239,10 @@ void psplinkReset(void)
 	{
 		sceKernelStopModule(g_context.netshelluid, 0, NULL, &status, NULL);
 	}
+	if(g_context.conshelluid >= 0)
+	{
+		sceKernelStopModule(g_context.conshelluid, 0, NULL, &status, NULL);
+	}
 
 	le.size = sizeof(le);
 	le.args = strlen(g_context.bootfile) + 1;
@@ -234,6 +262,11 @@ int psplinkPresent(void)
 	return 1;
 }
 
+int psplinkConsolePermit(void)
+{
+	return (!g_context.inexec || g_context.consinterfere);
+}
+
 /* Simple thread */
 int main_thread(SceSize args, void *argp)
 {
@@ -244,6 +277,7 @@ int main_thread(SceSize args, void *argp)
 	memset(&g_context, 0, sizeof(g_context));
 	exceptionInit();
 	g_context.netshelluid = -1;
+	g_context.conshelluid = -1;
 	parse_sceargs(args, argp);
 	configLoad(g_context.bootpath, &ctx);
 	disasmSetSymResolver(symbolFindNameByAddressEx);
@@ -296,6 +330,13 @@ int main_thread(SceSize args, void *argp)
 		{
 			g_context.netshelluid = load_wifishell(g_context.bootpath);
 		}
+	}
+
+	if (ctx.conshell)
+	{
+		g_context.consinterfere = ctx.consinterfere;
+		g_context.conshelluid = load_conshell(g_context.bootpath);
+		copy_conscontext(&ctx, &g_context);
 	}
 
 	if(shellInit(ctx.cliprompt, ctx.path, init_dir) < 0)

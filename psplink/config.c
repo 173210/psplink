@@ -116,6 +116,96 @@ static void config_wifishell(struct ConfigContext *ctx, const char *szVal, unsig
 	}
 }
 
+static void config_conshell(struct ConfigContext *ctx, const char* szVal, unsigned int iVal)
+{
+	ctx->conshell = iVal;
+}
+
+static void config_conscrosscmd(struct ConfigContext *ctx, const char* szVal, unsigned int iVal)
+{
+	const int len = sizeof(ctx->conscrosscmd)-1;
+	char* dest = ctx->conscrosscmd;
+	strncpy(dest, szVal, len);
+	dest[len] = 0;
+}
+
+static void config_conssquarecmd(struct ConfigContext *ctx, const char* szVal, unsigned int iVal)
+{
+	const int len = sizeof(ctx->conssquarecmd)-1;
+	char* dest = ctx->conssquarecmd;
+	strncpy(dest, szVal, len);
+	dest[len] = 0;
+}
+
+static void config_constrianglecmd(struct ConfigContext *ctx, const char* szVal, unsigned int iVal)
+{
+	const int len = sizeof(ctx->constrianglecmd)-1;
+	char* dest = ctx->constrianglecmd;
+	strncpy(dest, szVal, len);
+	dest[len] = 0;
+}
+
+static void config_conscirclecmd(struct ConfigContext *ctx, const char* szVal, unsigned int iVal)
+{
+	const int len = sizeof(ctx->conscirclecmd)-1;
+	char* dest = ctx->conscirclecmd;
+	strncpy(dest, szVal, len);
+	dest[len] = 0;
+}
+
+static void config_consselectcmd(struct ConfigContext *ctx, const char* szVal, unsigned int iVal)
+{
+	const int len = sizeof(ctx->consselectcmd)-1;
+	char* dest = ctx->consselectcmd;
+	strncpy(dest, szVal, len);
+	dest[len] = 0;
+}
+
+static void config_consstartcmd(struct ConfigContext *ctx, const char* szVal, unsigned int iVal)
+{
+	const int len = sizeof(ctx->consstartcmd)-1;
+	char* dest = ctx->consstartcmd;
+	strncpy(dest, szVal, len);
+	dest[len] = 0;
+}
+
+static void config_consdowncmd(struct ConfigContext *ctx, const char* szVal, unsigned int iVal)
+{
+	const int len = sizeof(ctx->consdowncmd)-1;
+	char* dest = ctx->consdowncmd;
+	strncpy(dest, szVal, len);
+	dest[len] = 0;
+}
+
+static void config_consleftcmd(struct ConfigContext *ctx, const char* szVal, unsigned int iVal)
+{
+	const int len = sizeof(ctx->consleftcmd)-1;
+	char* dest = ctx->consleftcmd;
+	strncpy(dest, szVal, len);
+	dest[len] = 0;
+}
+
+static void config_consupcmd(struct ConfigContext *ctx, const char* szVal, unsigned int iVal)
+{
+	const int len = sizeof(ctx->consupcmd)-1;
+	char* dest = ctx->consupcmd;
+	strncpy(dest, szVal, len);
+	dest[len] = 0;
+}
+
+static void config_consrightcmd(struct ConfigContext *ctx, const char* szVal, unsigned int iVal)
+{
+	const int len = sizeof(ctx->consrightcmd)-1;
+	char* dest = ctx->consrightcmd;
+	strncpy(dest, szVal, len);
+	dest[len] = 0;
+}
+
+static void config_consinterfere(struct ConfigContext *ctx, const char* szVal, unsigned int iVal)
+{
+	ctx->consinterfere = iVal;
+}
+
 static void config_sioshell(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
 {
 	ctx->sioshell = iVal;
@@ -161,6 +251,18 @@ struct psplink_config config_names[] = {
 	{ "wifishell", 1, config_wifishell },
 	{ "sioshell", 1, config_sioshell },
 	{ "pcterm", 1, config_pcterm },
+	{ "conshell", 1, config_conshell },
+	{ "consinterfere", 1, config_consinterfere },
+	{ "conscrosscmd", 0, config_conscrosscmd },
+	{ "conssquarecmd", 0, config_conssquarecmd },
+	{ "constrianglecmd", 0, config_constrianglecmd },
+	{ "conscirclecmd", 0, config_conscirclecmd },
+	{ "consselectcmd", 0, config_consselectcmd },
+	{ "consstartcmd", 0, config_consstartcmd },
+	{ "consdowncmd", 0, config_consdowncmd },
+	{ "consleftcmd", 0, config_consleftcmd },
+	{ "consupcmd", 0, config_consupcmd },
+	{ "consrightcmd", 0, config_consrightcmd },
 	{ "wifi", 1, config_wifi },
 	{ "path", 0, config_path },
 	{ "disopt", 0, config_disopt },
@@ -222,4 +324,3 @@ void configLoad(const char *bootpath, struct ConfigContext *ctx)
 		ctx->sioshell = 1;
 	}
 }
-

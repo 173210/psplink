@@ -1,3 +1,0 @@
-Fix the GDB stub so it actually works.
-Make it buildable in a bootstrap mode.
-Otherstuff I can't rememeber.

@@ -12,6 +12,7 @@
  */
 
 void ttySetWifiHandler(PspDebugPrintHandler wifiHandler);
+void ttySetConsHandler(PspDebugPrintHandler consHandler);
 void ttySetUsbHandler(PspDebugPrintHandler usbHandler);
 void ttySetSioHandler(PspDebugPrintHandler sioHandler);
 void ttyAddInputData(void *data, int size);
