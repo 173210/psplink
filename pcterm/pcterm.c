@@ -40,6 +40,7 @@ struct Args
 	const char *hist;
 	unsigned short port;
 	unsigned int baud;
+	unsigned int realbaud;
 	int serialmode;
 	int retries;
 };
@@ -249,6 +250,7 @@ int parse_args(int argc, char **argv, struct Args *args)
 	memset(args, 0, sizeof(*args));
 	args->port = DEFAULT_PORT;
 	args->retries = CONNECT_RETRIES;
+	args->realbaud = BAUD_RATE;
 	args->baud = map_int_to_speed(BAUD_RATE);
 
 	while(1)
@@ -276,6 +278,7 @@ int parse_args(int argc, char **argv, struct Args *args)
 					  break;
 #ifdef SERIAL_SUPPORT
 			case 'b': args->baud = map_int_to_speed(atoi(optarg));
+					  args->realbaud = atoi(optarg);
 					  if(args->baud == 0)
 					  {
 						  error = 1;
@@ -562,7 +565,7 @@ void shell(void)
 
 	if(g_context.args.serialmode)
 	{
-		printf("Opening %s baud %d\n", g_context.args.ip, g_context.args.baud);
+		printf("Opening %s baud %d\n", g_context.args.ip, g_context.args.realbaud);
 	}
 	else
 	{
