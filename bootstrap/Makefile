@@ -14,7 +14,8 @@ LDFLAGS = -mno-crt0 -nostartfiles
 LIBS = 
 
 EXTRA_TARGETS = EBOOT.PBP
-PSP_EBOOT_TITLE = PSPLink
+PSP_EBOOT_TITLE = PSPLink 0.9d
+PSP_EBOOT_ICON = psplink.png
 
 PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
