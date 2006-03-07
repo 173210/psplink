@@ -39,6 +39,12 @@
 
 #define BASE_PORT 10000
 
+#ifdef __CYGWIN__
+#define USB_TIMEOUT INFINITE
+#else
+#define USB_TIMEOUT 0
+#endif
+
 /* TODO: Make the response encode the errno so newlib handles it correctly
  * i.e. setting 0x8001<errno>
  */
@@ -1809,7 +1815,7 @@ int start_hostfs(void)
 			{
 				while(1)
 				{
-					readlen = euid_usb_bulk_read(g_hDev, 0x81, (char*) data, 512, 0);
+					readlen = euid_usb_bulk_read(g_hDev, 0x81, (char*) data, 512, USB_TIMEOUT);
 					if(readlen == 0)
 					{
 						fprintf(stderr, "Read cancelled (remote disconnected)\n");
