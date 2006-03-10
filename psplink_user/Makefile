@@ -1,5 +1,5 @@
 TARGET = psplink_user
-OBJS = main.o psplink.o
+OBJS = main.o psplink_ex.o exception_asm.o psplink.o
 
 BUILD_PRX=1
 PRX_EXPORTS=exports.exp
