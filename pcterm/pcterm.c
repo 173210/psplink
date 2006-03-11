@@ -295,7 +295,7 @@ int parse_args(int argc, char **argv, struct Args *args)
 
 		if(error)
 		{
-			break;
+			return 0;
 		}
 	}
 
