@@ -267,8 +267,7 @@ int psplinkConsolePermit(void)
 	return (!g_context.inexec || g_context.consinterfere);
 }
 
-/* Simple thread */
-int main_thread(SceSize args, void *argp)
+void initialise(SceSize args, void *argp)
 {
 	struct ConfigContext ctx;
 	const char *init_dir = "ms0:/";
@@ -293,6 +292,11 @@ int main_thread(SceSize args, void *argp)
 		init_usbmass();
 	}
 
+	if(shellInit(ctx.cliprompt, ctx.path, init_dir) < 0)
+	{
+		sceKernelExitGame();
+	}
+
 	if(ctx.sioshell)
 	{
 		if(ctx.baudrate == 0)
@@ -302,6 +306,7 @@ int main_thread(SceSize args, void *argp)
 
 		sioInit(ctx.baudrate);
 		ttySetSioHandler(pspDebugSioPutText);
+		g_context.sioshell = 1;
 	}
 
 	if(ctx.usbshell)
@@ -339,11 +344,6 @@ int main_thread(SceSize args, void *argp)
 		copy_conscontext(&ctx, &g_context);
 	}
 
-	if(shellInit(ctx.cliprompt, ctx.path, init_dir) < 0)
-	{
-		sceKernelExitGame();
-	}
-
 	g_context.resetonexit = ctx.resetonexit;
 	g_context.pcterm  = ctx.pcterm;
 
@@ -354,10 +354,16 @@ int main_thread(SceSize args, void *argp)
 			g_context.inexec = 1;
 		}
 	}
+}
+
+/* Simple thread */
+int main_thread(SceSize args, void *argp)
+{
+	initialise(args, argp);
 
 	printf(WELCOME_MESSAGE);
 
-	if(ctx.sioshell)
+	if(g_context.sioshell)
 	{
 		shellStart();
 
@@ -383,7 +389,7 @@ int module_start(SceSize args, void *argp)
 	int thid;
 
 	/* Create a high priority thread */
-	thid = sceKernelCreateThread("PspLink", main_thread, 8, 0x10000, 0, NULL);
+	thid = sceKernelCreateThread("PspLink", main_thread, 8, 16*1024, 0, NULL);
 	if(thid >= 0)
 	{
 		sceKernelStartThread(thid, args, argp);

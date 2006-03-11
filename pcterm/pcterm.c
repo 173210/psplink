@@ -29,10 +29,12 @@
 #include <termios.h>
 #endif
 
-#define DEFAULT_PORT 23
+#define DEFAULT_PORT 10000
 #define HISTORY_FILE ".pcterm.hist"
 #define CONNECT_RETRIES 5
 #define BAUD_RATE 115200
+#define DEFAULT_SERIAL "/dev/ttyS0"
+#define DEFAULT_IP     "localhost"
 
 struct Args
 {
@@ -302,11 +304,19 @@ int parse_args(int argc, char **argv, struct Args *args)
 
 	if(argc < 1)
 	{
-		printf("Must specify and IP address\n");
-		return 0;
+		if(args->serialmode)
+		{
+			args->ip = DEFAULT_SERIAL;
+		}
+		else
+		{
+			args->ip = DEFAULT_IP;
+		}
 	}
-
-	args->ip = argv[0];
+	else
+	{
+		args->ip = argv[0];
+	}
 
 	return 1;
 }

@@ -44,7 +44,7 @@ void ttySetWifiHandler(PspDebugPrintHandler wifiHandler);
 int g_currsock = -1;
 int g_servsock = -1;
 
-#define SERVER_PORT 23
+#define SERVER_PORT 10000
 
 int wifiPrint(const char *data, int size)
 {

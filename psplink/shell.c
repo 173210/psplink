@@ -757,6 +757,37 @@ static int mppinfo_cmd(int argc, char **argv)
 	return threadmaninfo_cmd(argc, argv, "Message Pipe", print_mppinfo, (ReferFunc) pspSdkReferMppStatusByName);
 }
 
+static int print_thevinfo(SceUID uid, int verbose)
+{
+	SceKernelThreadEventHandlerInfo info;
+	int ret;
+
+	memset(&info, 0, sizeof(info));
+	info.size = sizeof(info);
+	ret = sceKernelReferThreadEventHandlerStatus(uid, &info);
+	if(ret == 0)
+	{
+		printf("UID: 0x%08X - Name: %s\n", uid, info.name);
+		if(verbose)
+		{
+			printf("threadId 0x%08X - mask %02X - handler %p\n", info.threadId, info.mask, info.handler);
+			printf("common %p\n", info.common);
+		}
+	}
+
+	return ret;
+}
+
+static int thevlist_cmd(int argc, char **argv)
+{
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_ThreadEventHandler, "Thread Event Handler", print_mppinfo);
+}
+
+static int thevinfo_cmd(int argc, char **argv)
+{
+	return threadmaninfo_cmd(argc, argv, "Thread Event Handler", print_thevinfo, (ReferFunc) pspSdkReferThreadEventHandlerStatusByName);
+}
+
 static int uidlist_cmd(int argc, char **argv)
 {
 	const char *name = NULL;
@@ -3320,6 +3351,8 @@ struct sh_command commands[] = {
 	{ "fplinfo","fi", fplinfo_cmd, 1, "Print info about a fixed pool", "fi uid|@name", SHELL_TYPE_CMD },
 	{ "mpplist","pl", mpplist_cmd, 0, "List the message pipes in the system", "pl [v]", SHELL_TYPE_CMD },
 	{ "mppinfo","pi", mppinfo_cmd, 1, "Print info about a message pipe", "pi uid|@name", SHELL_TYPE_CMD },
+	{ "thevlist","tel", thevlist_cmd, 0, "List the thread event handlers in the system", "tel [v]", SHELL_TYPE_CMD },
+	{ "thevinfo","tei", thevinfo_cmd, 1, "Print info about a thread event handler", "tei uid|@name", SHELL_TYPE_CMD },
 	
 	{ "module", NULL, NULL, 0, "Commands to handle modules", NULL, SHELL_TYPE_CATEGORY },
 	{ "modlist","ml", modlist_cmd, 0, "List the currently loaded modules", "ml [v]", SHELL_TYPE_CMD },

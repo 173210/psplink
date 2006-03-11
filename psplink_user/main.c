@@ -24,13 +24,11 @@ PSP_MODULE_INFO("PSPLINK_USER", 0, 1, 1);
 PSP_MAIN_THREAD_PARAMS(0x20, 64, PSP_THREAD_ATTR_USER);
 PSP_MAIN_THREAD_NAME("PsplinkUser");
 
-/* Simple thread */
-int main(int argc, char **argv)
+int module_start(int args, void *argp)
 {
 	pspDebugScreenInit();
 	psplinkInitException();
 	pspDebugScreenPrintf("PSPLINK User Module v%s\n", PSPLINK_VERSION);
-	sceKernelExitDeleteThread(0);
 
 	return 0;
 }

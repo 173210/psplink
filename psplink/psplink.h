@@ -74,6 +74,7 @@ struct GlobalContext
 	int pcterm;
 	SceUID netshelluid;
 	SceUID conshelluid;
+	int sioshell;
 	int wifi;
 	int wifishell;
 	int conshell;

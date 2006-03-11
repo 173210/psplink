@@ -2219,7 +2219,6 @@ void *async_thread(void *arg)
 
 	FD_ZERO(&read_save);
 
-	g_shellserv = make_socket(g_shellport);
 	if(g_shellserv >= 0)
 	{
 		FD_SET(g_shellserv, &read_save);
@@ -2228,7 +2227,7 @@ void *async_thread(void *arg)
 			max_fd = g_shellserv;
 		}
 	}
-	g_gdbserv = make_socket(g_gdbport);
+
 	if(g_gdbserv >= 0)
 	{
 		FD_SET(g_gdbserv, &read_save);
@@ -2356,9 +2355,6 @@ void *async_thread(void *arg)
 
 int main(int argc, char **argv)
 {
-	pthread_t thid;
-	pthread_create(&thid, NULL, async_thread, NULL);
-
 	printf("USBHostFS (c) TyRaNiD 2k6\n");
 #ifndef __CYGWIN__
 	if(geteuid() != 0)
@@ -2371,7 +2367,14 @@ int main(int argc, char **argv)
 	signal(SIGTERM, signal_handler);
 	if(parse_args(argc, argv))
 	{
+		pthread_t thid;
+
+		/* Create sockets */
+		g_shellserv = make_socket(g_shellport);
+		g_gdbserv = make_socket(g_gdbport);
+
 		/* Mask out any executable bits, as they don't make sense */
+		pthread_create(&thid, NULL, async_thread, NULL);
 		usb_init();
 		start_hostfs();
 	}

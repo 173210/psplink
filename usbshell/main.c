@@ -31,6 +31,7 @@ void psplinkExitShell(void);
 int usb_read_async_data(unsigned int chan, unsigned char *data, int len);
 int usb_write_async_data(unsigned int chan, const void *data, int size);
 void usb_async_flush(unsigned int chan);
+int usb_wait_for_connect(void);
 
 int usbPrint(const char *data, int size)
 {
@@ -46,6 +47,9 @@ int main_thread(SceSize args, void *argp)
 
 	usb_async_flush(0);
 	ttySetUsbHandler(usbPrint);
+	usb_wait_for_connect();
+	/* Sleep for a second to ensure usb has come up */
+	sceKernelDelayThread(1000000);
 	psplinkPrintPrompt();
 
 	while(1)

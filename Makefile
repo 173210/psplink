@@ -15,6 +15,7 @@ release: all
 	mkdir -p release/v1.0/psplink
 	mkdir -p release/v1.5
 	mkdir -p release/pc
+	cp -R scripts release/scripts
 	cp bootstrap/EBOOT.PBP release/v1.0/psplink
 	cp psplink/psplink.prx release/v1.0/psplink
 	cp psplink/psplink.ini release/v1.0/psplink

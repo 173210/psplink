@@ -31,6 +31,7 @@ enum UsbEvents
 	USB_EVENT_ATTACH = 1,
 	USB_EVENT_DETACH = 2,
 	USB_EVENT_ASYNC  = 4,
+	USB_EVENT_CONNECT = 8,
 	USB_EVENT_ALL = 0xFFFFFFFF
 };
 
@@ -641,6 +642,46 @@ void fill_async(void *async_data, int len)
 	}
 }
 
+int usb_read_async_data_generic(unsigned int chan, unsigned char *data, int len, int poll)
+{
+	int ret;
+	int intc;
+	int i;
+	int k1;
+
+	k1 = psplinkSetK1(0);
+
+	if(chan >= MAX_ASYNC_CHANNELS)
+	{
+		return -1;
+	}
+
+	ret = sceKernelWaitEventFlag(g_asyncevent, 1 << chan, PSP_EVENT_WAITOR | PSP_EVENT_WAITCLEAR, NULL, NULL);
+	if(ret < 0)
+	{
+		return -1;
+	}
+
+	intc = pspSdkDisableInterrupts();
+	len = len < g_async_chan[chan].size ? len : g_async_chan[chan].size;
+	for(i = 0; i < len; i++)
+	{
+		data[i] = g_async_chan[chan].buffer[g_async_chan[chan].read_pos++];
+		g_async_chan[chan].read_pos %= MAX_ASYNC_BUFFER;
+		g_async_chan[chan].size--;
+	}
+
+	if(g_async_chan[chan].size != 0)
+	{
+		sceKernelSetEventFlag(g_asyncevent, 1 << chan);
+	}
+	pspSdkEnableInterrupts(intc);
+
+	psplinkSetK1(k1);
+
+	return len;
+}
+
 int usb_read_async_data(unsigned int chan, unsigned char *data, int len)
 {
 	int ret;
@@ -750,6 +791,19 @@ int usb_write_async_data(unsigned int chan, const void *data, int len)
 	return ret;
 }
 
+int usb_wait_for_connect(void)
+{
+	int ret;
+
+	ret = sceKernelWaitEventFlag(g_mainevent, USB_EVENT_CONNECT, PSP_EVENT_WAITOR, NULL, NULL);
+	if(ret == 0)
+	{
+		return 1;
+	}
+
+	return 0;
+}
+
 /* USB thread to handle attach/detach */
 int usb_thread(SceSize size, void *argp)
 {
@@ -759,7 +813,8 @@ int usb_thread(SceSize size, void *argp)
 	DEBUG_PRINTF("USB Thread Started\n");
 	while(1)
 	{
-		ret = sceKernelWaitEventFlag(g_mainevent, USB_EVENT_ALL, PSP_EVENT_WAITOR | PSP_EVENT_WAITCLEAR, &result, NULL);
+		ret = sceKernelWaitEventFlag(g_mainevent, USB_EVENT_ATTACH | USB_EVENT_DETACH | USB_EVENT_ASYNC
+				, PSP_EVENT_WAITOR | PSP_EVENT_WAITCLEAR, &result, NULL);
 		if(ret < 0)
 		{
 			DEBUG_PRINTF("Error waiting on event flag %08X\n", ret);
@@ -779,6 +834,7 @@ int usb_thread(SceSize size, void *argp)
 		if(result & USB_EVENT_DETACH)
 		{
 			g_connected = 0;
+			sceKernelClearEventFlag(g_mainevent, ~USB_EVENT_CONNECT);
 			DEBUG_PRINTF("USB Detach occurred\n");
 		}
 
@@ -786,6 +842,7 @@ int usb_thread(SceSize size, void *argp)
 		{
 			uint32_t magic;
 			g_connected = 0;
+			sceKernelClearEventFlag(g_mainevent, ~USB_EVENT_CONNECT);
 			DEBUG_PRINTF("USB Attach occurred\n");
 			if(read_data(&magic, sizeof(magic)) == sizeof(magic))
 			{
@@ -795,6 +852,7 @@ int usb_thread(SceSize size, void *argp)
 					{
 						set_ayncreq(async_data, sizeof(async_data));
 						g_connected = 1;
+						sceKernelSetEventFlag(g_mainevent, USB_EVENT_CONNECT);
 					}
 				}
 			}
@@ -860,7 +918,7 @@ int start_func(int size, void *p)
 		return -1;
 	}
 
-	g_transevent = sceKernelCreateEventFlag("USBEventTrans", 0, 0, NULL);
+	g_transevent = sceKernelCreateEventFlag("USBEventTrans", 0x200, 0, NULL);
 	if(g_transevent < 0)
 	{
 		MODPRINTF("Couldn't create trans event flag %08X\n", g_transevent);

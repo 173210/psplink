@@ -7,7 +7,7 @@ PRX_EXPORTS=exports.exp
 INCDIR = 
 CFLAGS = -O2 -G0 -Wall 
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
-LDFLAGS= 
+LDFLAGS= -mno-crt0 -nostartfiles
 ASFLAGS = $(CFLAGS)
 
 LIBDIR =

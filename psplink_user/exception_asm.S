@@ -186,7 +186,7 @@ psplinkExceptionHandler:
 	mfc0	$v1,  Status
 	sw		$v1,  REG_STATUS($v0)
 
-# Check if cop1 is enable and skip if not
+# Check if cop1 is enabled and skip if not
 	lui		$a0, 0x2000
 	and		$a0, $a0, $v1
 	beq		$a0, $0, 2f
