@@ -87,10 +87,12 @@ static int g_gdbsock = -1;
 struct HostDrive g_drives[MAX_HOSTDRIVES];
 
 int  g_verbose = 0;
+int  g_gdbdebug = 0;
+int  g_nocase = 0;
 unsigned short g_shellport = BASE_PORT;
 unsigned short g_gdbport = BASE_PORT+1;
 
-#define V_PRINTF(fmt, ...) { if(g_verbose) { fprintf(stderr, fmt, ## __VA_ARGS__); } }
+#define V_PRINTF(level, fmt, ...) { if(g_verbose >= level) { fprintf(stderr, fmt, ## __VA_ARGS__); } }
 
 #ifdef BUILD_BIGENDIAN
 uint16_t swap16(uint16_t i)
@@ -131,6 +133,34 @@ uint64_t swap64(uint64_t i)
 #define LE32(x) (x)
 #define LE64(x) (x)
 #endif
+
+void print_gdbdebug(int dir, const uint8_t *data, int len)
+{
+	int i;
+
+	if(dir)
+	{
+		printf("HOST->GDB (");
+	}
+	else
+	{
+		printf("GDB->HOST (");
+	}
+
+	for(i = 0; i < len; i++)
+	{
+		if(data[i] >= 32)
+		{
+			putchar(data[i]);
+		}
+		else
+		{
+			printf("\\%02x", data[i]);
+		}
+	}
+
+	printf(")\n");
+}
 
 /* Define wrappers for the usb functions we use which can set euid */
 int euid_usb_bulk_write(usb_dev_handle *dev, int ep, char *bytes, int size,
@@ -285,6 +315,94 @@ int gen_path(char *path, int dir)
 	return 1;
 }
 
+/* Scan the directory, return the first name which matches case insensitive */
+int find_nocase(const char *rootdir, const char *relpath, char *token)
+{
+	DIR *dir;
+	struct dirent *ent;
+	char abspath[PATH_MAX];
+	int len;
+	int ret = 0;
+
+	V_PRINTF(2, "Finding token %s\n", token);
+
+	len = snprintf(abspath, PATH_MAX, "%s%s", rootdir, relpath);
+	if((len < 0) || (len > PATH_MAX))
+	{
+		return 0;
+	}
+
+	V_PRINTF(2, "Checking %s\n", abspath);
+	dir = opendir(abspath);
+	if(dir != NULL)
+	{
+		V_PRINTF(2, "Opened directory\n");
+		while((ent = readdir(dir)))
+		{
+			V_PRINTF(2, "Got dir entry %p->%s\n", ent, ent->d_name);
+			if(strcasecmp(ent->d_name, token) == 0)
+			{
+				V_PRINTF(2, "Found match %s for %s\n", ent->d_name, token);
+				strcpy(token, ent->d_name);
+				ret = 1;
+				break;
+			}
+		}
+
+		closedir(dir);
+	}
+	else
+	{
+		V_PRINTF(2, "Couldn't open %s\n", abspath);
+	}
+
+	return ret;
+}
+
+/* Make a relative path case insensitive, if we fail then leave the path as is, just in case */
+void make_nocase(const char *rootdir, char *path, int dir)
+{
+	char abspath[PATH_MAX];
+	char retpath[PATH_MAX];
+	char *tokens[MAX_TOKENS];
+	int count;
+	int token;
+
+	strcpy(abspath, path);
+	count = 0;
+	tokens[0] = strtok(abspath, "/");
+	while((tokens[count]) && (count < (MAX_TOKENS-1)))
+	{
+		tokens[++count] = strtok(NULL, "/");
+	}
+
+	strcpy(retpath, "/");
+	for(token = 0; token < count; token++)
+	{
+		if(!find_nocase(rootdir, retpath, tokens[token]))
+		{
+			/* Might only be an error if this is not the last token, otherwise we could be
+			 * trying to create a new directory or file, if we are not then the rest of the code
+			 * will handle the error */
+			if((token < (count-1)))
+			{
+				break;
+			}
+		}
+
+		strcat(retpath, tokens[token]);
+		if((dir) || (token < (count-1)))
+		{
+			strcat(retpath, "/");
+		}
+	}
+
+	if(token == count)
+	{
+		strcpy(path, retpath);
+	}
+}
+
 int make_path(unsigned int drive, const char *path, char *retpath, int dir)
 {
 	char hostpath[PATH_MAX];
@@ -306,6 +424,12 @@ int make_path(unsigned int drive, const char *path, char *retpath, int dir)
 	if(gen_path(hostpath, dir) == 0)
 	{
 		return -1;
+	}
+
+	/* Make the relative path case insensitive if needed */
+	if(g_nocase)
+	{
+		make_nocase(g_drives[drive].rootdir, hostpath, dir);
 	}
 
 	len = snprintf(retpath, PATH_MAX, "%s/%s", g_drives[drive].rootdir, hostpath);
@@ -331,26 +455,28 @@ int open_file(int drive, const char *path, unsigned int mode, unsigned int mask)
 	
 	if(make_path(drive, path, fullpath, 0) < 0)
 	{
+		V_PRINTF(1, "Invalid file path %s\n", path);
 		return -1;
 	}
 
-	V_PRINTF("open: %s\n", fullpath);
+	V_PRINTF(2, "open: %s\n", fullpath);
+	V_PRINTF(1, "Opening file %s\n", fullpath);
 
 	if((mode & PSP_O_RDWR) == PSP_O_RDWR)
 	{
-		V_PRINTF("Read/Write mode\n");
+		V_PRINTF(2, "Read/Write mode\n");
 		real_mode = O_RDWR;
 	}
 	else
 	{
 		if(mode & PSP_O_RDONLY)
 		{
-			V_PRINTF("Read mode\n");
+			V_PRINTF(2, "Read mode\n");
 			real_mode = O_RDONLY;
 		}
 		else if(mode & PSP_O_WRONLY)
 		{
-			V_PRINTF("Write mode\n");
+			V_PRINTF(2, "Write mode\n");
 			real_mode = O_WRONLY;
 		}
 		else
@@ -394,6 +520,10 @@ int open_file(int drive, const char *path, unsigned int mode, unsigned int mask)
 			fprintf(stderr, "Error filedescriptor out of range\n");
 			fd = -1;
 		}
+	}
+	else
+	{
+		V_PRINTF(1, "Could not open file %s\n", fullpath);
 	}
 
 	return fd;
@@ -495,18 +625,19 @@ int dir_open(int drive, const char *dirname)
 			break;
 		}
 
-		V_PRINTF("dopen: %s, fsnum %d\n", fulldir, drive);
+		V_PRINTF(2, "dopen: %s, fsnum %d\n", fulldir, drive);
+		V_PRINTF(1, "Opening directory %s\n", fulldir);
 
 		memset(&open_dirs[did], 0, sizeof(open_dirs[did]));
 
 		dirnum = scandir(fulldir, &entries, NULL, alphasort);
 		if(dirnum <= 0)
 		{
-			fprintf(stderr, "Could not scan directory (%s)\n", strerror(errno));
+			fprintf(stderr, "Could not scan directory %s (%s)\n", fulldir, strerror(errno));
 			break;
 		}
 
-		V_PRINTF("Number of dir entries %d\n", dirnum);
+		V_PRINTF(2, "Number of dir entries %d\n", dirnum);
 
 		open_dirs[did].pDir = malloc(sizeof(SceIoDirent) * dirnum);
 		if(open_dirs[did].pDir != NULL)
@@ -515,7 +646,7 @@ int dir_open(int drive, const char *dirname)
 			for(i = 0; i < dirnum; i++)
 			{
 				strcpy(open_dirs[did].pDir[i].name, entries[i]->d_name);
-				V_PRINTF("Dirent %d: %s\n", i, entries[i]->d_name);
+				V_PRINTF(2, "Dirent %d: %s\n", i, entries[i]->d_name);
 				if(fill_stat(fulldir, entries[i]->d_name, &open_dirs[did].pDir[i].stat) < 0)
 				{
 					fprintf(stderr, "Error filling in directory structure\n");
@@ -623,7 +754,7 @@ int handle_open(struct usb_dev_handle *hDev, struct HostFsOpenCmd *cmd, int cmdl
 			break;
 		}
 
-		V_PRINTF("Open command mode %08X mask %08X name %s\n", LE32(cmd->mode), LE32(cmd->mask), path);
+		V_PRINTF(2, "Open command mode %08X mask %08X name %s\n", LE32(cmd->mode), LE32(cmd->mask), path);
 		resp.res = LE32(open_file(LE32(cmd->fsnum), path, LE32(cmd->mode), LE32(cmd->mask)));
 
 		ret = euid_usb_bulk_write(hDev, 0x2, (char *) &resp, sizeof(resp), 10000);
@@ -667,7 +798,7 @@ int handle_dopen(struct usb_dev_handle *hDev, struct HostFsDopenCmd *cmd, int cm
 			break;
 		}
 
-		V_PRINTF("Dopen command name %s\n", path);
+		V_PRINTF(2, "Dopen command name %s\n", path);
 		resp.res = LE32(dir_open(LE32(cmd->fsnum), path));
 
 		ret = euid_usb_bulk_write(hDev, 0x2, (char *) &resp, sizeof(resp), 10000);
@@ -745,7 +876,7 @@ int handle_write(struct usb_dev_handle *hDev, struct HostFsWriteCmd *cmd, int cm
 
 		fid = LE32(cmd->fid);
 
-		V_PRINTF("Write command fid: %d, length: %d\n", fid, LE32(cmd->cmd.extralen));
+		V_PRINTF(2, "Write command fid: %d, length: %d\n", fid, LE32(cmd->cmd.extralen));
 
 		if((fid >= 0) && (fid < MAX_FILES))
 		{
@@ -829,7 +960,7 @@ int handle_read(struct usb_dev_handle *hDev, struct HostFsReadCmd *cmd, int cmdl
 		}
 
 		fid = LE32(cmd->fid);
-		V_PRINTF("Read command fid: %d, length: %d\n", fid, LE32(cmd->len));
+		V_PRINTF(2, "Read command fid: %d, length: %d\n", fid, LE32(cmd->len));
 
 		if((fid >= 0) && (fid < MAX_FILES))
 		{
@@ -888,7 +1019,7 @@ int handle_close(struct usb_dev_handle *hDev, struct HostFsCloseCmd *cmd, int cm
 		}
 
 		fid = LE32(cmd->fid);
-		V_PRINTF("Close command fid: %d\n", fid);
+		V_PRINTF(2, "Close command fid: %d\n", fid);
 		if((fid > STDERR_FILENO) && (fid < MAX_FILES) && (open_files[fid].opened))
 		{
 			resp.res = LE32(close(fid));
@@ -926,7 +1057,7 @@ int handle_dclose(struct usb_dev_handle *hDev, struct HostFsDcloseCmd *cmd, int 
 		}
 
 		did = LE32(cmd->did);
-		V_PRINTF("Dclose command did: %d\n", did);
+		V_PRINTF(2, "Dclose command did: %d\n", did);
 		resp.res = dir_close(did);
 
 		ret = euid_usb_bulk_write(hDev, 0x2, (char *) &resp, sizeof(resp), 10000);
@@ -958,7 +1089,7 @@ int handle_dread(struct usb_dev_handle *hDev, struct HostFsDreadCmd *cmd, int cm
 		}
 
 		did = LE32(cmd->did);
-		V_PRINTF("Dread command did: %d\n", did);
+		V_PRINTF(2, "Dread command did: %d\n", did);
 
 		if((did >= 0) && (did < MAX_FILES))
 		{
@@ -1023,7 +1154,7 @@ int handle_lseek(struct usb_dev_handle *hDev, struct HostFsLseekCmd *cmd, int cm
 		}
 
 		fid = LE32(cmd->fid);
-		V_PRINTF("Lseek command fid: %d, ofs: %lld, whence: %d\n", fid, LE64(cmd->ofs), LE32(cmd->whence));
+		V_PRINTF(2, "Lseek command fid: %d, ofs: %lld, whence: %d\n", fid, LE64(cmd->ofs), LE32(cmd->whence));
 		if((fid > STDERR_FILENO) && (fid < MAX_FILES) && (open_files[fid].opened))
 		{
 			/* TODO: Probably should ensure whence is mapped across, just in case */
@@ -1084,7 +1215,7 @@ int handle_remove(struct usb_dev_handle *hDev, struct HostFsRemoveCmd *cmd, int 
 			break;
 		}
 
-		V_PRINTF("Remove command name %s\n", path);
+		V_PRINTF(2, "Remove command name %s\n", path);
 		if(make_path(LE32(cmd->fsnum), path, fullpath, 0) == 0)
 		{
 			resp.res = LE32(unlink(fullpath));
@@ -1132,7 +1263,7 @@ int handle_rmdir(struct usb_dev_handle *hDev, struct HostFsRmdirCmd *cmd, int cm
 			break;
 		}
 
-		V_PRINTF("Rmdir command name %s\n", path);
+		V_PRINTF(2, "Rmdir command name %s\n", path);
 		if(make_path(LE32(cmd->fsnum), path, fullpath, 0) == 0)
 		{
 			resp.res = LE32(rmdir(fullpath));
@@ -1180,7 +1311,7 @@ int handle_mkdir(struct usb_dev_handle *hDev, struct HostFsMkdirCmd *cmd, int cm
 			break;
 		}
 
-		V_PRINTF("Mkdir command mode %08X, name %s\n", LE32(cmd->mode), path);
+		V_PRINTF(2, "Mkdir command mode %08X, name %s\n", LE32(cmd->mode), path);
 		if(make_path(LE32(cmd->fsnum), path, fullpath, 0) == 0)
 		{
 			resp.res = LE32(mkdir(fullpath, LE32(cmd->mode)));
@@ -1230,7 +1361,7 @@ int handle_getstat(struct usb_dev_handle *hDev, struct HostFsGetstatCmd *cmd, in
 			break;
 		}
 
-		V_PRINTF("Getstat command name %s\n", path);
+		V_PRINTF(2, "Getstat command name %s\n", path);
 		if(make_path(LE32(cmd->fsnum), path, fullpath, 0) == 0)
 		{
 			resp.res = LE32(fill_stat(NULL, fullpath, &st));
@@ -1314,7 +1445,7 @@ int psp_chstat(const char *path, struct HostFsChstatCmd *cmd)
 		ret = chmod(path, mask);
 		if(ret < 0)
 		{
-			V_PRINTF("Could not set file mask\n");
+			V_PRINTF(2, "Could not set file mask\n");
 			return -1;
 		}
 	}
@@ -1328,7 +1459,7 @@ int psp_chstat(const char *path, struct HostFsChstatCmd *cmd)
 	{
 		if(psp_settime(path, &cmd->atime, PSP_CHSTAT_ATIME) < 0)
 		{
-			V_PRINTF("Could not set access time\n");
+			V_PRINTF(2, "Could not set access time\n");
 			return -1;
 		}
 	}
@@ -1337,7 +1468,7 @@ int psp_chstat(const char *path, struct HostFsChstatCmd *cmd)
 	{
 		if(psp_settime(path, &cmd->mtime, PSP_CHSTAT_MTIME) < 0)
 		{
-			V_PRINTF("Could not set modification time\n");
+			V_PRINTF(2, "Could not set modification time\n");
 			return -1;
 		}
 	}
@@ -1380,7 +1511,7 @@ int handle_chstat(struct usb_dev_handle *hDev, struct HostFsChstatCmd *cmd, int 
 			break;
 		}
 
-		V_PRINTF("Chstat command name %s, bits %08X\n", path, LE32(cmd->bits));
+		V_PRINTF(2, "Chstat command name %s, bits %08X\n", path, LE32(cmd->bits));
 		if(make_path(LE32(cmd->fsnum), path, fullpath, 0) == 0)
 		{
 			resp.res = LE32(psp_chstat(fullpath, cmd));
@@ -1436,7 +1567,7 @@ int handle_rename(struct usb_dev_handle *hDev, struct HostFsRenameCmd *cmd, int 
 		oldpathlen = strlen(path);
 		newpathlen = strlen(path+oldpathlen+1);
 
-		V_PRINTF("Rename command oldname %s, newname %s\n", path, path+oldpathlen+1);
+		V_PRINTF(2, "Rename command oldname %s, newname %s\n", path, path+oldpathlen+1);
 		if(!make_path(LE32(cmd->fsnum), path, oldpath, 0) && !make_path(LE32(cmd->fsnum), path+oldpathlen+1, newpath, 0))
 		{
 			resp.res = LE32(rename(oldpath, newpath));
@@ -1484,7 +1615,7 @@ int handle_chdir(struct usb_dev_handle *hDev, struct HostFsChdirCmd *cmd, int cm
 			break;
 		}
 
-		V_PRINTF("Chdir command name %s\n", path);
+		V_PRINTF(2, "Chdir command name %s\n", path);
 		
 		fsnum = LE32(cmd->fsnum);
 		if((fsnum >= 0) && (fsnum < MAX_HOSTDRIVES))
@@ -1534,7 +1665,7 @@ int handle_ioctl(struct usb_dev_handle *hDev, struct HostFsIoctlCmd *cmd, int cm
 			}
 		}
 
-		V_PRINTF("Ioctl command fid %d, cmdno %d, inlen %d\n", LE32(cmd->fid), LE32(cmd->cmdno), inlen);
+		V_PRINTF(2, "Ioctl command fid %d, cmdno %d, inlen %d\n", LE32(cmd->fid), LE32(cmd->cmdno), inlen);
 
 		ret = euid_usb_bulk_write(hDev, 0x2, (char *) &resp, sizeof(resp), 10000);
 		if(ret < 0)
@@ -1587,7 +1718,7 @@ int handle_devctl(struct usb_dev_handle *hDev, struct HostFsDevctlCmd *cmd, int 
 			}
 		}
 
-		V_PRINTF("Devctl command cmdno %d, inlen %d\n", LE32(cmd->cmdno), inlen);
+		V_PRINTF(2, "Devctl command cmdno %d, inlen %d\n", LE32(cmd->cmdno), inlen);
 
 		ret = euid_usb_bulk_write(hDev, 0x2, (char *) &resp, sizeof(resp), 10000);
 		if(ret < 0)
@@ -1667,9 +1798,9 @@ void close_hostfs(void)
 
 void do_hostfs(struct HostFsCmd *cmd, int readlen)
 {
-	V_PRINTF("Magic: %08X\n", LE32(cmd->magic));
-	V_PRINTF("Command Num: %08X\n", LE32(cmd->command));
-	V_PRINTF("Extra Len: %d\n", LE32(cmd->extralen));
+	V_PRINTF(2, "Magic: %08X\n", LE32(cmd->magic));
+	V_PRINTF(2, "Command Num: %08X\n", LE32(cmd->command));
+	V_PRINTF(2, "Extra Len: %d\n", LE32(cmd->extralen));
 
 	switch(LE32(cmd->command))
 	{
@@ -1783,7 +1914,12 @@ void do_async(struct AsyncCommand *cmd, int readlen)
 						write(g_shellsock, data, readlen - sizeof(struct AsyncCommand));
 					}
 					break;
-			case 1: if(g_gdbsock >= 0)
+			case 1: if(g_gdbdebug)
+					{
+						print_gdbdebug(0, data, readlen - sizeof(struct AsyncCommand));
+					}
+
+					if(g_gdbsock >= 0)
 					{
 						write(g_gdbsock, data, readlen - sizeof(struct AsyncCommand));
 					}
@@ -1893,7 +2029,7 @@ int parse_args(int argc, char **argv)
 	{
 		int ch;
 
-		ch = getopt(argc, argv, "vh");
+		ch = getopt(argc, argv, "vhdcg:s:");
 		if(ch == -1)
 		{
 			break;
@@ -1901,7 +2037,15 @@ int parse_args(int argc, char **argv)
 
 		switch(ch)
 		{
-			case 'v': g_verbose = 1;
+			case 'v': g_verbose++;
+					  break;
+			case 'g': g_gdbport = atoi(optarg);
+					  break;
+			case 's': g_shellport = atoi(optarg);
+					  break;
+			case 'd': g_gdbdebug = 1;
+					  break;
+			case 'c': g_nocase = 1;
 					  break;
 			case 'h': return 0;
 			default:  printf("Unknown option\n");
@@ -1933,12 +2077,12 @@ int parse_args(int argc, char **argv)
 				strcpy(g_drives[i].rootdir, argv[i]);
 			}
 			gen_path(g_drives[i].rootdir, 0);
-			V_PRINTF("Root %d: %s\n", i, g_drives[i].rootdir);
+			V_PRINTF(2, "Root %d: %s\n", i, g_drives[i].rootdir);
 		}
 	}
 	else
 	{
-		V_PRINTF("Root directory: %s\n", rootdir);
+		V_PRINTF(2, "Root directory: %s\n", rootdir);
 	}
 
 	return 1;
@@ -1949,6 +2093,11 @@ void print_help(void)
 	fprintf(stderr, "Usage: usbhostfs_pc [options] [rootdir0..rootdir%d]\n", MAX_HOSTDRIVES-1);
 	fprintf(stderr, "Options:\n");
 	fprintf(stderr, "-v                : Set verbose mode\n");
+	fprintf(stderr, "-vv               : More verbose\n");
+	fprintf(stderr, "-s port           : Specify local shell port (default %d)\n", BASE_PORT);
+	fprintf(stderr, "-g port           : Specify local GDB port (default %d)\n", BASE_PORT+1);
+	fprintf(stderr, "-d                : Print GDB transfers\n");
+	fprintf(stderr, "-c                : Enable case-insensitive filename\n");
 	fprintf(stderr, "-h                : Print this help\n");
 }
 
@@ -1982,13 +2131,13 @@ void shutdown_socket(void)
 void signal_handler(int sig)
 {
 	printf("Exiting\n");
+	shutdown_socket();
 	if(g_hDev)
 	{
 		/* Nuke the connection */
 		seteuid(0);
 		setegid(0);
 		close_device(g_hDev);
-		shutdown_socket();
 	}
 	exit(1);
 }
@@ -2149,6 +2298,11 @@ void *async_thread(void *arg)
 					readbytes = read(g_gdbsock, gdbdata, sizeof(gdb) - sizeof(struct AsyncCommand));
 					if(readbytes > 0)
 					{
+						if(g_gdbdebug)
+						{
+							print_gdbdebug(1, (uint8_t *) gdbdata, readbytes);
+						}
+
 						if(g_hDev)
 						{
 							euid_usb_bulk_write(g_hDev, 0x3, gdb, readbytes+sizeof(struct AsyncCommand), 10000);
