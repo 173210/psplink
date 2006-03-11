@@ -315,13 +315,32 @@ int gen_path(char *path, int dir)
 	return 1;
 }
 
+int calc_rating(const char *str1, const char *str2)
+{
+	int rating = 0;
+
+	while((*str1) && (*str2))
+	{
+		if(*str1 == *str2)
+		{
+			rating++;
+		}
+		str1++;
+		str2++;
+	}
+
+	return rating;
+}
+
 /* Scan the directory, return the first name which matches case insensitive */
 int find_nocase(const char *rootdir, const char *relpath, char *token)
 {
 	DIR *dir;
 	struct dirent *ent;
 	char abspath[PATH_MAX];
+	char match[PATH_MAX];
 	int len;
+	int rating = -1;
 	int ret = 0;
 
 	V_PRINTF(2, "Finding token %s\n", token);
@@ -342,10 +361,17 @@ int find_nocase(const char *rootdir, const char *relpath, char *token)
 			V_PRINTF(2, "Got dir entry %p->%s\n", ent, ent->d_name);
 			if(strcasecmp(ent->d_name, token) == 0)
 			{
-				V_PRINTF(2, "Found match %s for %s\n", ent->d_name, token);
-				strcpy(token, ent->d_name);
+				int tmp;
+
+				tmp = calc_rating(token, ent->d_name);
+				V_PRINTF(2, "Found match %s for %s rating %d\n", ent->d_name, token, tmp);
+				if(tmp > rating)
+				{
+					strcpy(match, ent->d_name);
+					rating = tmp;
+				}
+
 				ret = 1;
-				break;
 			}
 		}
 
@@ -354,6 +380,11 @@ int find_nocase(const char *rootdir, const char *relpath, char *token)
 	else
 	{
 		V_PRINTF(2, "Couldn't open %s\n", abspath);
+	}
+
+	if(ret)
+	{
+		strcpy(token, match);
 	}
 
 	return ret;
