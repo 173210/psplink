@@ -84,7 +84,7 @@ void printUIDList(const char *name)
     entry = entry->parent;
     end = entry;
     entry = entry->nextEntry;
-    Kprintf("************ MY UID LIST START ************\n");
+    printf("************ MY UID LIST START ************\n");
     do {
 		if(name)
 		{
@@ -93,13 +93,13 @@ void printUIDList(const char *name)
 
 		if(cmp == 0)
 		{
-			Kprintf("\n[%s]    UID 0x%08X (attr 0x%X entry 0x%p)\n", entry->name, entry->UID, entry->attribute, entry);
+			printf("\n[%s]    UID 0x%08X (attr 0x%X entry 0x%p)\n", entry->name, entry->UID, entry->attribute, entry);
 		}
 
 		if (entry->nextChild == entry) {
 			if(cmp == 0)
 			{
-				Kprintf("    <No UID objects>\n");
+				printf("    <No UID objects>\n");
 			}
 
 		} else {
@@ -107,7 +107,7 @@ void printUIDList(const char *name)
 				entry = entry->nextChild;
 				if(cmp == 0)
 				{
-					Kprintf("  --  (Name): %31s, (UID): 0x%08X, (entry): 0x%p (attr): 0x%X \n", entry->name, entry->UID, entry, entry->attribute);
+					printf("  --  (Name): %31s, (UID): 0x%08X, (entry): 0x%p (attr): 0x%X \n", entry->name, entry->UID, entry, entry->attribute);
 				}
 			} while (entry->nextChild != entry->unknown);
 			entry = entry->nextChild;
@@ -115,6 +115,6 @@ void printUIDList(const char *name)
 
 		entry = entry->nextEntry;
     } while (entry->nextEntry != end);  //Stop at 'Basic' entry like Sysmem does but not in the same way ;)
-    Kprintf("************ MY UID LIST END ************\n");
+    printf("************ MY UID LIST END ************\n");
 }
 

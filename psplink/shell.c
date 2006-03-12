@@ -31,6 +31,7 @@
 #include "util.h"
 #include "sio.h"
 #include "bitmap.h"
+#include "config.h"
 #include "shell.h"
 #include "script.h"
 #include "version.h"
@@ -1459,6 +1460,8 @@ static int exec_cmd(int argc, char **argv)
 
 static int list_dir(const char *name)
 {
+	char buffer[512];
+	char *p = buffer;
 	int dfd;
 	static SceIoDirent dir;
 
@@ -1469,14 +1472,15 @@ static int list_dir(const char *name)
 		while(sceIoDread(dfd, &dir) > 0)
 		{
 			int ploop;
+			p = buffer;
 
 			if(dir.d_stat.st_attr & FIO_SO_IFDIR)
 			{
-				printf("d");
+				*p++ = 'd';
 			}
 			else
 			{
-				printf("-");
+				*p++ = '-';
 			}
 
 			for(ploop = 2; ploop >= 0; ploop--)
@@ -1486,37 +1490,40 @@ static int list_dir(const char *name)
 				bits = (dir.d_stat.st_mode >> (ploop * 3)) & 0x7;
 				if(bits & 4)
 				{
-					printf("r");
+					*p++ = 'r';
 				}
 				else
 				{
-					printf("-");
+					*p++ = '-';
 				}
 
 				if(bits & 2)
 				{
-					printf("w");
+					*p++ = 'w';
 				}
 				else
 				{
-					printf("-");
+					*p++ = '-';
 				}
 
 				if(bits & 1)
 				{
-					printf("x");
+					*p++ = 'x';
 				}
 				else
 				{
-					printf("-");
+					*p++ = '-';
 				}
 			}
 
-			printf(" %8d ", (int) dir.d_stat.st_size);
-			printf("%02d-%02d-%04d %02d:%02d ", dir.d_stat.st_mtime.day, 
+			sprintf(p, " %8d ", (int) dir.d_stat.st_size);
+			p += strlen(p);
+			sprintf(p, "%02d-%02d-%04d %02d:%02d ", dir.d_stat.st_mtime.day, 
 					dir.d_stat.st_mtime.month, dir.d_stat.st_mtime.year,
 					dir.d_stat.st_mtime.hour, dir.d_stat.st_mtime.minute);
-			printf("%s\n", dir.d_name);
+			p += strlen(p);
+			sprintf(p, "%s", dir.d_name);
+			printf("%s\n", buffer);
 			memset(&dir, 0, sizeof(dir));
 		}
 
@@ -1840,9 +1847,12 @@ static int memblocks_cmd(int argc, char **argv)
 /* Print a row of a memory dump, up to row_size */
 static void print_row(const u32* row, s32 row_size, u32 addr, int type)
 {
+	char buffer[128];
+	char *p = buffer;
 	int i = 0;
 
-	printf("%08x - ", addr);
+	sprintf(p, "%08x - ", addr);
+	p += strlen(p);
 
 	if(type == MEMDUMP_TYPE_WORD)
 	{
@@ -1850,12 +1860,13 @@ static void print_row(const u32* row, s32 row_size, u32 addr, int type)
 		{
 			if(i < row_size)
 			{
-				printf("%02X%02X%02X%02X ", row[i+3], row[i+2], row[i+1], row[i]);
+				sprintf(p, "%02X%02X%02X%02X ", row[i+3], row[i+2], row[i+1], row[i]);
 			}
 			else
 			{
-				printf("-------- ");
+				sprintf(p, "-------- ");
 			}
+			p += strlen(p);
 		}
 	}
 	else if(type == MEMDUMP_TYPE_HALF)
@@ -1864,12 +1875,14 @@ static void print_row(const u32* row, s32 row_size, u32 addr, int type)
 		{
 			if(i < row_size)
 			{
-				printf("%02X%02X ", row[i+1], row[i]);
+				sprintf(p, "%02X%02X ", row[i+1], row[i]);
 			}
 			else
 			{
-				printf("---- ");
+				sprintf(p, "---- ");
 			}
+
+			p += strlen(p);
 		}
 	}
 	else
@@ -1878,36 +1891,41 @@ static void print_row(const u32* row, s32 row_size, u32 addr, int type)
 		{
 			if(i < row_size)
 			{
-				printf("%02X ", row[i]);
+				sprintf(p, "%02X ", row[i]);
 			}
 			else
 			{
-				printf("-- ");
+				sprintf(p, "-- ");
 			}
+
+			p += strlen(p);
 		}
 	}
 
-	printf("- ");
+	sprintf(p, "- ");
+	p += strlen(p);
+
 	for(i = 0; i < 16; i++)
 	{
 		if(i < row_size)
 		{
 			if((row[i] >= 32) && (row[i] < 127))
 			{
-				printf("%c", row[i]);
+				*p++ = row[i];
 			}
 			else
 			{
-				printf(".");
+				*p++ =  '.';
 			}
 		}
 		else
 		{
-			printf(".");
+			*p++ = '.';
 		}
 	}
+	*p = 0;
 
-	printf("\n");
+	printf("%s\n", buffer);
 }
 
 /* Print a memory dump to SIO */
@@ -3314,6 +3332,34 @@ static int wifishell_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int config_cmd(int argc, char **argv)
+{
+	configPrint(g_context.bootpath);
+
+	return CMD_OK;
+}
+
+static int confset_cmd(int argc, char **argv)
+{
+	if(argc > 1)
+	{
+		configChange(g_context.bootpath, argv[0], argv[1], CONFIG_MODE_ADD);
+	}
+	else
+	{
+		configChange(g_context.bootpath, argv[0], "", CONFIG_MODE_ADD);
+	}
+
+	return CMD_OK;
+}
+
+static int confdel_cmd(int argc, char **argv)
+{
+	configChange(g_context.bootpath, argv[0], "", CONFIG_MODE_DEL);
+
+	return CMD_OK;
+}
+
 static int exit_cmd(int argc, char **argv)
 {
 	return CMD_EXITSHELL;
@@ -3459,8 +3505,11 @@ struct sh_command commands[] = {
 	{ "reset", "r", reset_cmd, 0, "Reset", "r", SHELL_TYPE_CMD },
 	{ "wifi", NULL, wifi_cmd, 0, "Enable WIFI with a specified AP config", "wifi [ap]", SHELL_TYPE_CMD },
 	{ "wifishell", NULL, wifishell_cmd, 0, "Enable WIFI Shell with a specified AP config", "wifishell [ap]", SHELL_TYPE_CMD },
-	{ "ver", "v", version_cmd, 0, "Print version of psplink", SHELL_TYPE_CMD },
-	{ "pspver", NULL, pspver_cmd, 0, "Print the version of PSP", SHELL_TYPE_CMD },
+	{ "ver", "v", version_cmd, 0, "Print version of psplink", "v", SHELL_TYPE_CMD },
+	{ "pspver", NULL, pspver_cmd, 0, "Print the version of PSP", "pspver", SHELL_TYPE_CMD },
+	{ "config", NULL, config_cmd, 0, "Print the configuration file settings", "config", SHELL_TYPE_CMD },
+	{ "confset", NULL, confset_cmd, 1, "Set a configuration value", "confset name [value]", SHELL_TYPE_CMD },
+	{ "confdel", NULL, confdel_cmd, 1, "Delete a configuration value", "confdel name", SHELL_TYPE_CMD },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command|category]", SHELL_TYPE_CMD },
 	{ "custom", "cst", custom_cmd, 1, "Custom command (for Conshell)", "custom commandnumber", SHELL_TYPE_CMD },
 

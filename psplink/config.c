@@ -324,3 +324,102 @@ void configLoad(const char *bootpath, struct ConfigContext *ctx)
 		ctx->sioshell = 1;
 	}
 }
+
+void configPrint(const char *bootpath)
+{
+	char cnf_path[256];
+	struct ConfigFile cnf;
+
+	strcpy(cnf_path, bootpath);
+	strcat(cnf_path, "psplink.ini");
+	printf("Config Path %s\n", cnf_path);
+	if(psplinkConfigOpen(cnf_path, &cnf))
+	{
+		const char *name;
+		const char *val;
+
+		while((val = psplinkConfigReadNext(&cnf, &name)))
+		{
+			printf("%s=%s\n", name, val);
+		}
+
+		psplinkConfigClose(&cnf);
+	}
+}
+
+void configChange(const char *bootpath, const char *newname, const char *newval, int mode)
+{
+	char cnf_path[256];
+	char new_path[256];
+	int found = 0;
+	struct ConfigFile cnf;
+	int fd = -1;
+
+	if((mode != CONFIG_MODE_ADD) && (mode != CONFIG_MODE_DEL))
+	{
+		return;
+	}
+
+	strcpy(cnf_path, bootpath);
+	strcat(cnf_path, "psplink.ini");
+	printf("Config Path %s\n", cnf_path);
+
+	strcpy(new_path, bootpath);
+	strcat(new_path, "psplink.ini.tmp");
+	fd = sceIoOpen(new_path, PSP_O_WRONLY | PSP_O_TRUNC | PSP_O_CREAT, 0777);
+	if(fd >= 0)
+	{
+		if(psplinkConfigOpen(cnf_path, &cnf))
+		{
+			const char *name;
+			const char *val;
+
+			while((val = psplinkConfigReadNext(&cnf, &name)))
+			{
+				if(strcmp(name, newname) == 0)
+				{
+					if(mode == CONFIG_MODE_ADD)
+					{
+						fdprintf(fd, "%s=\"%s\"\n", newname, newval);
+						found = 1;
+					}
+				}
+				else
+				{
+					fdprintf(fd, "%s=\"%s\"\n", name, val);
+				}
+			}
+
+			if((mode == CONFIG_MODE_ADD) && (!found))
+			{
+				fdprintf(fd, "%s=\"%s\"\n", newname, newval);
+			}
+
+			sceIoClose(fd);
+			fd = -1;
+			psplinkConfigClose(&cnf);
+
+			if(sceIoRemove(cnf_path) < 0)
+			{
+				printf("Error deleting original configuration\n");
+			}
+			else
+			{
+				if(sceIoRename(new_path, cnf_path) < 0)
+				{
+					printf("Error renaming configuration\n");
+				}
+			}
+		}
+		else
+		{
+			printf("Couldn't open temporary config file %s\n", new_path);
+		}
+
+		if(fd >= 0)
+		{
+			sceIoClose(fd);
+			sceIoRemove(new_path);
+		}
+	}
+}
