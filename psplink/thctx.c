@@ -16,6 +16,7 @@
 #include <psputilsforkernel.h>
 #include <pspmoduleexport.h>
 #include <psploadcore.h>
+#include <pspsdk.h>
 #include <stdio.h>
 #include <string.h>
 #include "util.h"
@@ -94,15 +95,25 @@ static TCB *find_thread_tcb(SceUID uid)
 
 int threadFindContext(SceUID uid)
 {
-	TCB *tcb = find_thread_tcb(uid);
+	TCB *tcb;
+	TCB tcbCopy;
+	CONTEXT ctxCopy;
+	//u32 realepc, realsp, realra;
+	int intc;
+
+	intc = pspSdkDisableInterrupts();
+	tcb = find_thread_tcb(uid);
 
 	if(tcb)
 	{
-		TCB tcbCopy;
-		CONTEXT ctxCopy;
-
 		memcpy(&tcbCopy, tcb, sizeof(tcbCopy));
 		memcpy(&ctxCopy, tcb->context, sizeof(ctxCopy));
+	}
+
+	pspSdkEnableInterrupts(intc);
+
+	if(tcb)
+	{
 		printf("TCB 0x%p\n", tcb);
 		printf("kstack 0x%08X kstacksize 0x%08X\n", tcbCopy.kstack, tcbCopy.kstacksize);
 		printf("stack  0x%08X stacksize  0x%08X\n", tcbCopy.stack, tcbCopy.stacksize);

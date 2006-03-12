@@ -1,5 +1,7 @@
-#ifndef __NETGDB_H__
-#define __NETGDB_H__
+#ifndef __GDBCOMMON_H__
+#define __GDBCOMMON_H__
+
+#define MODULE_NAME "GDBServer"
 
 #define EVENT_HANDLE_EXP  0x1
 #define EVENT_CONTINUE    0x2
@@ -7,8 +9,6 @@
 struct GdbContext
 {
 	SceUID main_thread;
-	int servsock;
-	int sock;
 	PspDebugRegBlock regs;
 	/* Module args */
 	char **argv;
@@ -29,12 +29,18 @@ extern struct GdbContext g_context;
 
 int _gdbSupportLibReadByte(unsigned char *address, unsigned char *dest);
 int _gdbSupportLibWriteByte(char val, unsigned char *dest);
+int GdbHandleException (PspDebugRegBlock *regs);
+void GdbStubInit(void);
+int GdbTrapEntry(PspDebugRegBlock *regs);
+void GdbMain(void);
+int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info);
+
+/* Link specific functions */
+int isInit(void);
 int putDebugChar(unsigned char ch);
 int getDebugChar(unsigned char *ch);
 int  writeDebugData(void *data, int len);
-int GdbHandleException (PspDebugRegBlock *regs);
-void GdbStubInit(void);
-
-int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info);
+void start_server(void);
+void stop_server(void);
 
 #endif

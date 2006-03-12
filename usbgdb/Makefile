@@ -1,16 +1,17 @@
 TARGET = usbgdb
-OBJS = main.o gdb-stub.o USBHostFS.o psplink.o psplinkUser.o
+OBJS = usbgdb.o USBHostFS.o psplink.o psplinkUser.o
 
 PRX_EXPORTS=exports.exp
 BUILD_PRX=1
 USE_USER_LIBS=1
 
 INCDIR = 
-CFLAGS = -O0 -G0 -Wall -g -I../modnet/
+CFLAGS = -O0 -G0 -Wall -g -I../gdbcommon/
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
+LDFLAGS = -L../gdbcommon/
 
-LIBS=
+LIBS=-lgdb
 
 LIBDIR =
 

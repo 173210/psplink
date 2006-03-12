@@ -1,6 +1,7 @@
 all:
 	$(MAKE) -C psplink	all
 	$(MAKE) -C psplink_user all
+	$(MAKE) -C gdbcommon all
 	$(MAKE) -C modnet all
 	$(MAKE) -C netshell all
 	$(MAKE) -C netgdb   all
@@ -56,5 +57,6 @@ clean:
 	$(MAKE) -C conshell clean
 	$(MAKE) -C usbgdb   clean
 	$(MAKE) -C netgdb   clean
+	$(MAKE) -C gdbcommon clean
 	$(MAKE) -C bootstrap clean
 	rm -rf release

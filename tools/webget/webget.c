@@ -20,7 +20,7 @@ PSP_MODULE_INFO("webget", 0, 1, 1);
 PSP_MAIN_THREAD_NAME("WebGet");
 
 /* Define the main thread's attribute value (optional) */
-PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
+PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER);
 
 #define WRITEBUF_SIZE (512*1024)
 

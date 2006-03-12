@@ -780,7 +780,7 @@ static int print_thevinfo(SceUID uid, int verbose)
 
 static int thevlist_cmd(int argc, char **argv)
 {
-	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_ThreadEventHandler, "Thread Event Handler", print_mppinfo);
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_ThreadEventHandler, "Thread Event Handler", print_thevinfo);
 }
 
 static int thevinfo_cmd(int argc, char **argv)
@@ -1745,6 +1745,21 @@ static int cp_cmd(int argc, char **argv)
 	
 	sceIoClose(in);
 	sceIoClose(out);
+
+	return CMD_OK;
+}
+
+static int remap_cmd(int argc, char **argv)
+{
+	int ret;
+
+	sceIoUnassign(argv[1]);
+
+	ret = sceIoAssign(argv[1], argv[0], NULL, IOASSIGN_RDWR, NULL, 0);
+	if(ret < 0)
+	{
+		printf("Error remapping %s to %s, %08X\n", argv[0], argv[1], ret);
+	}
 
 	return CMD_OK;
 }
@@ -3410,6 +3425,7 @@ struct sh_command commands[] = {
 	{ "rm", "del", rm_cmd, 1, "Removes a File", "rm file", SHELL_TYPE_CMD },
 	{ "rmdir", "rd", rmdir_cmd, 1, "Removes a Directory", "rmdir dir", SHELL_TYPE_CMD },
 	{ "rename", "ren", rename_cmd, 2, "Renames a File", "rename src dst", SHELL_TYPE_CMD },
+	{ "remap", NULL, remap_cmd, 2, "Remaps a device to another", "remap devfrom: devto:", SHELL_TYPE_CMD },
 	{ "pwd",   NULL, pwd_cmd, 0, "Print the current working directory", "pwd", SHELL_TYPE_CMD },
 
 	{ "debugger", NULL, NULL, 0, "Debug commands", NULL, SHELL_TYPE_CATEGORY },

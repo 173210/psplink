@@ -8,8 +8,8 @@
  * Copyright (c) 2005 Julian T <lovely@crm114.net>
  * Copyright (c) 2005 James F <tyranid@gmail.com>
  *
- * $HeadURL$
- * $Id$
+ * $HeadURL: svn://tyranid@svn.pspdev.org/psp/trunk/psplink/netgdb/gdb-stub.c $
+ * $Id: gdb-stub.c 1789 2006-02-05 18:17:47Z tyranid $
  */
 /* Note: there is the odd small bit which comes from the gdb stubs/linux mips stub */
 /* As far as I am aware they didn't have an explicit license on them so... */
@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include "netgdb.h"
+#include "gdb-common.h"
 
 //#define DEBUG
 
