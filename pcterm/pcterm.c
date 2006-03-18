@@ -132,7 +132,7 @@ void cli_handler(char *buf)
 	if((buf) && (*buf))
 	{
 		add_history(rl_line_buffer);
-		if(strcmp(rl_line_buffer, "exit") == 0)
+		if((strcmp(rl_line_buffer, "exit") == 0) || (strcmp(rl_line_buffer, "quit") == 0))
 		{
 			g_context.exit = 1;
 		}
