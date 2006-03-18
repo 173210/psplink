@@ -89,6 +89,7 @@ struct HostDrive g_drives[MAX_HOSTDRIVES];
 int  g_verbose = 0;
 int  g_gdbdebug = 0;
 int  g_nocase = 0;
+int  g_pid = HOSTFSDRIVER_PID;
 unsigned short g_shellport = BASE_PORT;
 unsigned short g_gdbport = BASE_PORT+1;
 
@@ -206,7 +207,7 @@ usb_dev_handle *open_device(struct usb_bus *busses)
 		for(dev = bus->devices; dev; dev = dev->next)
 		{
 			if((dev->descriptor.idVendor == SONY_VID) 
-				&& (dev->descriptor.idProduct == HOSTFSDRIVER_PID))
+				&& (dev->descriptor.idProduct == g_pid))
 			{
 				hDev = usb_open(dev);
 				if(hDev != NULL)
@@ -607,17 +608,20 @@ int fill_stat(const char *dirname, const char *name, SceIoStat *scestat)
 	if(S_ISLNK(st.st_mode))
 	{
 		scestat->attr = LE32(FIO_SO_IFLNK);
+		scestat->mode = LE32(FIO_S_IFLNK);
 	}
 	else if(S_ISDIR(st.st_mode))
 	{
 		scestat->attr = LE32(FIO_SO_IFDIR);
+		scestat->mode = LE32(FIO_S_IFDIR);
 	}
 	else
 	{
 		scestat->attr = LE32(FIO_SO_IFREG);
+		scestat->mode = LE32(FIO_S_IFREG);
 	}
 
-	scestat->mode = LE32(st.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO));
+	scestat->mode |= LE32(st.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO));
 
 	fill_time(st.st_ctime, &scestat->ctime);
 	fill_time(st.st_atime, &scestat->atime);
@@ -2060,7 +2064,7 @@ int parse_args(int argc, char **argv)
 	{
 		int ch;
 
-		ch = getopt(argc, argv, "vhdcg:s:");
+		ch = getopt(argc, argv, "vhdcg:s:p:");
 		if(ch == -1)
 		{
 			break;
@@ -2073,6 +2077,8 @@ int parse_args(int argc, char **argv)
 			case 'g': g_gdbport = atoi(optarg);
 					  break;
 			case 's': g_shellport = atoi(optarg);
+					  break;
+			case 'p': g_pid = strtoul(optarg, NULL, 0);
 					  break;
 			case 'd': g_gdbdebug = 1;
 					  break;
@@ -2127,6 +2133,7 @@ void print_help(void)
 	fprintf(stderr, "-vv               : More verbose\n");
 	fprintf(stderr, "-s port           : Specify local shell port (default %d)\n", BASE_PORT);
 	fprintf(stderr, "-g port           : Specify local GDB port (default %d)\n", BASE_PORT+1);
+	fprintf(stderr, "-p pid            : Specify the product ID of the PSP device\n");
 	fprintf(stderr, "-d                : Print GDB transfers\n");
 	fprintf(stderr, "-c                : Enable case-insensitive filename\n");
 	fprintf(stderr, "-h                : Print this help\n");
@@ -2368,6 +2375,7 @@ int main(int argc, char **argv)
 	if(parse_args(argc, argv))
 	{
 		pthread_t thid;
+		usb_init();
 
 		/* Create sockets */
 		g_shellserv = make_socket(g_shellport);
@@ -2375,7 +2383,6 @@ int main(int argc, char **argv)
 
 		/* Mask out any executable bits, as they don't make sense */
 		pthread_create(&thid, NULL, async_thread, NULL);
-		usb_init();
 		start_hostfs();
 	}
 	else
