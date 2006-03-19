@@ -43,6 +43,7 @@
 #include "thctx.h"
 #include "disasm.h"
 #include "apihook.h"
+#include "tty.h"
 
 #define MAX_SHELL_VAR      128
 #define SHELL_PROMPT	"psplink %d>"
@@ -89,6 +90,8 @@ static SceUID g_command_event = -1;
 static int g_direct_term = 1;
 /* Indicates the name of the last module we loaded */
 static char g_lastmod[32] = "";
+/* Indicates we are in tty mode */
+static int g_ttymode = 0;
 
 #define COMMAND_EVENT_DONE 1
 
@@ -145,6 +148,11 @@ void print_prompt(void)
 	char tmp[MAX_SHELL_VAR];
 	const char *cliprompt;
 	int in, out;
+
+	if(g_ttymode)
+	{
+		return;
+	}
 
 	cliprompt = find_shell_var("prompt");
 	if(cliprompt == NULL)
@@ -3360,6 +3368,12 @@ static int confdel_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int tty_cmd(int argc, char **argv)
+{
+	g_ttymode = 1;
+	return CMD_OK;
+}
+
 static int exit_cmd(int argc, char **argv)
 {
 	return CMD_EXITSHELL;
@@ -3510,6 +3524,7 @@ struct sh_command commands[] = {
 	{ "config", NULL, config_cmd, 0, "Print the configuration file settings", "config", SHELL_TYPE_CMD },
 	{ "confset", NULL, confset_cmd, 1, "Set a configuration value", "confset name [value]", SHELL_TYPE_CMD },
 	{ "confdel", NULL, confdel_cmd, 1, "Delete a configuration value", "confdel name", SHELL_TYPE_CMD },
+	{ "tty", NULL, tty_cmd, 0, "Enter TTY mode. All input goes to stdin", "tty", SHELL_TYPE_CMD },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command|category]", SHELL_TYPE_CMD },
 	{ "custom", "cst", custom_cmd, 1, "Custom command (for Conshell)", "custom commandnumber", SHELL_TYPE_CMD },
 
@@ -3552,62 +3567,76 @@ int shellParse(char *command)
 	char outbuf[MAX_BUFFER];
 	char *ext;
 
-	if(parse_args(command, outbuf, &argc, argv, 16) == 0)
+	if(g_ttymode)
 	{
-		printf("Error parsing command\n");
-		return CMD_ERROR;
-	}
-
-	if((argc > 0) && (argv[0][0] != '#'))
-	{
-		struct sh_command *found_cmd;
-
-		/* See if the command contains a '.', if so this cannot be a command, try and execute it direct */
-		cmd = argv[0];
-		ext = strrchr(cmd, '.');
-		if(ext)
+		if((command[0] == '~') && (command[1] == '.'))
 		{
-			char path[MAXPATHLEN];
-
-			/* Not a relative path, try and find it in our path */
-			if(strchr(cmd, '/') == NULL)
-			{
-				const char *pathvar;
-
-				pathvar = find_shell_var("path");
-
-				if(findinpath(cmd, path, pathvar) == 0)
-				{
-					printf("Could not find %s in the path\n", cmd);
-					return CMD_ERROR;
-				}
-				/* Otherwise assign to argv[0] */
-				argv[0] = path;
-			}
-
-			if((strcmp(ext, ".sh") == 0) || (strcmp(ext, ".SH") == 0))
-			{
-				ret = run_cmd(argc, argv);
-			}
-			else
-			{
-				ret = ldstart_cmd(argc, argv);
-			}
+			g_ttymode = 0;
 		}
 		else
 		{
-			found_cmd = find_command(cmd);
-			if((found_cmd) && (found_cmd->type != SHELL_TYPE_CATEGORY))
+			ttyAddInputData(command, strlen(command));
+		}
+	}
+	else
+	{
+		if(parse_args(command, outbuf, &argc, argv, 16) == 0)
+		{
+			printf("Error parsing command\n");
+			return CMD_ERROR;
+		}
+
+		if((argc > 0) && (argv[0][0] != '#'))
+		{
+			struct sh_command *found_cmd;
+
+			/* See if the command contains a '.', if so this cannot be a command, try and execute it direct */
+			cmd = argv[0];
+			ext = strrchr(cmd, '.');
+			if(ext)
 			{
-				if((found_cmd->min_args > (argc - 1)) || ((ret = found_cmd->func(argc-1, &argv[1])) == CMD_ERROR))
+				char path[MAXPATHLEN];
+
+				/* Not a relative path, try and find it in our path */
+				if(strchr(cmd, '/') == NULL)
 				{
-					printf("Usage: %s\n", found_cmd->help);
+					const char *pathvar;
+
+					pathvar = find_shell_var("path");
+
+					if(findinpath(cmd, path, pathvar) == 0)
+					{
+						printf("Could not find %s in the path\n", cmd);
+						return CMD_ERROR;
+					}
+					/* Otherwise assign to argv[0] */
+					argv[0] = path;
+				}
+
+				if((strcmp(ext, ".sh") == 0) || (strcmp(ext, ".SH") == 0))
+				{
+					ret = run_cmd(argc, argv);
+				}
+				else
+				{
+					ret = ldstart_cmd(argc, argv);
 				}
 			}
 			else
 			{
-				printf("Unknown command %s\n", cmd);
-				ret = CMD_ERROR;
+				found_cmd = find_command(cmd);
+				if((found_cmd) && (found_cmd->type != SHELL_TYPE_CATEGORY))
+				{
+					if((found_cmd->min_args > (argc - 1)) || ((ret = found_cmd->func(argc-1, &argv[1])) == CMD_ERROR))
+					{
+						printf("Usage: %s\n", found_cmd->help);
+					}
+				}
+				else
+				{
+					printf("Unknown command %s\n", cmd);
+					ret = CMD_ERROR;
+				}
 			}
 		}
 	}

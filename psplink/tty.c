@@ -38,7 +38,7 @@ static char g_stdinbuf[STDIN_BUFSIZE];
 /* Position in STDIN buffer */
 static int g_stdinreadpos = 0;
 static int g_stdinwritepos = 0;
-static int g_stdinsizeleft = STDIN_BUFSIZE;
+static int g_stdinsize = 0;
 /* The waiting thread for stdin data */
 static SceUID g_stdinwaitth = -1;
 
@@ -74,11 +74,36 @@ static int outputHandler(const char *data, int size)
 
 static int inputHandler(char *data, int size)
 {
-	if(g_stdinwaitth >= 0)
+	int intc;
+	int sizeread = 0;
+	int i;
+
+	while(1)
 	{
+		intc = pspSdkDisableInterrupts();
+		sizeread = size < g_stdinsize ? size : g_stdinsize;
+		for(i = 0; i < sizeread; i++)
+		{
+			*data++ = g_stdinbuf[g_stdinreadpos++];
+			g_stdinreadpos %= STDIN_BUFSIZE;
+			g_stdinsize--;
+		}
+
+		if(sizeread == 0)
+		{
+			g_stdinwaitth = sceKernelGetThreadId();
+		}
+		pspSdkEnableInterrupts(intc);
+
+		if(sizeread > 0)
+		{
+			break;
+		}
+
+		sceKernelSleepThread();
 	}
 
-	return 0;
+	return sizeread;
 }
 
 void ttySetWifiHandler(PspDebugPrintHandler wifiHandler)
@@ -101,56 +126,25 @@ void ttySetConsHandler(PspDebugPrintHandler consHandler)
 	g_consHandler = consHandler;
 }
 
-void ttyAddInputData(void *data, int size)
+void ttyAddInputData(const char *data, int size)
 {
-	int sizestart;
-	int sizeend;
-	int sizewrite;
 	int intc;
+	int sizeleft;
 
 	intc = pspSdkDisableInterrupts();
-	if(g_stdinsizeleft > 0)
+	sizeleft = size < (STDIN_BUFSIZE - g_stdinsize) ? size : (STDIN_BUFSIZE - g_stdinsize);
+	while(sizeleft > 0)
 	{
-		if(size > g_stdinsizeleft)
-		{
-			/* Ensure size is at most the amount we have left */
-			size = g_stdinsizeleft;
-		}
-
-		if(g_stdinwritepos < g_stdinreadpos)
-		{
-			sizestart = g_stdinsizeleft;
-			sizeend = 0;
-		}
-		else
-		{
-			sizestart = STDIN_BUFSIZE - g_stdinwritepos;
-			sizeend = g_stdinreadpos;
-		}
-
-		/* Copy in from the writepos to end of the buf */
-		sizewrite = size < sizestart ? size : sizestart;
-		memcpy(&g_stdinbuf[g_stdinwritepos], data, sizewrite);
-		g_stdinwritepos = (g_stdinwritepos + sizewrite) % STDIN_BUFSIZE;
-		data += sizewrite;
-		size -= sizewrite;
-		g_stdinsizeleft -= sizewrite;
-		/* If the start wasn't sufficient the copy into the other end of the buffer */
-		if(size > 0)
-		{
-			sizewrite = size < sizeend ? size : sizeend;
-			memcpy(&g_stdinbuf[g_stdinwritepos], data, sizewrite);
-			g_stdinwritepos = (g_stdinwritepos + sizewrite) % STDIN_BUFSIZE;
-			g_stdinsizeleft -= sizewrite;
-		}
+		g_stdinbuf[g_stdinwritepos++] = *data++;
+		g_stdinwritepos %= STDIN_BUFSIZE;
+		g_stdinsize++;
+		sizeleft--;
 	}
-
 	if(g_stdinwaitth >= 0)
 	{
 		sceKernelWakeupThread(g_stdinwaitth);
 		g_stdinwaitth = -1;
 	}
-
 	pspSdkEnableInterrupts(intc);
 }
 

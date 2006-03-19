@@ -20,6 +20,7 @@
 #include "exception.h"
 #include "util.h"
 #include "symbols.h"
+#include "libs.h"
 
 struct mem_entry
 {
@@ -161,6 +162,7 @@ static int deref_addr(unsigned int *val, int deref)
 static int get_modaddr(char *name, unsigned int *val)
 {
 	char *pcolon;
+	char *pcomma;
 	SceKernelModuleInfo info;
 	SceModule *pMod;
 	SceUID uid = 0;
@@ -214,6 +216,22 @@ static int get_modaddr(char *name, unsigned int *val)
 	else if(strcmp(pcolon, "sbss") == 0)
 	{
 		*val = info.bss_size;
+	}
+	else if((pcomma = strchr(pcolon, ',')) != NULL)
+	{
+		/* Library export */
+		*pcomma = 0;
+		pcomma++;
+		if((pcomma[0] == '0') && (pcomma[1] == 'x'))
+		{
+			u32 nid;
+			nid = strtoul(pcomma, NULL, 16);
+			*val = libsFindExportByNid(uid, pcolon, nid);
+		}
+		else
+		{
+			*val = libsFindExportByName(uid, pcolon, pcomma);
+		}
 	}
 	else if((pcolon[0] == 's') && (pcolon[1] >= '1') && (pcolon[1] <= '4') && (pcolon[2] == 0))
 	{
