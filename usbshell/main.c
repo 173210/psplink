@@ -48,8 +48,6 @@ int main_thread(SceSize args, void *argp)
 	usb_async_flush(0);
 	ttySetUsbHandler(usbPrint);
 	usb_wait_for_connect();
-	/* Sleep for a second to ensure usb has come up */
-	sceKernelDelayThread(1000000);
 	psplinkPrintPrompt();
 
 	while(1)

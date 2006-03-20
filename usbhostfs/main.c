@@ -795,6 +795,11 @@ int usb_wait_for_connect(void)
 {
 	int ret;
 
+	while(g_mainevent < 0)
+	{
+		sceKernelDelayThread(100000);
+	}
+
 	ret = sceKernelWaitEventFlag(g_mainevent, USB_EVENT_CONNECT, PSP_EVENT_WAITOR, NULL, NULL);
 	if(ret == 0)
 	{
@@ -911,7 +916,7 @@ int start_func(int size, void *p)
 
 	memset(g_async_chan, 0, sizeof(g_async_chan));
 
-	g_mainevent = sceKernelCreateEventFlag("USBEvent", 0, 0, NULL);
+	g_mainevent = sceKernelCreateEventFlag("USBEvent", 0x200, 0, NULL);
 	if(g_mainevent < 0)
 	{
 		MODPRINTF("Couldn't create event flag %08X\n", g_mainevent);
