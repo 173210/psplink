@@ -23,6 +23,7 @@
 #include <psputilsforkernel.h>
 #include <pspsysmem_kernel.h>
 #include <pspdisplay.h>
+#include <pspthreadman_kernel.h>
 #include <stdint.h>
 #include "memoryUID.h"
 #include "psplink.h"
@@ -359,6 +360,26 @@ static int thlist_cmd(int argc, char **argv)
 	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_Thread, "Thread", print_threadinfo);
 }
 
+static int thsllist_cmd(int argc, char **argv)
+{
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_SleepThread, "Sleep Thread", print_threadinfo);
+}
+
+static int thdelist_cmd(int argc, char **argv)
+{
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_DelayThread, "Delay Thread", print_threadinfo);
+}
+
+static int thsulist_cmd(int argc, char **argv)
+{
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_SuspendThread, "Suspend Thread", print_threadinfo);
+}
+
+static int thdolist_cmd(int argc, char **argv)
+{
+	return threadmanlist_cmd(argc, argv, SCE_KERNEL_TMID_DormantThread, "Dormant Thread", print_threadinfo);
+}
+
 static int thinfo_cmd(int argc, char **argv)
 {
 	return threadmaninfo_cmd(argc, argv, "Thread", print_threadinfo, (ReferFunc) pspSdkReferThreadStatusByName);
@@ -384,6 +405,13 @@ static int thsusp_cmd(int argc, char **argv)
 	}
 
 	return ret;
+}
+
+static int thspuser_cmd(int argc, char **argv)
+{
+	sceKernelSuspendAllUserThreads();
+
+	return CMD_OK;
 }
 
 static int thresm_cmd(int argc, char **argv)
@@ -1198,7 +1226,7 @@ static int modexec_cmd(int argc, char **argv)
 	{
 		if(handlepath(g_context.currdir, argv[0], path, TYPE_FILE, 1))
 		{
-			len = build_args(args, argv[1], argc - 1, &argv[1]);
+			len = build_args(args, path, argc - 1, &argv[1]);
 			le.size = sizeof(le);
 			le.args = len;
 			le.argp = args;
@@ -3402,8 +3430,13 @@ struct sh_command
 struct sh_command commands[] = {
 	{ "thread", NULL, NULL, 0, "Commands to manipulate threads", NULL, SHELL_TYPE_CATEGORY },
 	{ "thlist", "tl", thlist_cmd, 0, "List the threads in the system", "tl [v]", SHELL_TYPE_CMD },
+	{ "thsllist", NULL, thsllist_cmd, 0, "List the sleeping threads in the system", "thsllist [v]", SHELL_TYPE_CMD },
+	{ "thdelist", NULL, thdelist_cmd, 0, "List the delayed threads in the system", "thdelist [v]", SHELL_TYPE_CMD },
+	{ "thsulist", NULL, thsulist_cmd, 0, "List the suspended threads in the system", "thsulist [v]", SHELL_TYPE_CMD },
+	{ "thdolist", NULL, thdolist_cmd, 0, "List the dormant threads in the system", "thdolist [v]", SHELL_TYPE_CMD },
 	{ "thinfo", "ti", thinfo_cmd, 1, "Print info about a thread", "ti uid|@name" , SHELL_TYPE_CMD},
 	{ "thsusp", "ts", thsusp_cmd, 1, "Suspend a thread", "ts uid|@name" , SHELL_TYPE_CMD},
+	{ "thspuser", NULL, thspuser_cmd, 0, "Suspend all user threads", "thspuser", SHELL_TYPE_CMD },
 	{ "thresm", "tr", thresm_cmd, 1, "Resume a thread", "tr uid|@name" , SHELL_TYPE_CMD},
 	{ "thwake", "tw", thwake_cmd, 1, "Wakeup a thread", "tw uid|@name" , SHELL_TYPE_CMD},
 	{ "thterm", "tt", thterm_cmd, 1, "Terminate a thread", "tt uid|@name" , SHELL_TYPE_CMD},
