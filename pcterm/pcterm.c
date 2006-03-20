@@ -144,6 +144,11 @@ void cli_handler(char *buf)
 			rl_callback_handler_install("", cli_handler);
 			return;
 		}
+		else if(rl_line_buffer[0] == '!')
+		{
+			system(&rl_line_buffer[1]);
+			return;
+		}
 
 		/* Remove the handler and prompt */
 		rl_callback_handler_remove();
