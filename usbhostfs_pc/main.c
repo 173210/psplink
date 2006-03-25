@@ -14,6 +14,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <usb.h>
 #include <limits.h>
 #include <fcntl.h>
@@ -62,6 +63,7 @@ struct FileHandle
 {
 	int opened;
 	int mode;
+	char *name;
 };
 
 struct DirHandle
@@ -84,7 +86,9 @@ static int g_shellsock = -1;
 static int g_gdbserv = -1;
 static int g_gdbsock = -1;
 
+pthread_mutex_t g_drivemtx = PTHREAD_MUTEX_INITIALIZER;
 struct HostDrive g_drives[MAX_HOSTDRIVES];
+char g_rootdir[PATH_MAX];
 
 int  g_verbose = 0;
 int  g_gdbdebug = 0;
@@ -439,6 +443,7 @@ int make_path(unsigned int drive, const char *path, char *retpath, int dir)
 {
 	char hostpath[PATH_MAX];
 	int len;
+	int ret = -1;
 
 	if(drive >= MAX_HOSTDRIVES)
 	{
@@ -446,37 +451,52 @@ int make_path(unsigned int drive, const char *path, char *retpath, int dir)
 		return -1;
 	}
 
-	len = snprintf(hostpath, PATH_MAX, "%s%s", g_drives[drive].currdir, path);
-	if((len < 0) || (len >= PATH_MAX))
+	if(pthread_mutex_lock(&g_drivemtx))
 	{
-		fprintf(stderr, "Path length too big (%d)\n", len);
+		fprintf(stderr, "Could not lock mutex (%s)\n", strerror(errno));
 		return -1;
 	}
 
-	if(gen_path(hostpath, dir) == 0)
+	do
 	{
-		return -1;
-	}
 
-	/* Make the relative path case insensitive if needed */
-	if(g_nocase)
-	{
-		make_nocase(g_drives[drive].rootdir, hostpath, dir);
-	}
+		len = snprintf(hostpath, PATH_MAX, "%s%s", g_drives[drive].currdir, path);
+		if((len < 0) || (len >= PATH_MAX))
+		{
+			fprintf(stderr, "Path length too big (%d)\n", len);
+			break;
+		}
 
-	len = snprintf(retpath, PATH_MAX, "%s/%s", g_drives[drive].rootdir, hostpath);
-	if((len < 0) || (len >= PATH_MAX))
-	{
-		fprintf(stderr, "Path length too big (%d)\n", len);
-		return -1;
-	}
+		if(gen_path(hostpath, dir) == 0)
+		{
+			break;
+		}
 
-	if(gen_path(retpath, dir) == 0)
-	{
-		return -1;
-	}
+		/* Make the relative path case insensitive if needed */
+		if(g_nocase)
+		{
+			make_nocase(g_drives[drive].rootdir, hostpath, dir);
+		}
 
-	return 0;
+		len = snprintf(retpath, PATH_MAX, "%s/%s", g_drives[drive].rootdir, hostpath);
+		if((len < 0) || (len >= PATH_MAX))
+		{
+			fprintf(stderr, "Path length too big (%d)\n", len);
+			break;
+		}
+
+		if(gen_path(retpath, dir) == 0)
+		{
+			break;
+		}
+
+		ret = 0;
+	}
+	while(0);
+
+	pthread_mutex_unlock(&g_drivemtx);
+
+	return ret;
 }
 
 int open_file(int drive, const char *path, unsigned int mode, unsigned int mask)
@@ -545,6 +565,7 @@ int open_file(int drive, const char *path, unsigned int mode, unsigned int mask)
 		{
 			open_files[fd].opened = 1;
 			open_files[fd].mode = mode;
+			open_files[fd].name = strdup(fullpath);
 		}
 		else
 		{
@@ -1059,6 +1080,11 @@ int handle_close(struct usb_dev_handle *hDev, struct HostFsCloseCmd *cmd, int cm
 		{
 			resp.res = LE32(close(fid));
 			open_files[fid].opened = 0;
+			if(open_files[fid].name)
+			{
+				free(open_files[fid].name);
+				open_files[fid].name = NULL;
+			}
 		}
 		else
 		{
@@ -1819,6 +1845,11 @@ void close_hostfs(void)
 		{
 			close(i);
 			open_files[i].opened = 0;
+			if(open_files[i].name)
+			{
+				free(open_files[i].name);
+				open_files[i].name = NULL;
+			}
 		}
 	}
 
@@ -2046,10 +2077,9 @@ int start_hostfs(void)
 
 int parse_args(int argc, char **argv)
 {
-	char rootdir[PATH_MAX];
 	int i;
 
-	if(getcwd(rootdir, PATH_MAX) < 0)
+	if(getcwd(g_rootdir, PATH_MAX) < 0)
 	{
 		fprintf(stderr, "Could not get current path\n");
 		return 0;
@@ -2057,7 +2087,7 @@ int parse_args(int argc, char **argv)
 
 	for(i = 0; i < MAX_HOSTDRIVES; i++)
 	{
-		strcpy(g_drives[i].rootdir, rootdir);
+		strcpy(g_drives[i].rootdir, g_rootdir);
 	}
 
 	while(1)
@@ -2106,7 +2136,7 @@ int parse_args(int argc, char **argv)
 			if(argv[i][0] != '/')
 			{
 				char tmpdir[PATH_MAX];
-				snprintf(tmpdir, PATH_MAX, "%s/%s", rootdir, argv[i]);
+				snprintf(tmpdir, PATH_MAX, "%s/%s", g_rootdir, argv[i]);
 				strcpy(g_drives[i].rootdir, tmpdir);
 			}
 			else
@@ -2119,7 +2149,7 @@ int parse_args(int argc, char **argv)
 	}
 	else
 	{
-		V_PRINTF(2, "Root directory: %s\n", rootdir);
+		V_PRINTF(2, "Root directory: %s\n", g_rootdir);
 	}
 
 	return 1;
@@ -2135,7 +2165,7 @@ void print_help(void)
 	fprintf(stderr, "-g port           : Specify local GDB port (default %d)\n", BASE_PORT+1);
 	fprintf(stderr, "-p pid            : Specify the product ID of the PSP device\n");
 	fprintf(stderr, "-d                : Print GDB transfers\n");
-	fprintf(stderr, "-c                : Enable case-insensitive filename\n");
+	fprintf(stderr, "-c                : Enable case-insensitive filenames\n");
 	fprintf(stderr, "-h                : Print this help\n");
 }
 
@@ -2212,6 +2242,150 @@ int make_socket(unsigned short port)
 	return sock;
 }
 
+#define COMMAND_OK   0
+#define COMMAND_ERR  1
+#define COMMAND_HELP 2
+
+struct ShellCmd
+{
+	const char *name;
+	const char *help;
+	int (*fn)(void);
+};
+
+int list_drives(void)
+{
+	int i;
+
+	for(i = 0; i < MAX_HOSTDRIVES; i++)
+	{
+		printf("host%d: %s\n", i, g_drives[i].rootdir);
+	}
+
+	return COMMAND_OK;
+}
+
+int mount_drive(void)
+{
+	char *num;
+	char *dir;
+	int  val;
+	char *endp;
+	char path[PATH_MAX];
+	DIR *pDir;
+
+	num = strtok(NULL, " \t");
+	dir = strtok(NULL, "");
+	printf("Num: %s - Dir %s\n", num, dir);
+
+	if((!num) || (!dir))
+	{
+		printf("Must specify a drive number and a directory\n");
+		return COMMAND_ERR;
+	}
+
+	val = strtoul(num, &endp, 10);
+	if((*endp) || (val < 0) || (val >= MAX_HOSTDRIVES))
+	{
+		printf("Invalid host driver number '%s'\n", num);
+		return COMMAND_ERR;
+	}
+
+	/* Make path */
+	if(dir[0] != '/')
+	{
+		snprintf(path, PATH_MAX, "%s/%s", g_rootdir, dir);
+	}
+	else
+	{
+		strcpy(path, dir);
+	}
+	gen_path(path, 0);
+
+	pDir = opendir(path);
+	if(pDir)
+	{
+		closedir(pDir);
+		if(pthread_mutex_lock(&g_drivemtx))
+		{
+			printf("Couldn't lock mutex\n");
+			return COMMAND_ERR;
+		}
+
+		strcpy(g_drives[val].rootdir, path);
+		strcpy(g_drives[val].currdir, "/");
+
+		pthread_mutex_unlock(&g_drivemtx);
+	}
+	else
+	{
+		printf("Invalid directory '%s'\n", path);
+	}
+
+	return COMMAND_OK;
+}
+
+int help_cmd(void)
+{
+	return COMMAND_HELP;
+}
+
+struct ShellCmd g_commands[] = {
+	{ "drives", "Print the current drives", list_drives },
+	{ "mount", "Mount a directory (mount num dir)", mount_drive },
+	{ "help", "Print this help", help_cmd },
+};
+
+void parse_shell(char *buf)
+{
+	int len;
+
+	/* Remove whitespace */
+	len = strlen(buf);
+	while((len > 0) && (isspace(buf[len-1])))
+	{
+		buf[len-1] = 0;
+		len--;
+	}
+
+	while(isspace(*buf))
+	{
+		buf++;
+		len--;
+	}
+
+	if(len > 0)
+	{
+		const char *cmd;
+		int i;
+		int ret = COMMAND_HELP;
+
+		cmd = strtok(buf, " \t");
+		for(i = 0; i < (sizeof(g_commands) / sizeof(struct ShellCmd)); i++)
+		{
+			if(strcmp(cmd, g_commands[i].name) == 0)
+			{
+				if(g_commands[i].fn)
+				{
+					ret = g_commands[i].fn();
+				}
+				break;
+			}
+		}
+
+		if(ret == COMMAND_HELP)
+		{
+			int i;
+
+			printf("-= Help =-\n");
+			for(i = 0; i < (sizeof(g_commands) / sizeof(struct ShellCmd)); i++)
+			{
+				printf("%-10s: %s\n", g_commands[i].name, g_commands[i].help);
+			}
+		}
+	}
+}
+
 void *async_thread(void *arg)
 {
 	char shell[512];
@@ -2225,6 +2399,8 @@ void *async_thread(void *arg)
 	int flag = 1;
 
 	FD_ZERO(&read_save);
+	FD_SET(STDIN_FILENO, &read_save);
+	max_fd = STDIN_FILENO + 1;
 
 	if(g_shellserv >= 0)
 	{
@@ -2260,6 +2436,16 @@ void *async_thread(void *arg)
 		read_set = read_save;
 		if(select(max_fd+1, &read_set, NULL, NULL, NULL) > 0)
 		{
+			if(FD_ISSET(STDIN_FILENO, &read_set))
+			{
+				char buffer[4096];
+
+				if(fgets(buffer, sizeof(buffer), stdin))
+				{
+					parse_shell(buffer);
+				}
+			}
+
 			if(FD_ISSET(g_shellserv, &read_set))
 			{
 				if(g_shellsock >= 0)
