@@ -1219,21 +1219,34 @@ static int modexec_cmd(int argc, char **argv)
 {
 	char path[1024];
 	char args[1024];
+	char *file = NULL;
+	char *key = NULL;
 	int  len;
 	struct SceKernelLoadExecParam le;
 
-	if(argc > 0)
+	if(argv[0][0] == '@')
 	{
-		if(handlepath(g_context.currdir, argv[0], path, TYPE_FILE, 1))
+		key = &argv[0][1];
+		if(argc < 2)
 		{
-			len = build_args(args, path, argc - 1, &argv[1]);
-			le.size = sizeof(le);
-			le.args = len;
-			le.argp = args;
-			le.key = NULL;
-
-			sceKernelLoadExec(path, &le);
+			return CMD_ERROR;
 		}
+		file = argv[1];
+	}
+	else
+	{
+		file = argv[0];
+	}
+
+	if(handlepath(g_context.currdir, file, path, TYPE_FILE, 1))
+	{
+		len = build_args(args, path, argc - 1, &argv[1]);
+		le.size = sizeof(le);
+		le.args = len;
+		le.argp = args;
+		le.key = key;
+
+		sceKernelLoadExec(path, &le);
 	}
 
 	return CMD_OK;
@@ -3469,7 +3482,7 @@ struct sh_command commands[] = {
 	{ "modunld","mu", modunld_cmd, 1, "Unload a module (must be stopped)", "mu uid|@name", SHELL_TYPE_CMD },
 	{ "modload","md", modload_cmd, 1, "Load a module", "md path", SHELL_TYPE_CMD },
 	{ "modstart","mt", modstart_cmd, 1, "Start a module", "mt uid|@name [args]", SHELL_TYPE_CMD },
-	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me path [args]", SHELL_TYPE_CMD },
+	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me [@key] path [args]", SHELL_TYPE_CMD },
 	{ "modaddr","ma", modaddr_cmd, 1, "Display info about the module at a specified address", "ma addr", SHELL_TYPE_CMD },
 	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path] [args]", SHELL_TYPE_CMD },
 	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path [args]", SHELL_TYPE_CMD },
