@@ -2253,6 +2253,34 @@ struct ShellCmd
 	int (*fn)(void);
 };
 
+int nocase_set(void)
+{
+	char *set;
+
+	set = strtok(NULL, " \t");
+	if(set)
+	{
+		if(strcmp(set, "on") == 0)
+		{
+			g_nocase = 1;
+		}
+		else if(strcmp(set, "off") == 0)
+		{
+			g_nocase = 0;
+		}
+		else
+		{
+			printf("Error setting nocase, invalid option '%s'\n", set);
+		}
+	}
+	else
+	{
+		printf("nocase: %s\n", g_nocase ? "on" : "off");
+	}
+
+	return COMMAND_OK;
+}
+
 int list_drives(void)
 {
 	int i;
@@ -2333,6 +2361,7 @@ int help_cmd(void)
 struct ShellCmd g_commands[] = {
 	{ "drives", "Print the current drives", list_drives },
 	{ "mount", "Mount a directory (mount num dir)", mount_drive },
+	{ "nocase", "Set case sensitivity (nocase on|off)", nocase_set },
 	{ "help", "Print this help", help_cmd },
 };
 
