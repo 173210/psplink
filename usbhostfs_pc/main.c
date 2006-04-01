@@ -605,7 +605,14 @@ int fill_stat(const char *dirname, const char *name, SceIoStat *scestat)
 	/* If dirname is NULL then name is a preconverted path */
 	if(dirname != NULL)
 	{
-		len = snprintf(path, PATH_MAX, "%s/%s", dirname, name);
+		if(dirname[strlen(dirname)-1] == '/')
+		{
+			len = snprintf(path, PATH_MAX, "%s%s", dirname, name);
+		}
+		else
+		{
+			len = snprintf(path, PATH_MAX, "%s/%s", dirname, name);
+		}
 		if((len < 0) || (len > PATH_MAX))
 		{
 			fprintf(stderr, "Couldn't fill in directory name\n");
