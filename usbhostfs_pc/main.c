@@ -806,7 +806,7 @@ int handle_open(struct usb_dev_handle *hDev, struct HostFsOpenCmd *cmd, int cmdl
 		ret = euid_usb_bulk_read(hDev, 0x81, path, LE32(cmd->cmd.extralen), 10000);
 		if(ret != LE32(cmd->cmd.extralen))
 		{
-			fprintf(stderr, "Error reading open data cmd->extralen %d, ret %d\n", LE32(cmd->cmd.extralen), ret);
+			fprintf(stderr, "Error reading open data cmd->extralen %ud, ret %d\n", LE32(cmd->cmd.extralen), ret);
 			break;
 		}
 
@@ -2196,7 +2196,7 @@ void shutdown_socket(void)
 	}
 }
 
-void signal_handler(int sig)
+int exit_app(void)
 {
 	printf("Exiting\n");
 	shutdown_socket();
@@ -2208,6 +2208,13 @@ void signal_handler(int sig)
 		close_device(g_hDev);
 	}
 	exit(1);
+
+	return 0;
+}
+
+void signal_handler(int sig)
+{
+	exit_app();
 }
 
 int make_socket(unsigned short port)
@@ -2363,6 +2370,7 @@ struct ShellCmd g_commands[] = {
 	{ "mount", "Mount a directory (mount num dir)", mount_drive },
 	{ "nocase", "Set case sensitivity (nocase on|off)", nocase_set },
 	{ "help", "Print this help", help_cmd },
+	{ "exit", "Exit the application", exit_app },
 };
 
 void parse_shell(char *buf)
