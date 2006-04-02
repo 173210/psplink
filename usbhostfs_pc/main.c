@@ -85,6 +85,7 @@ static int g_shellserv = -1;
 static int g_shellsock = -1;
 static int g_gdbserv = -1;
 static int g_gdbsock = -1;
+static const char *g_mapfile = NULL;
 
 pthread_mutex_t g_drivemtx = PTHREAD_MUTEX_INITIALIZER;
 struct HostDrive g_drives[MAX_HOSTDRIVES];
@@ -2101,7 +2102,7 @@ int parse_args(int argc, char **argv)
 	{
 		int ch;
 
-		ch = getopt(argc, argv, "vhdcg:s:p:");
+		ch = getopt(argc, argv, "vhdcg:s:p:f:");
 		if(ch == -1)
 		{
 			break;
@@ -2120,6 +2121,8 @@ int parse_args(int argc, char **argv)
 			case 'd': g_gdbdebug = 1;
 					  break;
 			case 'c': g_nocase = 1;
+					  break;
+			case 'f': g_mapfile = optarg;
 					  break;
 			case 'h': return 0;
 			default:  printf("Unknown option\n");
@@ -2172,6 +2175,7 @@ void print_help(void)
 	fprintf(stderr, "-g port           : Specify local GDB port (default %d)\n", BASE_PORT+1);
 	fprintf(stderr, "-p pid            : Specify the product ID of the PSP device\n");
 	fprintf(stderr, "-d                : Print GDB transfers\n");
+	fprintf(stderr, "-f filename       : Load the host drive mappings from a file\n");
 	fprintf(stderr, "-c                : Enable case-insensitive filenames\n");
 	fprintf(stderr, "-h                : Print this help\n");
 }
@@ -2256,6 +2260,52 @@ int make_socket(unsigned short port)
 	return sock;
 }
 
+int add_drive(int num, const char *dir)
+{
+	char path[PATH_MAX];
+	DIR *pDir;
+
+	if((num < 0) || (num >= MAX_HOSTDRIVES))
+	{
+		printf("Invalid host driver number '%d'\n", num);
+		return 0;
+	}
+
+	/* Make path */
+	if(dir[0] != '/')
+	{
+		snprintf(path, PATH_MAX, "%s/%s", g_rootdir, dir);
+	}
+	else
+	{
+		strcpy(path, dir);
+	}
+	gen_path(path, 0);
+
+	pDir = opendir(path);
+	if(pDir)
+	{
+		closedir(pDir);
+		if(pthread_mutex_lock(&g_drivemtx))
+		{
+			printf("Couldn't lock mutex\n");
+			return 0;
+		}
+
+		strcpy(g_drives[num].rootdir, path);
+		strcpy(g_drives[num].currdir, "/");
+
+		pthread_mutex_unlock(&g_drivemtx);
+	}
+	else
+	{
+		printf("Invalid directory '%s'\n", path);
+		return 0;
+	}
+
+	return 1;
+}
+
 #define COMMAND_OK   0
 #define COMMAND_ERR  1
 #define COMMAND_HELP 2
@@ -2295,6 +2345,51 @@ int nocase_set(void)
 	return COMMAND_OK;
 }
 
+int gdbdebug_set(void)
+{
+	char *set;
+
+	set = strtok(NULL, " \t");
+	if(set)
+	{
+		if(strcmp(set, "on") == 0)
+		{
+			g_gdbdebug = 1;
+		}
+		else if(strcmp(set, "off") == 0)
+		{
+			g_gdbdebug = 0;
+		}
+		else
+		{
+			printf("Error setting nocase, invalid option '%s'\n", set);
+		}
+	}
+	else
+	{
+		printf("gdbdebug: %s\n", g_gdbdebug ? "on" : "off");
+	}
+
+	return COMMAND_OK;
+}
+
+int verbose_set(void)
+{
+	char *set;
+
+	set = strtok(NULL, " \t");
+	if(set)
+	{
+		g_verbose = atoi(set);
+	}
+	else
+	{
+		printf("verbose: %d\n", g_verbose);
+	}
+
+	return COMMAND_OK;
+}
+
 int list_drives(void)
 {
 	int i;
@@ -2313,12 +2408,9 @@ int mount_drive(void)
 	char *dir;
 	int  val;
 	char *endp;
-	char path[PATH_MAX];
-	DIR *pDir;
 
 	num = strtok(NULL, " \t");
 	dir = strtok(NULL, "");
-	printf("Num: %s - Dir %s\n", num, dir);
 
 	if((!num) || (!dir))
 	{
@@ -2327,42 +2419,121 @@ int mount_drive(void)
 	}
 
 	val = strtoul(num, &endp, 10);
-	if((*endp) || (val < 0) || (val >= MAX_HOSTDRIVES))
+	if(*endp)
 	{
 		printf("Invalid host driver number '%s'\n", num);
 		return COMMAND_ERR;
 	}
 
-	/* Make path */
-	if(dir[0] != '/')
+	if(!add_drive(val, dir))
 	{
-		snprintf(path, PATH_MAX, "%s/%s", g_rootdir, dir);
+		return COMMAND_ERR;
 	}
-	else
-	{
-		strcpy(path, dir);
-	}
-	gen_path(path, 0);
 
-	pDir = opendir(path);
-	if(pDir)
+	return COMMAND_OK;
+}
+
+void load_mapfile(const char *mapfile)
+{
+	char path[PATH_MAX];
+	FILE *fp;
+	int line = 0;
+
+	fp = fopen(mapfile, "r");
+	if(fp == NULL)
 	{
-		closedir(pDir);
-		if(pthread_mutex_lock(&g_drivemtx))
+		printf("Couldn't open mapfile '%s'\n", g_mapfile);
+		return;
+	}
+
+	while(fgets(path, PATH_MAX, fp))
+	{
+		char *buf = path;
+		int len;
+		int num;
+
+		line++;
+		/* Remove whitespace */
+		len = strlen(buf);
+		while((len > 0) && (isspace(buf[len-1])))
 		{
-			printf("Couldn't lock mutex\n");
-			return COMMAND_ERR;
+			buf[len-1] = 0;
+			len--;
 		}
 
-		strcpy(g_drives[val].rootdir, path);
-		strcpy(g_drives[val].currdir, "/");
+		while(isspace(*buf))
+		{
+			buf++;
+			len--;
+		}
 
-		pthread_mutex_unlock(&g_drivemtx);
+		if(!isdigit(*buf))
+		{
+			printf("Line %d: Entry does not start with the host number\n", line);
+			continue;
+		}
+
+		if(len > 0)
+		{
+			char *endp;
+			num = strtoul(buf, &endp, 10);
+			if((*endp != '=') || (*(endp+1) == 0) || (isspace(*(endp+1))))
+			{
+				printf("Line %d: Entry is not of the form 'num=path'\n", line);
+				continue;
+			}
+
+			endp++;
+
+			add_drive(num, endp);
+		}
 	}
-	else
+
+	fclose(fp);
+}
+
+int load_drives(void)
+{
+	char *mapfile;
+
+	mapfile = strtok(NULL, "");
+	if(mapfile == NULL)
 	{
-		printf("Invalid directory '%s'\n", path);
+		printf("Must specify a filename\n");
+		return COMMAND_ERR;
 	}
+
+	load_mapfile(mapfile);
+
+	return COMMAND_OK;
+}
+
+int save_drives(void)
+{
+	char *mapfile;
+	FILE *fp;
+	int i;
+
+	mapfile = strtok(NULL, "");
+	if(mapfile == NULL)
+	{
+		printf("Must specify a filename\n");
+		return COMMAND_ERR;
+	}
+
+	fp = fopen(mapfile, "w");
+	if(fp == NULL)
+	{
+		printf("Couldn't open file '%s'\n", mapfile);
+		return COMMAND_ERR;
+	}
+
+	for(i = 0; i < MAX_HOSTDRIVES; i++)
+	{
+		fprintf(fp, "%d=%s\n", i, g_drives[i].rootdir);
+	}
+
+	fclose(fp);
 
 	return COMMAND_OK;
 }
@@ -2375,7 +2546,11 @@ int help_cmd(void)
 struct ShellCmd g_commands[] = {
 	{ "drives", "Print the current drives", list_drives },
 	{ "mount", "Mount a directory (mount num dir)", mount_drive },
+	{ "save",  "Save the list of mounts to a file (save filename)", save_drives },
+	{ "load",  "Load a list of mounts from a file (load filename)", load_drives },
 	{ "nocase", "Set case sensitivity (nocase on|off)", nocase_set },
+	{ "gdbdebug", "Set the GDB debug option (gdbdebug on|off)", gdbdebug_set },
+	{ "verbose", "Set the verbose level (verbose 0|1|2)", verbose_set },
 	{ "help", "Print this help", help_cmd },
 	{ "exit", "Exit the application", exit_app },
 };
@@ -2606,6 +2781,11 @@ int main(int argc, char **argv)
 	{
 		pthread_t thid;
 		usb_init();
+
+		if(g_mapfile)
+		{
+			load_mapfile(g_mapfile);
+		}
 
 		/* Create sockets */
 		g_shellserv = make_socket(g_shellport);
