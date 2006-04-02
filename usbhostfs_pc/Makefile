@@ -8,6 +8,12 @@ ifdef BUILD_BIGENDIAN
 CFLAGS += -DBUILD_BIGENDIAN
 endif
 
+ifdef BUILD_WIN32
+CFLAGS  += -I../windows/lib -Wno-format
+LDFLAGS += -L../windows/lib
+OUTPUT := $(OUTPUT).exe
+endif
+
 all: $(OUTPUT)
 
 clean:
