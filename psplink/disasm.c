@@ -157,7 +157,7 @@ struct Instruction inst[] =
 	{ "multu",		0x00000019, 0xFC0007FF, "%s, %t"},
 	{ "nor",		0x00000027, 0xFC0007FF,	"%d, %s, %t"},
 	{ "or",			0x00000025, 0xFC0007FF,	"%d, %s, %t"},
-	{ "ori",		0x34000000, 0xFC000000,	"%t, %s, %x"},
+	{ "ori",		0x34000000, 0xFC000000,	"%t, %s, %I"},
 	{ "rotr",		0x00200002, 0xFFE0003F, "%d, %t, %a"},
 	{ "rotv",		0x00000046, 0xFC0007FF, "%d, %t, %s"},
 	{ "seb",		0x7C000420, 0xFFE007FF,	"%d, %t"},

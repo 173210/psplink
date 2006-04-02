@@ -2031,7 +2031,7 @@ static int memdump_cmd(int argc, char **argv)
 	{
 		if(argv[0][0] == '-')
 		{
-			addr -= (MAX_MEMDUMP_SIZE * 2);
+			addr -= MAX_MEMDUMP_SIZE;
 		}
 		else
 		{
@@ -2115,10 +2115,17 @@ static int memdump_cmd(int argc, char **argv)
 
 static int savemem_cmd(int argc, char **argv)
 {
+	char path[1024];
 	u32 addr;
 	int size;
 	int written;
 	char *endp;
+
+	if(!handlepath(g_context.currdir, argv[2], path, TYPE_FILE, 0))
+	{
+		printf("Error invalid path\n");
+		return CMD_ERROR;
+	}
 
 	size = strtoul(argv[1], &endp, 0);
 	if(*endp != 0)
@@ -2134,10 +2141,10 @@ static int savemem_cmd(int argc, char **argv)
 
 		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
 		size = size > size_left ? size_left : size;
-		fd = sceIoOpen(argv[2], PSP_O_CREAT | PSP_O_TRUNC | PSP_O_WRONLY, 0777);
+		fd = sceIoOpen(path, PSP_O_CREAT | PSP_O_TRUNC | PSP_O_WRONLY, 0777);
 		if(fd < 0)
 		{
-			printf("Could not open file '%s' for writing 0x%08X\n", argv[2], fd);
+			printf("Could not open file '%s' for writing 0x%08X\n", path, fd);
 		}
 		else
 		{
@@ -2168,9 +2175,16 @@ static int savemem_cmd(int argc, char **argv)
 
 static int loadmem_cmd(int argc, char **argv)
 {
+	char path[1024];
 	u32 addr;
 	int maxsize = -1;
 	char *endp;
+
+	if(!handlepath(g_context.currdir, argv[1], path, TYPE_FILE, 1))
+	{
+		printf("Error invalid path\n");
+		return CMD_ERROR;
+	}
 
 	if(argc > 2)
 	{
@@ -2189,10 +2203,10 @@ static int loadmem_cmd(int argc, char **argv)
 		int fd;
 
 		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
-		fd = sceIoOpen(argv[1], PSP_O_RDONLY, 0777);
+		fd = sceIoOpen(path, PSP_O_RDONLY, 0777);
 		if(fd < 0)
 		{
-			printf("Could not open file '%s' for reading 0x%08X\n", argv[2], fd);
+			printf("Could not open file '%s' for reading 0x%08X\n", path, fd);
 		}
 		else
 		{
@@ -3464,8 +3478,8 @@ struct sh_command commands[] = {
 	{ "mxinfo", "xi", mxinfo_cmd, 1, "Print info about a message box", "mx uid|@name", SHELL_TYPE_CMD },
 	{ "cblist", "cl", cblist_cmd, 0, "List the callbacks in the system", "cl [v]", SHELL_TYPE_CMD },
 	{ "cbinfo", "ci", cbinfo_cmd, 1, "Print info about a callback", "ci uid|@name", SHELL_TYPE_CMD },
-	{ "vtlist", "tl", vtlist_cmd, 0, "List the virtual timers in the system", "tl [v]", SHELL_TYPE_CMD },
-	{ "vtinfo", "ti", vtinfo_cmd, 1, "Print info about a virtual timer", "ti uid|@name", SHELL_TYPE_CMD },
+	{ "vtlist", "zl", vtlist_cmd, 0, "List the virtual timers in the system", "zl [v]", SHELL_TYPE_CMD },
+	{ "vtinfo", "zi", vtinfo_cmd, 1, "Print info about a virtual timer", "zi uid|@name", SHELL_TYPE_CMD },
 	{ "vpllist","vl", vpllist_cmd, 0, "List the variable pools in the system", "vl [v]", SHELL_TYPE_CMD },
 	{ "vplinfo","vi", vplinfo_cmd, 1, "Print info about a variable pool", "vi uid|@name", SHELL_TYPE_CMD },
 	{ "fpllist","fl", fpllist_cmd, 0, "List the fixed pools in the system", "fl [v]", SHELL_TYPE_CMD },
@@ -3527,7 +3541,7 @@ struct sh_command commands[] = {
 	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "ls [path1..pathN]", SHELL_TYPE_CMD },
 	{ "chdir", "cd", chdir_cmd, 1, "Change the current directory", "cd path", SHELL_TYPE_CMD },
 	{ "cp",  "copy", cp_cmd, 2, "Copy a file", "cp source destination", SHELL_TYPE_CMD },
-	{ "mkdir", "md", mkdir_cmd, 1, "Make a Directory", "mkdir dir", SHELL_TYPE_CMD },
+	{ "mkdir", NULL, mkdir_cmd, 1, "Make a Directory", "mkdir dir", SHELL_TYPE_CMD },
 	{ "rm", "del", rm_cmd, 1, "Removes a File", "rm file", SHELL_TYPE_CMD },
 	{ "rmdir", "rd", rmdir_cmd, 1, "Removes a Directory", "rmdir dir", SHELL_TYPE_CMD },
 	{ "rename", "ren", rename_cmd, 2, "Renames a File", "rename src dst", SHELL_TYPE_CMD },

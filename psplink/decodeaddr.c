@@ -660,7 +660,7 @@ void memPrintRegions(void)
 	{
 		if((!g_memareas[i].v1only) || (g_isv1))
 		{
-			printf("Region %2d: Base %08X - Size %08X - %s\n", i,
+			printf("Region %2d: Base 0x%08X - Size 0x%08X - %s\n", i,
 				g_memareas[i].addr, g_memareas[i].size, g_memareas[i].desc);
 		}
 		i++;
