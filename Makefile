@@ -42,6 +42,7 @@ release: all
 	cp usbgdb/usbgdb.prx release/v1.5/psplink
 	cp -R pcterm release/pc
 	cp -R usbhostfs_pc release/pc
+	cp -R windows release/pc
 	cp usbhostfs/usbhostfs.h release/pc/usbhostfs_pc
 	cp README release
 	cp LICENSE release
