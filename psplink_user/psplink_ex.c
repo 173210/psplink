@@ -63,7 +63,7 @@ void psplinkTrap(struct PsplinkContext *ctx)
 
 	if(g_gdbhandler)
 	{
-		handled = g_gdbhandler((PspDebugRegBlock *) &ctx->regs);
+		handled = g_gdbhandler(ctx);
 	}
 
 	if(handled == 0)

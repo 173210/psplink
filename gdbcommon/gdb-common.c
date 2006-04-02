@@ -23,31 +23,35 @@
 struct GdbContext g_context;
 
 /* Entry for GDB handler from psplink_user */
-int GdbTrapEntry(PspDebugRegBlock *regs)
+int GdbTrapEntry(struct PsplinkContext *ctx)
 {
 	SceKernelThreadInfo info;
+	struct ExceptionMsg msg;
 	u32 bits;
 	int intc;
 
+	memset(&msg, 0, sizeof(msg));
 	memset(&info, 0, sizeof(info));
 	info.size = sizeof(info);
 
-	if(sceKernelReferThreadStatus(sceKernelGetThreadId(), &info) < 0)
+	if(sceKernelReferThreadStatus(ctx->thid, &info) < 0)
 	{
 		return 0;
 	}
 
 	/* Check if this is a thread from our debugged application */
-	if((regs->epc < g_context.info.text_addr) 
-			|| (regs->epc > (g_context.info.text_addr + g_context.info.text_size)))
+	if((ctx->regs.epc < g_context.info.text_addr) 
+			|| (ctx->regs.epc > (g_context.info.text_addr + g_context.info.text_size)))
 	{
 		return 0;
 	}
 
 	intc = pspSdkDisableInterrupts();
-	memcpy(&g_context.regs, regs, sizeof(g_context.regs));
+	memcpy(&g_context.regs, &ctx->regs, sizeof(g_context.regs));
 	pspSdkEnableInterrupts(intc);
-	
+
+	msg.ctx = ctx;
+
 	if(sceKernelSetEventFlag(g_context.evid, EVENT_HANDLE_EXP) < 0)
 	{
 		return 0;
@@ -65,6 +69,7 @@ void GdbMain(void)
 {
 	int firstrun = 1;
 	u32 bits;
+	//struct ExceptionMsg *msg;
 
 	while(1)
 	{
@@ -97,7 +102,7 @@ void GdbMain(void)
 }
 
 /* These should be changed on for different remote methods */
-int _gdbSupportLibReadByte(unsigned char *address, unsigned char *dest)
+int GdbReadByte(unsigned char *address, unsigned char *dest)
 {
 	u32 addr;
 
@@ -111,7 +116,7 @@ int _gdbSupportLibReadByte(unsigned char *address, unsigned char *dest)
 	return 0;
 }
 
-int _gdbSupportLibWriteByte(char val, unsigned char *dest)
+int GdbWriteByte(char val, unsigned char *dest)
 {
 	u32 addr;
 

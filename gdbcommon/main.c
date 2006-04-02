@@ -29,6 +29,7 @@ int main(int argc, char **argv)
 	printf("PSPLink GDBServer (c) 2k6 TyRaNiD/Lovely2\n");
 	memset(&g_context, 0, sizeof(g_context));
 	g_context.evid = -1;
+	g_context.mbx = -1;
 	g_context.main_thread = sceKernelGetThreadId();
 	GdbStubInit();
 
@@ -42,6 +43,14 @@ int main(int argc, char **argv)
 	if(g_context.evid < 0)
 	{
 		printf(MODULE_NAME ": Error creating event flag 0x%08X\n", g_context.evid);
+		return 1;
+	}
+
+	g_context.mbx = sceKernelCreateMbx("GdbExMbx", 0, 0);
+	if(g_context.mbx < 0)
+	{
+		printf("Error, couldn't create message box 0x%08X\n", g_context.mbx);
+		return 1;
 	}
 
 	if(isInit())
@@ -73,6 +82,7 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
+		/* Create a fake register block */
 		g_context.regs.epc = g_context.info.entry_addr;
 		g_context.regs.cause = 9 << 2;
 		g_context.argc = argc - 1;
@@ -100,6 +110,11 @@ int module_stop(SceSize args, void *argp)
 	if(g_context.evid >= 0)
 	{
 		sceKernelDeleteEventFlag(g_context.evid);
+	}
+
+	if(g_context.mbx >= 0)
+	{
+		sceKernelDeleteMbx(g_context.mbx);
 	}
 
 	stop_server();

@@ -263,7 +263,7 @@ static char *mem2hex(unsigned char *mem, char *buf, int count)
 	unsigned char ch;
 
 	while (count-- > 0) {
-		if (_gdbSupportLibReadByte(mem++, &ch) == 0)
+		if (GdbReadByte(mem++, &ch) == 0)
 		{
 			return NULL;
 		}
@@ -293,7 +293,7 @@ static char *hex2mem(char *buf, char *mem, int count, int binary)
 			ch = hex(*buf++) << 4;
 			ch |= hex(*buf++);
 		}
-		if (_gdbSupportLibWriteByte(ch, (unsigned char *) mem++) == 0)
+		if (GdbWriteByte(ch, (unsigned char *) mem++) == 0)
 			return 0;
 	}
 
