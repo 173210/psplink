@@ -9,9 +9,10 @@ USE_KERNEL_LIBS = 1
 
 INCDIR = ../usbhostfs
 #CFLAGS = -O2 -G0 -Wall -DDEBUG
-CFLAGS = -O2 -G0 -Wall -fno-builtin-printf
+CFLAGS = -Os -G0 -Wall -fno-builtin-printf
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
+LDFLAGS=-nodefaultlibs
 
 LIBDIR =
 
