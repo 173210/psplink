@@ -42,7 +42,6 @@ enum UsbTransEvents
 	USB_TRANSEVENT_BULKIN_DONE = 2,
 };
 
-
 struct AsyncEndpoint
 {
 	unsigned char buffer[MAX_ASYNC_BUFFER];
@@ -354,8 +353,8 @@ int set_bulkout_req(void *data, int size)
 	return sceUsbbdReqRecv(&g_bulkout_req);
 }
 
-/* Small read buffer aligned to 64 bytes */
-unsigned char read_buf[64*1024] __attribute__((aligned(64)));
+/* Read/Write buffer */
+unsigned char tx_buf[64*1024] __attribute__((aligned(64)));
 
 /* Read a block of data from the USB bus */
 int read_data(void *data, int size)
@@ -368,8 +367,8 @@ int read_data(void *data, int size)
 	while(readlen < size)
 	{
 		/* TODO: 512 should actually come from the endpoint size */
-		nextsize = (size - readlen) > sizeof(read_buf) ? sizeof(read_buf) : (size - readlen);
-		if(set_bulkout_req(read_buf, nextsize) < 0)
+		nextsize = (size - readlen) > sizeof(tx_buf) ? sizeof(tx_buf) : (size - readlen);
+		if(set_bulkout_req(tx_buf, nextsize) < 0)
 		{
 			return -1;
 		}
@@ -380,7 +379,7 @@ int read_data(void *data, int size)
 			if((g_bulkout_req.retcode == 0) && (g_bulkout_req.recvsize > 0))
 			{
 				readlen += g_bulkout_req.recvsize;
-				memcpy(data, read_buf, g_bulkout_req.recvsize);
+				memcpy(data, tx_buf, g_bulkout_req.recvsize);
 				data += g_bulkout_req.recvsize;
 			}
 			else
@@ -399,8 +398,6 @@ int read_data(void *data, int size)
 	return readlen;
 }
 
-unsigned char write_buf[64*1024] __attribute__((aligned(64)));
-
 int write_data(const void *data, int size)
 {
 	int nextsize = 0;
@@ -410,9 +407,9 @@ int write_data(const void *data, int size)
 
 	while(writelen < size)
 	{
-		nextsize = (size - writelen) > sizeof(write_buf) ? sizeof(write_buf) : (size - writelen);
-		memcpy(write_buf, data, nextsize);
-		set_bulkin_req(write_buf, nextsize);
+		nextsize = (size - writelen) > sizeof(tx_buf) ? sizeof(tx_buf) : (size - writelen);
+		memcpy(tx_buf, data, nextsize);
+		set_bulkin_req(tx_buf, nextsize);
 		/* TODO: Add a timeout to the event flag wait */
 		ret = sceKernelWaitEventFlag(g_transevent, USB_TRANSEVENT_BULKIN_DONE, PSP_EVENT_WAITOR | PSP_EVENT_WAITCLEAR, &result, NULL);
 		if(ret == 0)
