@@ -24,6 +24,7 @@
 #include <pspsysmem_kernel.h>
 #include <pspdisplay.h>
 #include <pspthreadman_kernel.h>
+#include <psppower.h>
 #include <stdint.h>
 #include "memoryUID.h"
 #include "psplink.h"
@@ -3423,6 +3424,32 @@ static int confdel_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int power_cmd(int argc, char **argv)
+{
+	int batteryLifeTime = 0;
+	char fbuf[128];
+
+	printf("External Power: %s\n", scePowerIsPowerOnline()? "yes" : "no ");
+	printf("%-14s: %s\n", "Battery", scePowerIsBatteryExist()? "present" : "absent ");
+
+	if (scePowerIsBatteryExist()) {
+	    printf("%-14s: %s\n", "Low Charge", scePowerIsLowBattery()? "yes" : "no ");
+	    printf("%-14s: %s\n", "Charging", scePowerIsBatteryCharging()? "yes" : "no ");
+	    batteryLifeTime = scePowerGetBatteryLifeTime();
+	    printf("%-14s: %d%% (%02dh%02dm)     \n", "Charge",
+		   scePowerGetBatteryLifePercent(), batteryLifeTime/60, batteryLifeTime-(batteryLifeTime/60*60));
+		f_cvt((float) scePowerGetBatteryVolt() / 1000.0, fbuf, sizeof(fbuf), 3, MODE_GENERIC);
+	    printf("%-14s: %sV\n", "Volts", fbuf);
+	    printf("%-14s: %d deg C\n", "Battery Temp", scePowerGetBatteryTemp());
+	} else
+	    printf("Battery stats unavailable\n");
+
+	printf("%-14s: %d mHz\n", "CPU Speed", scePowerGetCpuClockFrequency());
+	printf("%-14s: %d mHz\n", "Bus Speed", scePowerGetBusClockFrequency());
+
+	return CMD_OK;
+}
+
 static int tty_cmd(int argc, char **argv)
 {
 	g_ttymode = 1;
@@ -3456,138 +3483,138 @@ struct sh_command
 /* Define the list of commands */
 struct sh_command commands[] = {
 	{ "thread", NULL, NULL, 0, "Commands to manipulate threads", NULL, SHELL_TYPE_CATEGORY },
-	{ "thlist", "tl", thlist_cmd, 0, "List the threads in the system", "tl [v]", SHELL_TYPE_CMD },
-	{ "thsllist", NULL, thsllist_cmd, 0, "List the sleeping threads in the system", "thsllist [v]", SHELL_TYPE_CMD },
-	{ "thdelist", NULL, thdelist_cmd, 0, "List the delayed threads in the system", "thdelist [v]", SHELL_TYPE_CMD },
-	{ "thsulist", NULL, thsulist_cmd, 0, "List the suspended threads in the system", "thsulist [v]", SHELL_TYPE_CMD },
-	{ "thdolist", NULL, thdolist_cmd, 0, "List the dormant threads in the system", "thdolist [v]", SHELL_TYPE_CMD },
-	{ "thinfo", "ti", thinfo_cmd, 1, "Print info about a thread", "ti uid|@name" , SHELL_TYPE_CMD},
-	{ "thsusp", "ts", thsusp_cmd, 1, "Suspend a thread", "ts uid|@name" , SHELL_TYPE_CMD},
-	{ "thspuser", NULL, thspuser_cmd, 0, "Suspend all user threads", "thspuser", SHELL_TYPE_CMD },
-	{ "thresm", "tr", thresm_cmd, 1, "Resume a thread", "tr uid|@name" , SHELL_TYPE_CMD},
-	{ "thwake", "tw", thwake_cmd, 1, "Wakeup a thread", "tw uid|@name" , SHELL_TYPE_CMD},
-	{ "thterm", "tt", thterm_cmd, 1, "Terminate a thread", "tt uid|@name" , SHELL_TYPE_CMD},
-	{ "thdel", "td", thdel_cmd, 1, "Delete a thread", "td uid|@name" , SHELL_TYPE_CMD},
-	{ "thtdel", "tx", thtdel_cmd, 1, "Terminate and delete a thread", "tx uid|@name" , SHELL_TYPE_CMD },
-	{ "thctx",  "tt", thctx_cmd, 1, "Find and print the full thread context", "tc uid|@name", SHELL_TYPE_CMD },
-	{ "evlist", "el", evlist_cmd, 0, "List the event flags in the system", "el [v]", SHELL_TYPE_CMD },
-	{ "evinfo", "ei", evinfo_cmd, 1, "Print info about an event flag", "ei uid|@name", SHELL_TYPE_CMD },
-	{ "smlist", "sl", smlist_cmd, 0, "List the semaphores in the system", "sl [v]", SHELL_TYPE_CMD },
-	{ "sminfo", "si", sminfo_cmd, 1, "Print info about a semaphore", "si uid|@name", SHELL_TYPE_CMD },
-	{ "mxlist", "xl", mxlist_cmd, 0, "List the message boxes in the system", "sl [v]", SHELL_TYPE_CMD },
-	{ "mxinfo", "xi", mxinfo_cmd, 1, "Print info about a message box", "mx uid|@name", SHELL_TYPE_CMD },
-	{ "cblist", "cl", cblist_cmd, 0, "List the callbacks in the system", "cl [v]", SHELL_TYPE_CMD },
-	{ "cbinfo", "ci", cbinfo_cmd, 1, "Print info about a callback", "ci uid|@name", SHELL_TYPE_CMD },
-	{ "vtlist", "zl", vtlist_cmd, 0, "List the virtual timers in the system", "zl [v]", SHELL_TYPE_CMD },
-	{ "vtinfo", "zi", vtinfo_cmd, 1, "Print info about a virtual timer", "zi uid|@name", SHELL_TYPE_CMD },
-	{ "vpllist","vl", vpllist_cmd, 0, "List the variable pools in the system", "vl [v]", SHELL_TYPE_CMD },
-	{ "vplinfo","vi", vplinfo_cmd, 1, "Print info about a variable pool", "vi uid|@name", SHELL_TYPE_CMD },
-	{ "fpllist","fl", fpllist_cmd, 0, "List the fixed pools in the system", "fl [v]", SHELL_TYPE_CMD },
-	{ "fplinfo","fi", fplinfo_cmd, 1, "Print info about a fixed pool", "fi uid|@name", SHELL_TYPE_CMD },
-	{ "mpplist","pl", mpplist_cmd, 0, "List the message pipes in the system", "pl [v]", SHELL_TYPE_CMD },
-	{ "mppinfo","pi", mppinfo_cmd, 1, "Print info about a message pipe", "pi uid|@name", SHELL_TYPE_CMD },
-	{ "thevlist","tel", thevlist_cmd, 0, "List the thread event handlers in the system", "tel [v]", SHELL_TYPE_CMD },
-	{ "thevinfo","tei", thevinfo_cmd, 1, "Print info about a thread event handler", "tei uid|@name", SHELL_TYPE_CMD },
+	{ "thlist", "tl", thlist_cmd, 0, "List the threads in the system", "[v]", SHELL_TYPE_CMD },
+	{ "thsllist", NULL, thsllist_cmd, 0, "List the sleeping threads in the system", "[v]", SHELL_TYPE_CMD },
+	{ "thdelist", NULL, thdelist_cmd, 0, "List the delayed threads in the system", "[v]", SHELL_TYPE_CMD },
+	{ "thsulist", NULL, thsulist_cmd, 0, "List the suspended threads in the system", "[v]", SHELL_TYPE_CMD },
+	{ "thdolist", NULL, thdolist_cmd, 0, "List the dormant threads in the system", "[v]", SHELL_TYPE_CMD },
+	{ "thinfo", "ti", thinfo_cmd, 1, "Print info about a thread", "uid|@name" , SHELL_TYPE_CMD},
+	{ "thsusp", "ts", thsusp_cmd, 1, "Suspend a thread", "uid|@name" , SHELL_TYPE_CMD},
+	{ "thspuser", NULL, thspuser_cmd, 0, "Suspend all user threads", "", SHELL_TYPE_CMD },
+	{ "thresm", "tr", thresm_cmd, 1, "Resume a thread", "uid|@name" , SHELL_TYPE_CMD},
+	{ "thwake", "tw", thwake_cmd, 1, "Wakeup a thread", "uid|@name" , SHELL_TYPE_CMD},
+	{ "thterm", "tt", thterm_cmd, 1, "Terminate a thread", "uid|@name" , SHELL_TYPE_CMD},
+	{ "thdel", "td", thdel_cmd, 1, "Delete a thread", "uid|@name" , SHELL_TYPE_CMD},
+	{ "thtdel", "tx", thtdel_cmd, 1, "Terminate and delete a thread", "uid|@name" , SHELL_TYPE_CMD },
+	{ "thctx",  "tt", thctx_cmd, 1, "Find and print the full thread context", "uid|@name", SHELL_TYPE_CMD },
+	{ "evlist", "el", evlist_cmd, 0, "List the event flags in the system", "[v]", SHELL_TYPE_CMD },
+	{ "evinfo", "ei", evinfo_cmd, 1, "Print info about an event flag", "uid|@name", SHELL_TYPE_CMD },
+	{ "smlist", "sl", smlist_cmd, 0, "List the semaphores in the system", "[v]", SHELL_TYPE_CMD },
+	{ "sminfo", "si", sminfo_cmd, 1, "Print info about a semaphore", "uid|@name", SHELL_TYPE_CMD },
+	{ "mxlist", "xl", mxlist_cmd, 0, "List the message boxes in the system", "[v]", SHELL_TYPE_CMD },
+	{ "mxinfo", "xi", mxinfo_cmd, 1, "Print info about a message box", "uid|@name", SHELL_TYPE_CMD },
+	{ "cblist", "cl", cblist_cmd, 0, "List the callbacks in the system", "[v]", SHELL_TYPE_CMD },
+	{ "cbinfo", "ci", cbinfo_cmd, 1, "Print info about a callback", "uid|@name", SHELL_TYPE_CMD },
+	{ "vtlist", "zl", vtlist_cmd, 0, "List the virtual timers in the system", "[v]", SHELL_TYPE_CMD },
+	{ "vtinfo", "zi", vtinfo_cmd, 1, "Print info about a virtual timer", "uid|@name", SHELL_TYPE_CMD },
+	{ "vpllist","vl", vpllist_cmd, 0, "List the variable pools in the system", "[v]", SHELL_TYPE_CMD },
+	{ "vplinfo","vi", vplinfo_cmd, 1, "Print info about a variable pool", "uid|@name", SHELL_TYPE_CMD },
+	{ "fpllist","fl", fpllist_cmd, 0, "List the fixed pools in the system", "[v]", SHELL_TYPE_CMD },
+	{ "fplinfo","fi", fplinfo_cmd, 1, "Print info about a fixed pool", "uid|@name", SHELL_TYPE_CMD },
+	{ "mpplist","pl", mpplist_cmd, 0, "List the message pipes in the system", "[v]", SHELL_TYPE_CMD },
+	{ "mppinfo","pi", mppinfo_cmd, 1, "Print info about a message pipe", "uid|@name", SHELL_TYPE_CMD },
+	{ "thevlist","tel", thevlist_cmd, 0, "List the thread event handlers in the system", "[v]", SHELL_TYPE_CMD },
+	{ "thevinfo","tei", thevinfo_cmd, 1, "Print info about a thread event handler", "uid|@name", SHELL_TYPE_CMD },
 	
 	{ "module", NULL, NULL, 0, "Commands to handle modules", NULL, SHELL_TYPE_CATEGORY },
-	{ "modlist","ml", modlist_cmd, 0, "List the currently loaded modules", "ml [v]", SHELL_TYPE_CMD },
-	{ "modinfo","mi", modinfo_cmd, 1, "Print info about a module", "mi uid|@name", SHELL_TYPE_CMD },
-	{ "modstop","ms", modstop_cmd, 1, "Stop a running module", "ms uid|@name", SHELL_TYPE_CMD },
-	{ "modunld","mu", modunld_cmd, 1, "Unload a module (must be stopped)", "mu uid|@name", SHELL_TYPE_CMD },
-	{ "modload","md", modload_cmd, 1, "Load a module", "md path", SHELL_TYPE_CMD },
-	{ "modstart","mt", modstart_cmd, 1, "Start a module", "mt uid|@name [args]", SHELL_TYPE_CMD },
-	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "me [@key] path [args]", SHELL_TYPE_CMD },
-	{ "modaddr","ma", modaddr_cmd, 1, "Display info about the module at a specified address", "ma addr", SHELL_TYPE_CMD },
-	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "exec [path] [args]", SHELL_TYPE_CMD },
-	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "ld path [args]", SHELL_TYPE_CMD },
-	{ "kill", "k", kill_cmd, 1, "Kill a module and all it's threads", "k uid|@name", SHELL_TYPE_CMD },
-	{ "debug", "d", debug_cmd, 1, "Start a module under NetGDB", "d program.elf [args]", SHELL_TYPE_CMD },
-	{ "modexp", "mp", modexp_cmd, 1, "List the exports from a module", "mp uid|@name", SHELL_TYPE_CMD },
-	{ "modfindx", "mfx", modfindx_cmd, 3, "Find a module's export address", "mfx uid|@name library nid|@name", SHELL_TYPE_CMD },
-	{ "apihook", NULL, apihook_cmd, 3, "Hook a user mode API call", "apihook uid|@name library nid|@name [param]", SHELL_TYPE_CMD },
-	{ "apihooks", NULL, apihooks_cmd, 3, "Hook a user mode API call with sleep", "apihooks uid|@name library nid|@name [param]", SHELL_TYPE_CMD },
-	{ "apihp", NULL, apihp_cmd, 0, "Print the user mode API hooks", "apihp", SHELL_TYPE_CMD },
-	{ "apihd", NULL, apihd_cmd, 1, "Delete an user mode API hook", "apihd", SHELL_TYPE_CMD },
+	{ "modlist","ml", modlist_cmd, 0, "List the currently loaded modules", "[v]", SHELL_TYPE_CMD },
+	{ "modinfo","mi", modinfo_cmd, 1, "Print info about a module", "uid|@name", SHELL_TYPE_CMD },
+	{ "modstop","ms", modstop_cmd, 1, "Stop a running module", "uid|@name", SHELL_TYPE_CMD },
+	{ "modunld","mu", modunld_cmd, 1, "Unload a module (must be stopped)", "uid|@name", SHELL_TYPE_CMD },
+	{ "modload","md", modload_cmd, 1, "Load a module", "path", SHELL_TYPE_CMD },
+	{ "modstart","mt", modstart_cmd, 1, "Start a module", "uid|@name [args]", SHELL_TYPE_CMD },
+	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "[@key] path [args]", SHELL_TYPE_CMD },
+	{ "modaddr","ma", modaddr_cmd, 1, "Display info about the module at a specified address", "addr", SHELL_TYPE_CMD },
+	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "[path] [args]", SHELL_TYPE_CMD },
+	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "path [args]", SHELL_TYPE_CMD },
+	{ "kill", "k", kill_cmd, 1, "Kill a module and all it's threads", "uid|@name", SHELL_TYPE_CMD },
+	{ "debug", "d", debug_cmd, 1, "Start a module under NetGDB", "program.elf [args]", SHELL_TYPE_CMD },
+	{ "modexp", "mp", modexp_cmd, 1, "List the exports from a module", "uid|@name", SHELL_TYPE_CMD },
+	{ "modfindx", "mfx", modfindx_cmd, 3, "Find a module's export address", "uid|@name library nid|@name", SHELL_TYPE_CMD },
+	{ "apihook", NULL, apihook_cmd, 3, "Hook a user mode API call", "uid|@name library nid|@name [param]", SHELL_TYPE_CMD },
+	{ "apihooks", NULL, apihooks_cmd, 3, "Hook a user mode API call with sleep", "uid|@name library nid|@name [param]", SHELL_TYPE_CMD },
+	{ "apihp", NULL, apihp_cmd, 0, "Print the user mode API hooks", "", SHELL_TYPE_CMD },
+	{ "apihd", NULL, apihd_cmd, 1, "Delete an user mode API hook", "", SHELL_TYPE_CMD },
 	
 	{ "memory", NULL, NULL, 0, "Commands to manipulate memory", NULL, SHELL_TYPE_CATEGORY },
-	{ "meminfo", "mf", meminfo_cmd, 0, "Print free memory info", "mf [partitionid]", SHELL_TYPE_CMD },
-	{ "memreg",  "mr", memreg_cmd, 0, "Print available memory regions (for other commands)", "mr", SHELL_TYPE_CMD },
-	{ "memdump", "dm", memdump_cmd, 0, "Dump memory to screen", "dm [addr|-] [b|h|w]", SHELL_TYPE_CMD },
-	{ "memblocks", "mk", memblocks_cmd, 0, "Dump the sysmem block table", "mk [f|t]", SHELL_TYPE_CMD },
-	{ "savemem", "sm", savemem_cmd, 3, "Save memory to a file", "sm addr size path", SHELL_TYPE_CMD },
-	{ "loadmem", "lm", loadmem_cmd, 2, "Load memory from a file", "lm addr path [maxsize]", SHELL_TYPE_CMD },
-	{ "pokew",   "pw", pokew_cmd, 2, "Poke words into memory", "pw addr val1 [val2..valN]", SHELL_TYPE_CMD },
-	{ "pokeh",   "pw", pokeh_cmd, 2, "Poke half words into memory", "ph addr val1 [val2..valN]", SHELL_TYPE_CMD },
-	{ "pokeb",   "pw", pokeb_cmd, 2, "Poke bytes into memory", "pb addr val1 [val2..valN]", SHELL_TYPE_CMD },
-	{ "peekw",   "kw", peekw_cmd, 1, "Peek the word at address", "kw addr [o|b|x|f]", SHELL_TYPE_CMD },
-	{ "peekh",   "kh", peekh_cmd, 1, "Peek the half word at address", "kh addr [o|b|x]", SHELL_TYPE_CMD },
-	{ "peekb",   "kb", peekb_cmd, 1, "Peek the byte at address", "kb addr [o|b|x]", SHELL_TYPE_CMD },
-	{ "fillw",   "fw", fillw_cmd, 3, "Fill a block of memory with a word value", "fw addr size val", SHELL_TYPE_CMD },
-	{ "fillh",   "fh", fillh_cmd, 3, "Fill a block of memory with a half value", "fb addr size val", SHELL_TYPE_CMD },
-	{ "fillb",   "fb", fillb_cmd, 3, "Fill a block of memory with a byte value", "fb addr size val", SHELL_TYPE_CMD },
-	{ "copymem", "cm", copymem_cmd, 3, "Copy a block of memory", "cm srcaddr destaddr size", SHELL_TYPE_CMD },
-	{ "findstr", "ns", findstr_cmd, 3, "Find an ASCII string", "fs addr size str", SHELL_TYPE_CMD },
-	{ "findhex", "nx", findhex_cmd, 3, "Find an hexstring string", "fx addr size hexstr [mask]", SHELL_TYPE_CMD },
-	{ "findw",   "nw", findw_cmd, 3, "Find a list of words", "fw addr size val1 [val2..valN]", SHELL_TYPE_CMD },
-	{ "findh",   "nh", findh_cmd, 3, "Find a list of half words", "fh addr size val1 [val2..valN]", SHELL_TYPE_CMD },
-	{ "dcache",  "dc", dcache_cmd, 1, "Perform a data cache operation", "dc w|i|wi [addr size]", SHELL_TYPE_CMD },
-	{ "icache",  "ic", icache_cmd, 0, "Perform an instruction cache operation", "ic [addr size]", SHELL_TYPE_CMD },
-	{ "disasm",  "di", disasm_cmd, 1, "Disassemble instructions", "di address [count]", SHELL_TYPE_CMD },
-	{ "disopts", NULL, disopts_cmd, 0, "Print the current disassembler options", "disopts", SHELL_TYPE_CMD },
-	{ "disset", NULL, disset_cmd, 1, "Set some disassembler options", "disset options", SHELL_TYPE_CMD },
-	{ "disclear", NULL, disclear_cmd, 1, "Clear some disassembler options", "disclear options", SHELL_TYPE_CMD },
+	{ "meminfo", "mf", meminfo_cmd, 0, "Print free memory info", "[partitionid]", SHELL_TYPE_CMD },
+	{ "memreg",  "mr", memreg_cmd, 0, "Print available memory regions (for other commands)", "", SHELL_TYPE_CMD },
+	{ "memdump", "dm", memdump_cmd, 0, "Dump memory to screen", "[addr|-] [b|h|w]", SHELL_TYPE_CMD },
+	{ "memblocks", "mk", memblocks_cmd, 0, "Dump the sysmem block table", "[f|t]", SHELL_TYPE_CMD },
+	{ "savemem", "sm", savemem_cmd, 3, "Save memory to a file", "addr size path", SHELL_TYPE_CMD },
+	{ "loadmem", "lm", loadmem_cmd, 2, "Load memory from a file", "addr path [maxsize]", SHELL_TYPE_CMD },
+	{ "pokew",   "pw", pokew_cmd, 2, "Poke words into memory", "addr val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "pokeh",   "pw", pokeh_cmd, 2, "Poke half words into memory", "addr val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "pokeb",   "pw", pokeb_cmd, 2, "Poke bytes into memory", "addr val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "peekw",   "kw", peekw_cmd, 1, "Peek the word at address", "addr [o|b|x|f]", SHELL_TYPE_CMD },
+	{ "peekh",   "kh", peekh_cmd, 1, "Peek the half word at address", "addr [o|b|x]", SHELL_TYPE_CMD },
+	{ "peekb",   "kb", peekb_cmd, 1, "Peek the byte at address", "addr [o|b|x]", SHELL_TYPE_CMD },
+	{ "fillw",   "fw", fillw_cmd, 3, "Fill a block of memory with a word value", "addr size val", SHELL_TYPE_CMD },
+	{ "fillh",   "fh", fillh_cmd, 3, "Fill a block of memory with a half value", "addr size val", SHELL_TYPE_CMD },
+	{ "fillb",   "fb", fillb_cmd, 3, "Fill a block of memory with a byte value", "addr size val", SHELL_TYPE_CMD },
+	{ "copymem", "cm", copymem_cmd, 3, "Copy a block of memory", "srcaddr destaddr size", SHELL_TYPE_CMD },
+	{ "findstr", "ns", findstr_cmd, 3, "Find an ASCII string", "addr size str", SHELL_TYPE_CMD },
+	{ "findhex", "nx", findhex_cmd, 3, "Find an hexstring string", "addr size hexstr [mask]", SHELL_TYPE_CMD },
+	{ "findw",   "nw", findw_cmd, 3, "Find a list of words", "addr size val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "findh",   "nh", findh_cmd, 3, "Find a list of half words", "addr size val1 [val2..valN]", SHELL_TYPE_CMD },
+	{ "dcache",  "dc", dcache_cmd, 1, "Perform a data cache operation", "w|i|wi [addr size]", SHELL_TYPE_CMD },
+	{ "icache",  "ic", icache_cmd, 0, "Perform an instruction cache operation", "[addr size]", SHELL_TYPE_CMD },
+	{ "disasm",  "di", disasm_cmd, 1, "Disassemble instructions", "address [count]", SHELL_TYPE_CMD },
+	{ "disopts", NULL, disopts_cmd, 0, "Print the current disassembler options", "", SHELL_TYPE_CMD },
+	{ "disset", NULL, disset_cmd, 1, "Set some disassembler options", "options", SHELL_TYPE_CMD },
+	{ "disclear", NULL, disclear_cmd, 1, "Clear some disassembler options", "options", SHELL_TYPE_CMD },
 	
 	{ "fileio", NULL, NULL, 0, "Commands to handle file io", NULL, SHELL_TYPE_CATEGORY },
-	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "ls [path1..pathN]", SHELL_TYPE_CMD },
-	{ "chdir", "cd", chdir_cmd, 1, "Change the current directory", "cd path", SHELL_TYPE_CMD },
-	{ "cp",  "copy", cp_cmd, 2, "Copy a file", "cp source destination", SHELL_TYPE_CMD },
-	{ "mkdir", NULL, mkdir_cmd, 1, "Make a Directory", "mkdir dir", SHELL_TYPE_CMD },
-	{ "rm", "del", rm_cmd, 1, "Removes a File", "rm file", SHELL_TYPE_CMD },
-	{ "rmdir", "rd", rmdir_cmd, 1, "Removes a Directory", "rmdir dir", SHELL_TYPE_CMD },
-	{ "rename", "ren", rename_cmd, 2, "Renames a File", "rename src dst", SHELL_TYPE_CMD },
-	{ "remap", NULL, remap_cmd, 2, "Remaps a device to another", "remap devfrom: devto:", SHELL_TYPE_CMD },
-	{ "pwd",   NULL, pwd_cmd, 0, "Print the current working directory", "pwd", SHELL_TYPE_CMD },
+	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "[path1..pathN]", SHELL_TYPE_CMD },
+	{ "chdir", "cd", chdir_cmd, 1, "Change the current directory", "path", SHELL_TYPE_CMD },
+	{ "cp",  "copy", cp_cmd, 2, "Copy a file", "source destination", SHELL_TYPE_CMD },
+	{ "mkdir", NULL, mkdir_cmd, 1, "Make a Directory", "dir", SHELL_TYPE_CMD },
+	{ "rm", "del", rm_cmd, 1, "Removes a File", "file", SHELL_TYPE_CMD },
+	{ "rmdir", "rd", rmdir_cmd, 1, "Removes a Directory", "dir", SHELL_TYPE_CMD },
+	{ "rename", "ren", rename_cmd, 2, "Renames a File", "src dst", SHELL_TYPE_CMD },
+	{ "remap", NULL, remap_cmd, 2, "Remaps a device to another", "devfrom: devto:", SHELL_TYPE_CMD },
+	{ "pwd",   NULL, pwd_cmd, 0, "Print the current working directory", "", SHELL_TYPE_CMD },
 
 	{ "debugger", NULL, NULL, 0, "Debug commands", NULL, SHELL_TYPE_CATEGORY },
-	{ "exprint", "ep", exprint_cmd, 0, "Print the current exception info", "exprint", SHELL_TYPE_CMD },
-	{ "exresume", "c", exresume_cmd, 0, "Resume from the exception", "exresume [addr]", SHELL_TYPE_CMD },
-	{ "exprfpu", "ef", exprfpu_cmd, 0, "Print the current FPU registers", "exprfpu", SHELL_TYPE_CMD },
-	{ "setreg", "str", setreg_cmd, 2, "Set the value of an exception register", "str $reg value", SHELL_TYPE_CMD },
-	{ "bpset", "bp", bpset_cmd, 1, "Set a break point", "bpset addr", SHELL_TYPE_CMD },
-	{ "bpprint", "bt", bpprint_cmd, 0, "Print the current breakpoints", "bpprint", SHELL_TYPE_CMD },
-	{ "step", "s", step_cmd, 0, "Step the next instruction", "step", SHELL_TYPE_CMD },
-	{ "skip", "k", skip_cmd, 0, "Skip the next instruction (i.e. jump over jals)", "skip", SHELL_TYPE_CMD },
-	{ "symload", "syl", symload_cmd, 1, "Load a symbol file", "syl file.sym", SHELL_TYPE_CMD },
-	{ "symlist", "syt", symlist_cmd, 0, "List the loaded symbols", "syt", SHELL_TYPE_CMD },
-	{ "symprint", "syp", symprint_cmd, 1, "Print the symbols for a module", "syp modname", SHELL_TYPE_CMD },
-	{ "symbyaddr", "sya", symbyaddr_cmd, 1, "Print the symbol at the specified address", "sya addr", SHELL_TYPE_CMD },
-	{ "symbyname", "syn", symbyname_cmd, 1, "Print the specified symbol address", "syn module:symname", SHELL_TYPE_CMD },
+	{ "exprint", "ep", exprint_cmd, 0, "Print the current exception info", "", SHELL_TYPE_CMD },
+	{ "exresume", "c", exresume_cmd, 0, "Resume from the exception", "[addr]", SHELL_TYPE_CMD },
+	{ "exprfpu", "ef", exprfpu_cmd, 0, "Print the current FPU registers", "", SHELL_TYPE_CMD },
+	{ "setreg", "str", setreg_cmd, 2, "Set the value of an exception register", "$reg value", SHELL_TYPE_CMD },
+	{ "bpset", "bp", bpset_cmd, 1, "Set a break point", "addr", SHELL_TYPE_CMD },
+	{ "bpprint", "bt", bpprint_cmd, 0, "Print the current breakpoints", "", SHELL_TYPE_CMD },
+	{ "step", "s", step_cmd, 0, "Step the next instruction", "", SHELL_TYPE_CMD },
+	{ "skip", "k", skip_cmd, 0, "Skip the next instruction (i.e. jump over jals)", "", SHELL_TYPE_CMD },
+	{ "symload", "syl", symload_cmd, 1, "Load a symbol file", "file.sym", SHELL_TYPE_CMD },
+	{ "symlist", "syt", symlist_cmd, 0, "List the loaded symbols", "", SHELL_TYPE_CMD },
+	{ "symprint", "syp", symprint_cmd, 1, "Print the symbols for a module", "modname", SHELL_TYPE_CMD },
+	{ "symbyaddr", "sya", symbyaddr_cmd, 1, "Print the symbol at the specified address", "addr", SHELL_TYPE_CMD },
+	{ "symbyname", "syn", symbyname_cmd, 1, "Print the specified symbol address", "module:symname", SHELL_TYPE_CMD },
 
 	{ "misc", NULL, NULL, 0, "Miscellaneous commands (e.g. USB, exit)", NULL, SHELL_TYPE_CATEGORY },
-	{ "usbmon", "umn", usbmasson_cmd, 0, "Enable USB mass storage device", "usbon", SHELL_TYPE_CMD },
-	{ "usbmoff", "umf", usbmassoff_cmd, 0, "Disable USB mass storage device", "usboff", SHELL_TYPE_CMD },
-	{ "usbhon", "uhn", usbhoston_cmd, 0, "Enable USB hostfs device", "usbon", SHELL_TYPE_CMD },
-	{ "usbhoff", "uhf", usbhostoff_cmd, 0, "Disable USB hostfs device", "usboff", SHELL_TYPE_CMD },
-	{ "usbstat", "us", usbstat_cmd, 0, "Display the status of the USB connection", "usbstat", SHELL_TYPE_CMD },
-    { "uidlist","ul", uidlist_cmd, 0, "List the system UIDS", "ul [root]", SHELL_TYPE_CMD },
-	{ "cop0", "c0", cop0_cmd, 0, "Print the cop0 registers", "c0", SHELL_TYPE_CMD },
-	{ "exit", "quit", exit_cmd, 0, "Exit the shell", "exit", SHELL_TYPE_CMD },
-	{ "set", NULL, set_cmd, 0, "Set a shell variable", "set [var=value]", SHELL_TYPE_CMD },
-	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "ss file", SHELL_TYPE_CMD },
-	{ "run",  NULL, run_cmd, 1, "Run a shell script", "run file [args]", SHELL_TYPE_CMD },
-	{ "calc", NULL, calc_cmd, 1, "Do a simple address calculation", "calc addr [d|o|x]", SHELL_TYPE_CMD },
-	{ "reset", "r", reset_cmd, 0, "Reset", "r", SHELL_TYPE_CMD },
-	{ "wifi", NULL, wifi_cmd, 0, "Enable WIFI with a specified AP config", "wifi [ap]", SHELL_TYPE_CMD },
-	{ "wifishell", NULL, wifishell_cmd, 0, "Enable WIFI Shell with a specified AP config", "wifishell [ap]", SHELL_TYPE_CMD },
-	{ "ver", "v", version_cmd, 0, "Print version of psplink", "v", SHELL_TYPE_CMD },
-	{ "pspver", NULL, pspver_cmd, 0, "Print the version of PSP", "pspver", SHELL_TYPE_CMD },
-	{ "config", NULL, config_cmd, 0, "Print the configuration file settings", "config", SHELL_TYPE_CMD },
-	{ "confset", NULL, confset_cmd, 1, "Set a configuration value", "confset name [value]", SHELL_TYPE_CMD },
-	{ "confdel", NULL, confdel_cmd, 1, "Delete a configuration value", "confdel name", SHELL_TYPE_CMD },
-	{ "tty", NULL, tty_cmd, 0, "Enter TTY mode. All input goes to stdin", "tty", SHELL_TYPE_CMD },
-	{ "help", "?", help_cmd, 0, "Help (Obviously)", "help [command|category]", SHELL_TYPE_CMD },
-	{ "custom", "cst", custom_cmd, 1, "Custom command (for Conshell)", "custom commandnumber", SHELL_TYPE_CMD },
-
+	{ "usbmon", "umn", usbmasson_cmd, 0, "Enable USB mass storage device", "", SHELL_TYPE_CMD },
+	{ "usbmoff", "umf", usbmassoff_cmd, 0, "Disable USB mass storage device", "", SHELL_TYPE_CMD },
+	{ "usbhon", "uhn", usbhoston_cmd, 0, "Enable USB hostfs device", "", SHELL_TYPE_CMD },
+	{ "usbhoff", "uhf", usbhostoff_cmd, 0, "Disable USB hostfs device", "", SHELL_TYPE_CMD },
+	{ "usbstat", "us", usbstat_cmd, 0, "Display the status of the USB connection", "", SHELL_TYPE_CMD },
+    { "uidlist","ul", uidlist_cmd, 0, "List the system UIDS", "[root]", SHELL_TYPE_CMD },
+	{ "cop0", "c0", cop0_cmd, 0, "Print the cop0 registers", "", SHELL_TYPE_CMD },
+	{ "exit", "quit", exit_cmd, 0, "Exit the shell", "", SHELL_TYPE_CMD },
+	{ "set", NULL, set_cmd, 0, "Set a shell variable", "[var=value]", SHELL_TYPE_CMD },
+	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "file", SHELL_TYPE_CMD },
+	{ "run",  NULL, run_cmd, 1, "Run a shell script", "file [args]", SHELL_TYPE_CMD },
+	{ "calc", NULL, calc_cmd, 1, "Do a simple address calculation", "addr [d|o|x]", SHELL_TYPE_CMD },
+	{ "reset", "r", reset_cmd, 0, "Reset", "", SHELL_TYPE_CMD },
+	{ "wifi", NULL, wifi_cmd, 0, "Enable WIFI with a specified AP config", "[ap]", SHELL_TYPE_CMD },
+	{ "wifishell", NULL, wifishell_cmd, 0, "Enable WIFI Shell with a specified AP config", "[ap]", SHELL_TYPE_CMD },
+	{ "ver", "v", version_cmd, 0, "Print version of psplink", "", SHELL_TYPE_CMD },
+	{ "pspver", NULL, pspver_cmd, 0, "Print the version of PSP", "", SHELL_TYPE_CMD },
+	{ "config", NULL, config_cmd, 0, "Print the configuration file settings", "", SHELL_TYPE_CMD },
+	{ "confset", NULL, confset_cmd, 1, "Set a configuration value", "name [value]", SHELL_TYPE_CMD },
+	{ "confdel", NULL, confdel_cmd, 1, "Delete a configuration value", "name", SHELL_TYPE_CMD },
+	{ "power", NULL, power_cmd, 0, "Print power information", "", SHELL_TYPE_CMD },
+	{ "tty", NULL, tty_cmd, 0, "Enter TTY mode. All input goes to stdin", "", SHELL_TYPE_CMD },
+	{ "help", "?", help_cmd, 0, "Help (Obviously)", "[command|category]", SHELL_TYPE_CMD },
+	{ "custom", "cst", custom_cmd, 1, "Custom command (for Conshell)", "commandnumber", SHELL_TYPE_CMD },
 	{ NULL, NULL, NULL, 0, NULL, NULL, SHELL_TYPE_CMD }
 };
 
@@ -4040,21 +4067,6 @@ static int help_cmd(int argc, char **argv)
 				for(cmd_loop = 1; found_cmd[cmd_loop].name && found_cmd[cmd_loop].type != SHELL_TYPE_CATEGORY; cmd_loop++)
 				{
 					printf("%-10s - %s\n", found_cmd[cmd_loop].name, found_cmd[cmd_loop].desc);
-					if(g_direct_term)
-					{
-						if((cmd_loop % 24) == 20)
-						{
-							char ch;
-							printf("Press any key to continue, or q to quit\n");
-
-							while((ch = g_readchar()) == -1);
-							ch = toupper(ch);
-							if(ch == 'Q')
-							{
-								break;
-							}
-						}
-					}
 				}
 			}
 			else
@@ -4064,7 +4076,7 @@ static int help_cmd(int argc, char **argv)
 				{
 					printf("Synonym: %s\n", found_cmd->syn);
 				}
-				printf("Usage: %s\n", found_cmd->help);
+				printf("Usage: %s %s\n", found_cmd->name, found_cmd->help);
 			}
 		}
 		else

@@ -151,6 +151,7 @@ struct Instruction inst[] =
 	{ "mtc0",		0x40800000, 0xFFE007FF,	"%t, %0"},
 	{ "mtdr",		0x7080003D, 0xFFE007FF,	"%t, %r"},
 	{ "mtic",		0x70000026, 0xFFE007FF, "%t, %p"},
+	{ "halt",       0x70000000, 0xFFFFFFFF, "" },
 	{ "mthi",		0x00000011, 0xFC1FFFFF,	"%s"},
 	{ "mtlo",		0x00000013, 0xFC1FFFFF,	"%s"},
 	{ "mult",		0x00000018, 0xFC00FFFF, "%s, %t"},

@@ -43,8 +43,6 @@ static enum UsbStates g_usbhoststate = USB_NOSTART;
 extern struct GlobalContext g_context;
 int (*g_QueryModuleInfo)(SceUID modid, SceKernelModuleInfo *info) = NULL;
 int (*g_GetModuleIdList)(SceUID *readbuf, int readbufsize, int *idcount) = NULL;
-extern int g_debuggermode;
-extern void set_swbp(u32 addr);
 
 int g_isv1 = 0;
 
@@ -1032,7 +1030,6 @@ void f_cvt(float val, char *buf, int bufsize, int precision, int mode)
 			exp--;
 		}
 	}
-	//printf("exp %d\n", exp);
 
 	for(rndpos = precision, round = 0.4999f; rndpos > 0; rndpos--, round *= 0.1f);
 
@@ -1124,8 +1121,6 @@ void f_cvt(float val, char *buf, int bufsize, int precision, int mode)
 	}
 
 	*conv_p = 0;
-
-	//printf("%s\n", conv_buf);
 
 	strncpy(buf, conv_buf, bufsize);
 	buf[bufsize-1] = 0;

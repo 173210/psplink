@@ -20,4 +20,4 @@ LIBS = -lpspusb_driver -lpspusbstor -lpspumd
 PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build_prx.mak
 
-LIBS += -lpsphprm_driver 
+LIBS += -lpsphprm_driver -lpsppower_driver
