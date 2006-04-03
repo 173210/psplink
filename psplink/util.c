@@ -24,6 +24,7 @@
 #include <usbhostfs.h>
 #include "psplink.h"
 #include "util.h"
+#include "sio.h"
 
 enum UsbStates 
 {
@@ -863,7 +864,7 @@ int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info)
 
 	memset(info, 0, sizeof(*info));
 	info->size = sizeof(*info);
-	pspDebugSioDisableKprintf();
+	sioDisableKprintf();
 	ret = g_QueryModuleInfo(uid, info);
 	if(ret == 0)
 	{
@@ -873,7 +874,7 @@ int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info)
 	{
 		ret = 0;
 	}
-	pspDebugSioEnableKprintf();
+	sioEnableKprintf();
 
 	return ret;
 }

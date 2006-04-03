@@ -19,6 +19,7 @@
 #include "util.h"
 #include "psplink.h"
 #include "debug.h"
+#include "sio.h"
 
 struct ExceptionContext g_exception;
 
@@ -200,13 +201,13 @@ void psplinkHandleException(PspDebugRegBlock *regs)
 	{
 		g_exception.modid = pMod->modid;
 		mod.size = sizeof(mod);
-		pspDebugSioDisableKprintf();
+		sioDisableKprintf();
 		if(!g_QueryModuleInfo(g_exception.modid, &mod))
 		{
 			strncpy(g_exception.modulename, mod.name, 31);
 			g_exception.modulename[31] = 0;
 		}
-		pspDebugSioEnableKprintf();
+		sioEnableKprintf();
 	}
 	else
 	{

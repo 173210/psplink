@@ -25,6 +25,143 @@
 #include "psplink.h"
 
 static SceUID g_eventflag = -1;
+static int g_enablekprintf = 0;
+
+/* Define some important parameters, not really sure on names. Probably doesn't matter */
+#define PSP_UART4_FIFO 0xBE500000
+#define PSP_UART4_STAT 0xBE500018
+#define PSP_UART4_DIV1 0xBE500024
+#define PSP_UART4_DIV2 0xBE500028
+#define PSP_UART4_CTRL 0xBE50002C
+#define PSP_UART_CLK   96000000
+#define PSP_UART_TXFULL  0x20
+#define PSP_UART_RXEMPTY 0x10
+
+/* Some function prototypes we will need */
+int sceHprmEnd(void);
+int sceSysregUartIoEnable(int uart);
+int sceSyscon_driver_44439604(int power);
+extern u32 sceKernelRemoveByDebugSection;
+
+void sioPutchar(int ch)
+{
+	while(_lw(PSP_UART4_STAT) & PSP_UART_TXFULL);
+	_sw(ch, PSP_UART4_FIFO);
+}
+
+int sioGetchar(void)
+{
+	if(_lw(PSP_UART4_STAT) & PSP_UART_RXEMPTY)
+	{
+		return -1;
+	}
+
+	return _lw(PSP_UART4_FIFO);
+}
+
+/* Put data to SIO converting any line feeds as necessary */
+int sioPutText(const char *data, int len)
+{
+	int i;
+
+	for(i = 0; i < len; i++)
+	{
+		/* If just line feed add a carriage return */
+		if(data[i] == '\n')
+		{
+			if(((i > 0) && (data[i-1] != '\r')) || (i == 0))
+			{
+				sioPutchar('\r');
+			}
+		}
+
+		sioPutchar(data[i]);
+
+		if((i < (len - 1)) && (data[i] == '\r') && (data[i+1] != '\n'))
+		{
+			sioPutchar('\n');
+		}
+	}
+
+	return len;
+}
+
+void sioSetBaud(int baud)
+{
+	int div1, div2;
+
+	/* rate set using the rough formula div1 = (PSP_UART_CLK / baud) >> 6 and
+	 * div2 = (PSP_UART_CLK / baud) & 0x3F
+	 * The uart4 driver actually uses a slightly different formula for div 2 (it
+	 * adds 32 before doing the AND, but it doesn't seem to make a difference
+	 */
+	div1 = PSP_UART_CLK / baud;
+	div2 = div1 & 0x3F;
+	div1 >>= 6;
+
+	_sw(div1, PSP_UART4_DIV1);
+	_sw(div2, PSP_UART4_DIV2);
+	_sw(0x60, PSP_UART4_CTRL);
+}
+
+static void _sioInit(void)
+{
+	/* Shut down the remote driver */
+	sceHprmEnd();
+	/* Enable UART 4 */
+	sceSysregUartIoEnable(4);
+	/* Enable remote control power */
+	sceSyscon_driver_44439604(1);
+}
+
+static u32 *get_debug_register(void)
+{
+	u32 *pData;
+	u32 ptr;
+
+	pData = (u32 *) (0x80000000 | ((sceKernelRemoveByDebugSection & 0x03FFFFFF) << 2));
+	ptr = ((pData[0] & 0xFFFF) << 16) + (short) (pData[2] & 0xFFFF);
+
+	return (u32 *) ptr;
+}
+
+void _EnablePutchar(void)
+{
+	u32 *pData;
+
+	pData = get_debug_register();
+	*pData |= 0x1000;
+}
+
+static void PutCharDebug(unsigned short *data, unsigned int type)
+{
+	if(((type & 0xFF00) == 0) && (g_enablekprintf))
+	{
+		if(type == '\n')
+		{
+			sioPutchar('\r');
+		}
+
+		sioPutchar(type);
+	}
+}
+
+void sioInstallKprintf(void)
+{
+	_EnablePutchar();
+	sceKernelRegisterDebugPutchar(PutCharDebug);
+	g_enablekprintf = 1;
+}
+
+void sioEnableKprintf(void)
+{
+	g_enablekprintf = 1;
+}
+
+void sioDisableKprintf(void)
+{
+	g_enablekprintf = 0;
+}
 
 static int intr_handler(void *arg)
 {
@@ -48,12 +185,12 @@ int sioReadCharWithTimeout(void)
 	u32 timeout;
 
 	timeout = 500000;
-	ch = pspDebugSioGetchar();
+	ch = sioGetchar();
 	if(ch == -1)
 	{
 		sceKernelEnableIntr(PSP_HPREMOTE_INT);
 		sceKernelWaitEventFlag(g_eventflag, EVENT_SIO, 0x21, &result, &timeout);
-		ch = pspDebugSioGetchar();
+		ch = sioGetchar();
 	}
 
 	return ch;
@@ -64,24 +201,29 @@ int sioReadChar(void)
 	int ch;
 	u32 result;
 
-	ch = pspDebugSioGetchar();
+	ch = sioGetchar();
 	if(ch == -1)
 	{
 		sceKernelEnableIntr(PSP_HPREMOTE_INT);
 		sceKernelWaitEventFlag(g_eventflag, EVENT_SIO, 0x21, &result, NULL);
 
-		ch = pspDebugSioGetchar();
+		ch = sioGetchar();
 	}
 
 	return ch;
 }
 
-void sioInit(int baud)
+void sioInit(int baud, int kponly)
 {
-	g_eventflag = sceKernelCreateEventFlag("SioShellEvent", 0, 0, 0);
-	pspDebugSioInit();
-	pspDebugSioSetBaud(baud);
-	pspDebugSioInstallKprintf();
-	sceKernelRegisterIntrHandler(PSP_HPREMOTE_INT, 1, intr_handler, NULL, NULL);
-	sceKernelEnableIntr(PSP_HPREMOTE_INT);
+	_sioInit();
+	if(!kponly)
+	{
+		g_eventflag = sceKernelCreateEventFlag("SioShellEvent", 0, 0, 0);
+		sceKernelRegisterIntrHandler(PSP_HPREMOTE_INT, 1, intr_handler, NULL, NULL);
+		sceKernelEnableIntr(PSP_HPREMOTE_INT);
+		/* Delay thread for a but */
+		sceKernelDelayThread(2000000);
+	}
+	sioSetBaud(baud);
+	sioInstallKprintf();
 }

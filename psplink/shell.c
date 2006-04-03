@@ -866,7 +866,7 @@ static int print_modinfo(SceUID uid, int verbose)
 	SceKernelModuleInfo info;
 	int ret;
 
-	pspDebugSioDisableKprintf();
+	sioDisableKprintf();
 	memset(&info, 0, sizeof(info));
 	info.size = sizeof(info);
 
@@ -888,7 +888,7 @@ static int print_modinfo(SceUID uid, int verbose)
 			}
 		}
 	}
-	pspDebugSioEnableKprintf();
+	sioEnableKprintf();
 
 	return ret;
 }

@@ -14,8 +14,11 @@
 #ifndef __SIO_H__
 #define __SIO_H__
 
-void sioInit(int baudrate);
+void sioInit(int baudrate, int kponly);
 int sioReadChar(void);
 int sioReadCharWithTimeout(void);
+int sioPutText(const char *data, int len);
+void sioEnableKprintf(void);
+void sioDisableKprintf(void);
 
 #endif

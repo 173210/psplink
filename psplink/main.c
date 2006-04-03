@@ -297,16 +297,20 @@ void initialise(SceSize args, void *argp)
 		sceKernelExitGame();
 	}
 
+	if(ctx.baudrate == 0)
+	{
+		ctx.baudrate = DEFAULT_BAUDRATE;
+	}
+
 	if(ctx.sioshell)
 	{
-		if(ctx.baudrate == 0)
-		{
-			ctx.baudrate = DEFAULT_BAUDRATE;
-		}
-
-		sioInit(ctx.baudrate);
-		ttySetSioHandler(pspDebugSioPutText);
+		sioInit(ctx.baudrate, 0);
+		ttySetSioHandler(sioPutText);
 		g_context.sioshell = 1;
+	}
+	else if(ctx.kprintf)
+	{
+		sioInit(ctx.baudrate, 1);
 	}
 
 	if(ctx.usbshell)

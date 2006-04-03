@@ -240,6 +240,11 @@ static void config_disopt(struct ConfigContext *ctx, const char *szVal, unsigned
 	disasmSetOpts(szVal, 1);
 }
 
+static void config_kprintf(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	ctx->kprintf = iVal;
+}
+
 struct psplink_config config_names[] = {
 	{ "usbmass", 1, config_usbmass },
 	{ "usbhost", 1, config_usbhost },
@@ -268,6 +273,7 @@ struct psplink_config config_names[] = {
 	{ "disopt", 0, config_disopt },
 	{ "usbshell", 1, config_usbshell },
 	{ "usbgdb", 1, config_usbgdb },
+	{ "kprintf", 1, config_kprintf },
 	{ NULL, 0, NULL }
 };
 

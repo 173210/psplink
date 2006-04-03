@@ -46,6 +46,7 @@ struct ConfigContext
 	int  usbhost;
 	int  usbshell;
 	int  usbgdb;
+	int  kprintf;
 };
 
 void configLoad(const char *bootpath, struct ConfigContext *ctx);
