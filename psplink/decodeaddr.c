@@ -22,6 +22,9 @@
 #include "symbols.h"
 #include "libs.h"
 
+/* Indicates that memory protection is on */
+static int g_protoff = 0;
+
 struct mem_entry
 {
 	u32 addr;
@@ -648,6 +651,12 @@ int memValidate(u32 addr, u32 attrib)
 		entry++;
 	}
 
+	if((g_protoff) && (size_left == 0))
+	{
+		/* Allow for a 4 byte read, so we can read/write "dangerous" regs */
+		size_left = 4;
+	}
+
 	return size_left;
 }
 
@@ -665,4 +674,9 @@ void memPrintRegions(void)
 		}
 		i++;
 	}
+}
+
+void memSetProtoff(int protoff)
+{
+	g_protoff = protoff;
 }

@@ -2909,6 +2909,25 @@ static int disasm_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int memprot_cmd(int argc, char **argv)
+{
+	if(strcmp(argv[0], "on") == 0)
+	{
+		memSetProtoff(0);
+	}
+	else if(strcmp(argv[0], "off") == 0)
+	{
+		memSetProtoff(1);
+	}
+	else
+	{
+		printf("Must specify on or off for memory protection\n");
+		return CMD_ERROR;
+	}
+
+	return CMD_OK;
+}
+
 static int disset_cmd(int argc, char **argv)
 {
 	disasmSetOpts(argv[0], 1);
@@ -3559,6 +3578,7 @@ const struct sh_command commands[] = {
 	{ "disopts", NULL, disopts_cmd, 0, "Print the current disassembler options", ""},
 	{ "disset", NULL, disset_cmd, 1, "Set some disassembler options", "options"},
 	{ "disclear", NULL, disclear_cmd, 1, "Clear some disassembler options", "options"},
+	{ "memprot", NULL, memprot_cmd, 1, "Set memory protection on or off", "on|off" },
 	
 	{ "fileio", NULL, NULL, 0, "Commands to handle file io", NULL},
 	{ "ls",  "dir", ls_cmd,    0, "List the files in a directory", "[path1..pathN]"},

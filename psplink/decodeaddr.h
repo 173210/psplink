@@ -26,5 +26,6 @@
 int memDecode(const char *line, u32 *val);
 int memValidate(u32 addr, u32 attrib);
 void memPrintRegions(void);
+void memSetProtoff(int protoff);
 
 #endif

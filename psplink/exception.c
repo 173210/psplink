@@ -181,6 +181,8 @@ void psplinkHandleException(PspDebugRegBlock *regs)
 	memcpy(&g_exception.regs, regs, sizeof(*regs));
 	g_exception.exception = 1;
 	g_exception.thid = sceKernelGetThreadId();
+	memset(&thread, 0, sizeof(thread));
+	thread.size = sizeof(thread);
 	if(!sceKernelReferThreadStatus(g_exception.thid, &thread))
 	{
 		strncpy(g_exception.threadname, thread.name, 31);
@@ -200,6 +202,7 @@ void psplinkHandleException(PspDebugRegBlock *regs)
 	if(pMod)
 	{
 		g_exception.modid = pMod->modid;
+		memset(&mod, 0, sizeof(mod));
 		mod.size = sizeof(mod);
 		sioDisableKprintf();
 		if(!g_QueryModuleInfo(g_exception.modid, &mod))
