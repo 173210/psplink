@@ -3475,6 +3475,13 @@ static int tty_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int tonid_cmd(int argc, char **argv)
+{
+	printf("Name: %s, Nid: 0x%08X\n", argv[0], libsNameToNid(argv[0]));
+
+	return CMD_OK;
+}
+
 static int exit_cmd(int argc, char **argv)
 {
 	return CMD_EXITSHELL;
@@ -3629,6 +3636,7 @@ const struct sh_command commands[] = {
 	{ "confdel", NULL, confdel_cmd, 1, "Delete a configuration value", "name"},
 	{ "power", NULL, power_cmd, 0, "Print power information", ""},
 	{ "tty", NULL, tty_cmd, 0, "Enter TTY mode. All input goes to stdin", ""},
+	{ "tonid", NULL, tonid_cmd, 1, "Calculate the NID from a name", "name" },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "[command|category]"},
 	{ "custom", "cst", custom_cmd, 1, "Custom command (for Conshell)", "commandnumber"},
 	{ NULL, NULL, NULL, 0, NULL, NULL}

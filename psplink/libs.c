@@ -16,6 +16,7 @@
 #include <psputilsforkernel.h>
 #include <pspmoduleexport.h>
 #include <psploadcore.h>
+#include <pspsdk.h>
 #include <stdio.h>
 #include <string.h>
 #include "util.h"
@@ -82,7 +83,7 @@ void* libsFindExportAddrByNid(SceUID uid, const char *library, u32 nid)
 	return addr;
 }
 
-void* libsFindExportAddrByName(SceUID uid, const char *library, const char *name)
+u32 libsNameToNid(const char *name)
 {
 	u8 digest[20];
 	u32 nid;
@@ -90,11 +91,19 @@ void* libsFindExportAddrByName(SceUID uid, const char *library, const char *name
 	if(sceKernelUtilsSha1Digest((u8 *) name, strlen(name), digest) >= 0)
 	{
 		nid = digest[0] | (digest[1] << 8) | (digest[2] << 16) | (digest[3] << 24);
-		//printf("nid: %08X\n", nid);
-		return libsFindExportAddrByNid(uid, library, nid);
+		return nid;
 	}
 
-	return NULL;
+	return 0;
+}
+
+void* libsFindExportAddrByName(SceUID uid, const char *library, const char *name)
+{
+	u32 nid;
+
+	nid = libsNameToNid(name);
+
+	return libsFindExportAddrByNid(uid, library, nid);
 }
 
 u32 libsFindExportByName(SceUID uid, const char *library, const char *name)
@@ -121,6 +130,27 @@ u32 libsFindExportByNid(SceUID uid, const char *library, u32 nid)
 	}
 
 	return *addr;
+}
+
+int libsPatchFunction(SceUID uid, const char *library, u32 nid, u16 retval)
+{
+	u32* addr;
+	int intc;
+	int ret = 0;
+
+	intc = pspSdkDisableInterrupts();
+	addr = (u32 *) libsFindExportByNid(uid, library, nid);
+	if(addr)
+	{
+		addr[0] = 0x03E00008;
+		addr[1] = 0x24020000 | (u32) retval;
+		sceKernelDcacheWritebackInvalidateRange(addr, 8);
+		sceKernelIcacheInvalidateRange(addr, 8);
+		ret = 1;
+	}
+	pspSdkEnableInterrupts(intc);
+
+	return ret;
 }
 
 int libsPrintEntries(SceUID uid)

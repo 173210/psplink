@@ -18,5 +18,7 @@ u32 libsFindExportByName(SceUID uid, const char *library, const char *name);
 u32 libsFindExportByNid(SceUID uid, const char *library, u32 nid);
 void* libsFindExportAddrByName(SceUID uid, const char *library, const char *name);
 void* libsFindExportAddrByNid(SceUID uid, const char *library, u32 nid);
+int libsPatchFunction(SceUID uid, const char *library, u32 nid, u16 retval);
+u32 libsNameToNid(const char *name);
 
 #endif

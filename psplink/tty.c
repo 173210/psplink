@@ -25,6 +25,7 @@
 #include "psplink.h"
 #include "apihook.h"
 #include "util.h"
+#include "libs.h"
 
 #define STDIN_BUFSIZE 4096
 
@@ -162,9 +163,16 @@ static int close_func(int fd)
 
 void ttyInit(void)
 {
+	SceUID uid;
+
 	pspDebugInstallStdoutHandler(outputHandler);
 	pspDebugInstallStderrHandler(outputHandler);
 	pspDebugInstallStdinHandler(inputHandler);
 	/* Install a patch to prevent a naughty app from closing stdout */
-	apiHookByNid(refer_module_by_name("sceIOFileManager", NULL), "IoFileMgrForUser", 0x810c4bc3, close_func);
+	uid = refer_module_by_name("sceIOFileManager", NULL);
+	if(uid >= 0)
+	{
+		apiHookByNid(uid, "IoFileMgrForUser", 0x810c4bc3, close_func);
+		libsPatchFunction(uid, "IoFileMgrForKernel", 0x3c54e908, 0xFFFF);
+	}
 }

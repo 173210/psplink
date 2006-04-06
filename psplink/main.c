@@ -34,6 +34,7 @@
 #include "tty.h"
 #include "disasm.h"
 #include "symbols.h"
+#include "libs.h"
 
 PSP_MODULE_INFO("PSPLINK", 0x1000, 1, 1);
 
@@ -267,6 +268,30 @@ int psplinkConsolePermit(void)
 	return (!g_context.inexec || g_context.consinterfere);
 }
 
+int RegisterExceptionDummy(void)
+{
+	return 0;
+}
+
+/* Patch out the exception handler setup call for apps which come after us ;P */
+int psplinkPatchException(void)
+{
+	u32 *addr;
+	int intc;
+
+	intc = pspSdkDisableInterrupts();
+	addr = libsFindExportAddrByNid(refer_module_by_name("sceExceptionManager", NULL), "ExceptionManagerForKernel", 0x565C0B0E);
+	if(addr)
+	{
+		*addr = (u32) RegisterExceptionDummy;
+		sceKernelDcacheWritebackInvalidateRange(addr, 4);
+		sceKernelIcacheInvalidateRange(addr, 4);
+	}
+	pspSdkEnableInterrupts(intc);
+
+	return 0;
+}
+
 void initialise(SceSize args, void *argp)
 {
 	struct ConfigContext ctx;
@@ -325,6 +350,8 @@ void initialise(SceSize args, void *argp)
 
 	sceKernelWaitThreadEnd(g_loaderthid, NULL);
 	unload_loader();
+
+	psplinkPatchException();
 
 	if(ctx.enableuser)
 	{

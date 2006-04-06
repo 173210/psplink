@@ -54,7 +54,6 @@ int main_thread(SceSize args, void *argp)
 	{
 		if(usb_read_async_data(0, &cli[cli_pos], 1) < 1)
 		{
-			Kprintf("Error reading async data\n");
 			sceKernelDelayThread(250000);
 			continue;
 		}
