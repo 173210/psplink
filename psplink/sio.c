@@ -23,6 +23,7 @@
 #include <pspumd.h>
 #include <psputilsforkernel.h>
 #include "psplink.h"
+#include "util.h"
 
 static SceUID g_eventflag = -1;
 static int g_enablekprintf = 0;
@@ -41,7 +42,6 @@ static int g_enablekprintf = 0;
 int sceHprmEnd(void);
 int sceSysregUartIoEnable(int uart);
 int sceSyscon_driver_44439604(int power);
-extern u32 sceKernelRemoveByDebugSection;
 
 void sioPutchar(int ch)
 {
@@ -114,23 +114,12 @@ static void _sioInit(void)
 	sceSyscon_driver_44439604(1);
 }
 
-static u32 *get_debug_register(void)
-{
-	u32 *pData;
-	u32 ptr;
-
-	pData = (u32 *) (0x80000000 | ((sceKernelRemoveByDebugSection & 0x03FFFFFF) << 2));
-	ptr = ((pData[0] & 0xFFFF) << 16) + (short) (pData[2] & 0xFFFF);
-
-	return (u32 *) ptr;
-}
-
 void _EnablePutchar(void)
 {
 	u32 *pData;
 
 	pData = get_debug_register();
-	*pData |= 0x1000;
+	*pData |= DEBUG_REG_KPRINTF_ENABLE;
 }
 
 static void PutCharDebug(unsigned short *data, unsigned int type)

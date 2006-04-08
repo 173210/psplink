@@ -60,6 +60,12 @@ SceUID refer_module_by_addr(unsigned int addr, SceKernelModuleInfo *info);
 SceUID refer_module_by_name(const char *name, SceKernelModuleInfo *info);
 int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info);
 
+#define DEBUG_REG_KPRINTF_ENABLE  0x00001000
+#define DEBUG_REG_GLOBAL_PROFILER 0x00800000
+#define DEBUG_REG_THREAD_PROFILER 0x00C00000
+#define DEBUG_REG_PROFILER_MASK   (~DEBUG_REG_THREAD_PROFILER)
+u32 *get_debug_register(void);
+
 #define MODE_GENERIC 0
 #define MODE_EXP 1
 #define MODE_FLOAT_ONLY 2

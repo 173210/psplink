@@ -3486,6 +3486,91 @@ static int clock_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int profmode_cmd(int argc, char **argv)
+{
+	u32 *debug;
+	const char *mode;
+
+	debug = get_debug_register();
+	if(debug)
+	{
+		if(argc > 0)
+		{
+			switch(argv[0][0])
+			{
+				case 't': 
+						*debug &= DEBUG_REG_PROFILER_MASK;
+						*debug |= DEBUG_REG_THREAD_PROFILER;
+						break;
+				case 'g': 
+						*debug &= DEBUG_REG_PROFILER_MASK;
+						*debug |= DEBUG_REG_GLOBAL_PROFILER;
+						break;
+				case 'o': 
+						*debug &= DEBUG_REG_PROFILER_MASK;
+						break;
+				default: printf("Invalid profiler mode '%s'\n", argv[0]);
+						 return CMD_ERROR;
+			};
+			printf("Profiler mode set, you must now reset psplink\n");
+		}
+		else
+		{
+			if((*debug & DEBUG_REG_THREAD_PROFILER) == DEBUG_REG_THREAD_PROFILER)
+			{
+				mode = "Thread";
+			}
+			else if((*debug & DEBUG_REG_GLOBAL_PROFILER) == DEBUG_REG_GLOBAL_PROFILER)
+			{
+				mode = "Global";
+			}
+			else
+			{
+				mode = "Off";
+			}
+
+			printf("Profiler Mode: %s\n", mode);
+		}
+	}
+
+	
+	return CMD_OK;
+}
+
+static int debugreg_cmd(int argc, char **argv)
+{
+	u32 *debug;
+
+	debug = get_debug_register();
+	if(debug)
+	{
+		if(argc > 0)
+		{
+			u32 val;
+
+			if(strtoint(argv[0], &val))
+			{
+				*debug = val;
+			}
+			else
+			{
+				printf("Invalid debug reg value '%s'\n", argv[0]);
+				return CMD_ERROR;
+			}
+		}
+		else
+		{
+			printf("Debug Register: 0x%08X\n", *debug);
+		}
+	}
+	else
+	{
+		printf("Internal Error: Could not get debug register\n");
+	}
+
+	return CMD_OK;
+}
+
 static int tty_cmd(int argc, char **argv)
 {
 	g_ttymode = 1;
@@ -3655,6 +3740,8 @@ const struct sh_command commands[] = {
 	{ "clock", NULL, clock_cmd, 3, "Set the clock frequencies", "cpu ram bus" },
 	{ "tty", NULL, tty_cmd, 0, "Enter TTY mode. All input goes to stdin", ""},
 	{ "tonid", NULL, tonid_cmd, 1, "Calculate the NID from a name", "name" },
+	{ "profmode", NULL, profmode_cmd, 0, "Set or display the current profiler mode", "[t|g|o]" },
+	{ "debugreg", NULL, debugreg_cmd, 0, "Set or display the current debug register", "[val]" },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "[command|category]"},
 	{ "custom", "cst", custom_cmd, 1, "Custom command (for Conshell)", "commandnumber"},
 	{ NULL, NULL, NULL, 0, NULL, NULL}

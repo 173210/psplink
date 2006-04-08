@@ -44,6 +44,8 @@ extern struct GlobalContext g_context;
 int (*g_QueryModuleInfo)(SceUID modid, SceKernelModuleInfo *info) = NULL;
 int (*g_GetModuleIdList)(SceUID *readbuf, int readbufsize, int *idcount) = NULL;
 
+extern u32 sceKernelRemoveByDebugSection;
+
 int g_isv1 = 0;
 
 int is_alnum(char ch)
@@ -1127,3 +1129,15 @@ void f_cvt(float val, char *buf, int bufsize, int precision, int mode)
 
 	return;
 }
+
+u32 *get_debug_register(void)
+{
+	u32 *pData;
+	u32 ptr;
+
+	pData = (u32 *) (0x80000000 | ((sceKernelRemoveByDebugSection & 0x03FFFFFF) << 2));
+	ptr = ((pData[0] & 0xFFFF) << 16) + (short) (pData[2] & 0xFFFF);
+
+	return (u32 *) ptr;
+}
+
