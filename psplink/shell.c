@@ -3463,8 +3463,25 @@ static int power_cmd(int argc, char **argv)
 	} else
 	    printf("Battery stats unavailable\n");
 
-	printf("%-14s: %d mHz\n", "CPU Speed", scePowerGetCpuClockFrequency());
-	printf("%-14s: %d mHz\n", "Bus Speed", scePowerGetBusClockFrequency());
+	printf("%-14s: %d MHz\n", "CPU Speed", scePowerGetCpuClockFrequency());
+	printf("%-14s: %d MHz\n", "Bus Speed", scePowerGetBusClockFrequency());
+
+	return CMD_OK;
+}
+
+static int clock_cmd(int argc, char **argv)
+{
+	u32 val1, val2, val3;
+
+	if((strtoint(argv[0], &val1)) && (strtoint(argv[1], &val2)) && (strtoint(argv[2], &val3)))
+	{
+		(void) scePowerSetClockFrequency(val1, val2, val3);
+	}
+	else
+	{
+		printf("Invalid clock values\n");
+		return CMD_ERROR;
+	}
 
 	return CMD_OK;
 }
@@ -3635,6 +3652,7 @@ const struct sh_command commands[] = {
 	{ "confset", NULL, confset_cmd, 1, "Set a configuration value", "name [value]"},
 	{ "confdel", NULL, confdel_cmd, 1, "Delete a configuration value", "name"},
 	{ "power", NULL, power_cmd, 0, "Print power information", ""},
+	{ "clock", NULL, clock_cmd, 3, "Set the clock frequencies", "cpu ram bus" },
 	{ "tty", NULL, tty_cmd, 0, "Enter TTY mode. All input goes to stdin", ""},
 	{ "tonid", NULL, tonid_cmd, 1, "Calculate the NID from a name", "name" },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "[command|category]"},
