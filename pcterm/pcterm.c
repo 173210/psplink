@@ -29,6 +29,10 @@
 #include <termios.h>
 #endif
 
+#ifndef SOL_TCP
+#define SOL_TCP 6
+#endif
+
 #define DEFAULT_PORT 10000
 #define HISTORY_FILE ".pcterm.hist"
 #define CONNECT_RETRIES 5
