@@ -41,8 +41,8 @@ struct SymbolFile
 	unsigned int size;
 };
 
-#define HEAP_SIZE (512*1024)
-#define HEAP_PARTITION 4
+#define HEAP_SIZE (64*1024)
+#define HEAP_PARTITION 1
 
 static SceUID g_block_id = -1;
 static void *g_baseaddr = NULL;
