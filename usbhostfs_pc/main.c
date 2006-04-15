@@ -100,13 +100,13 @@ unsigned short g_gdbport = BASE_PORT+1;
 
 #define V_PRINTF(level, fmt, ...) { if(g_verbose >= level) { fprintf(stderr, fmt, ## __VA_ARGS__); } }
 
-#ifdef BUILD_BIGENDIAN
+#if defined BUILD_BIGENDIAN || defined _BIG_ENDIAN
 uint16_t swap16(uint16_t i)
 {
 	uint8_t *p = (uint8_t *) &i;
 	uint16_t ret;
 
-	ret = (p[0] << 8) | p[1];
+	ret = (p[1] << 8) | p[0];
 
 	return ret;
 }
@@ -116,7 +116,7 @@ uint32_t swap32(uint32_t i)
 	uint8_t *p = (uint8_t *) &i;
 	uint32_t ret;
 
-	ret = (p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3];
+	ret = (p[3] << 24) | (p[2] << 16) | (p[1] << 8) | p[0];
 
 	return ret;
 }
@@ -126,8 +126,8 @@ uint64_t swap64(uint64_t i)
 	uint8_t *p = (uint8_t *) &i;
 	uint64_t ret;
 
-	ret = (uint64_t) p[7] | ((uint64_t) p[6] << 8) | ((uint64_t) p[5] << 16) | ((uint64_t) p[4] << 24) 
-		| ((uint64_t) p[3] << 32) | ((uint64_t) p[2] << 40) | ((uint64_t) p[1] << 48) | ((uint64_t) p[0] << 56);
+	ret = (uint64_t) p[0] | ((uint64_t) p[1] << 8) | ((uint64_t) p[2] << 16) | ((uint64_t) p[3] << 24) 
+		| ((uint64_t) p[4] << 32) | ((uint64_t) p[5] << 40) | ((uint64_t) p[6] << 48) | ((uint64_t) p[7] << 56);
 
 	return ret;
 }
