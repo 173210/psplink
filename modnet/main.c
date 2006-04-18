@@ -77,7 +77,7 @@ int connect_to_ap(int config)
 	int err;
 	int stateLast = -1;
 
-	err = sceNetApctlConnect(1);
+	err = sceNetApctlConnect(config);
 	if (err != 0)
 	{
 		pspDebugScreenPrintf(MODULE_NAME ": sceNetApctlConnect returns %08X\n", err);
@@ -152,7 +152,7 @@ int main(int argc, char **argv)
 			while(!sceWlanGetSwitchState());
 		}
 
-		if(!connect_to_ap(1))
+		if(!connect_to_ap(ap))
 		{
 			pspDebugScreenPrintf(MODULE_NAME ": Error, could not connect to access point\n");
 			break;
