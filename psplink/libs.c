@@ -23,6 +23,20 @@
 #include "psplink.h"
 #include "libs.h"
 
+struct PspModuleImport
+{
+	const char *name;
+	unsigned short version;
+	unsigned short attribute;
+	unsigned char entLen;
+	unsigned char varCount;
+	unsigned short funcCount;
+	u32 *fnids;
+	u32 *funcs;
+	u32 *vnids;
+	u32 *vars;
+} __attribute__((packed));
+
 static struct SceLibraryEntryTable *_libsFindLibrary(SceUID uid, const char *library)
 {
 	struct SceLibraryEntryTable *entry;
@@ -153,6 +167,66 @@ int libsPatchFunction(SceUID uid, const char *library, u32 nid, u16 retval)
 	return ret;
 }
 
+int libsPrintImports(SceUID uid)
+{
+	SceModule *pMod;
+	void *stubTab;
+	int stubLen;
+
+	pMod = sceKernelFindModuleByUID(uid);
+	if(pMod != NULL)
+	{
+		int i = 0;
+
+		stubTab = pMod->stub_top;
+		stubLen = pMod->stub_size;
+		printf("stubTab %p - stubLen %d\n", stubTab, stubLen);
+		while(i < stubLen)
+		{
+			int count;
+			struct PspModuleImport *pImp = (struct PspModuleImport *) (stubTab + i);
+
+			if(pImp->name)
+			{
+				printf("Import Library %s, attr 0x%04X\n", pImp->name, pImp->attribute);
+			}
+			else
+			{
+				printf("Import Library %s, attr 0x%04X\n", "Unknown", pImp->attribute);
+			}
+
+			if(pImp->funcCount > 0)
+			{
+				printf("Function Imports:\n");
+				for(count = 0; count < pImp->funcCount; count++)
+				{
+					printf("Entry %-3d: UID 0x%08X, Function 0x%08X\n", count+1, pImp->fnids[count], 
+							(u32) &pImp->funcs[count*2]);
+				}
+			}
+
+			if(pImp->funcCount > 0)
+			{
+				printf("Variable Imports:\n");
+				for(count = 0; count < pImp->varCount; count++)
+				{
+					printf("Entry %-3d: UID 0x%08X, Variable 0x%08X\n", count+1, pImp->vnids[count], 
+							(u32) &pImp->vars[count*2]);
+				}
+			}
+			printf("\n");
+
+			i += (pImp->entLen * 4);
+		}
+	}
+	else
+	{
+		return 0;
+	}
+
+	return 1;
+}
+
 int libsPrintEntries(SceUID uid)
 {
 	struct SceLibraryEntryTable *entry;
@@ -178,11 +252,11 @@ int libsPrintEntries(SceUID uid)
 
 			if(entry->libname)
 			{
-				printf("Export Library %s\n", entry->libname);
+				printf("Export Library %s, attr 0x%04X\n", entry->libname, entry->attribute);
 			}
 			else
 			{		
-				printf("Export library syslib\n");
+				printf("Export library %s, attr 0x%04X\n", "syslib", entry->attribute);
 			}
 			total = entry->stubcount + entry->vstubcount;
 			vars = entry->entrytable;
@@ -198,12 +272,14 @@ int libsPrintEntries(SceUID uid)
 
 			if(entry->vstubcount > 0)
 			{
+				printf("Variable Exports:\n");
 				for(count = 0; count < entry->vstubcount; count++)
 				{
 					printf("Entry %-3d: UID 0x%08X, Variable 0x%08X\n", count+1, vars[count+entry->stubcount], 
 							vars[count+entry->stubcount+total]);
 				}
 			}
+			printf("\n");
 
 			i += (entry->len * 4);
 		}

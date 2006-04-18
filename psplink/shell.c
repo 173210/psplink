@@ -1059,6 +1059,31 @@ static int modexp_cmd(int argc, char **argv)
 	return ret;
 }
 
+static int modimp_cmd(int argc, char **argv)
+{
+	SceUID uid;
+	int ret = CMD_ERROR;
+
+	uid = get_module_uid(argv[0]);
+	if(uid >= 0)
+	{
+		if(libsPrintImports(uid))
+		{
+			ret = CMD_OK;
+		}
+		else
+		{
+			printf("ERROR: Couldn't find module %s\n", argv[0]);
+		}
+	}
+	else
+	{
+		printf("ERROR: Invalid argument %s\n", argv[0]);
+	}
+
+	return ret;
+}
+
 static int modfindx_cmd(int argc, char **argv)
 {
 	SceUID uid;
@@ -3654,6 +3679,7 @@ const struct sh_command commands[] = {
 	{ "kill", "k", kill_cmd, 1, "Kill a module and all it's threads", "uid|@name" },
 	{ "debug", "d", debug_cmd, 1, "Start a module under NetGDB", "program.elf [args]" },
 	{ "modexp", "mp", modexp_cmd, 1, "List the exports from a module", "uid|@name" },
+	{ "modimp", NULL, modimp_cmd, 1, "List the imports in a module", "uid|@name" },
 	{ "modfindx", "mfx", modfindx_cmd, 3, "Find a module's export address", "uid|@name library nid|@name" },
 	{ "apihook", NULL, apihook_cmd, 3, "Hook a user mode API call", "uid|@name library nid|@name [param]" },
 	{ "apihooks", NULL, apihooks_cmd, 3, "Hook a user mode API call with sleep", "uid|@name library nid|@name [param]" },
@@ -3905,7 +3931,7 @@ int psplinkParseCommand(char *command, int direct_term)
 	ret = sceKernelSendMbx(g_command_msg, &msg);
 	if(ret >= 0)
 	{
-		/* Wait 10 seconds for completion */
+		/* Wait 60 seconds for completion */
 		unsigned int timeout = (60*1000*1000);
 		unsigned int result;
 		ret = sceKernelWaitEventFlag(g_command_event, COMMAND_EVENT_DONE, 0x21, &result, &timeout);

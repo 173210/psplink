@@ -14,6 +14,7 @@
 #define __LIBS_H__
 
 int libsPrintEntries(SceUID uid);
+int libsPrintImports(SceUID uid);
 u32 libsFindExportByName(SceUID uid, const char *library, const char *name);
 u32 libsFindExportByNid(SceUID uid, const char *library, u32 nid);
 void* libsFindExportAddrByName(SceUID uid, const char *library, const char *name);
