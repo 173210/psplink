@@ -826,6 +826,103 @@ static int thevinfo_cmd(int argc, char **argv)
 	return threadmaninfo_cmd(argc, argv, "Thread Event Handler", print_thevinfo, (ReferFunc) pspSdkReferThreadEventHandlerStatusByName);
 }
 
+int thread_event_handler(int mask, SceUID thid, void *common)
+{
+	const char *event = "Unknown";
+	const char *thname = "Unknown";
+	SceKernelThreadInfo thinfo;
+
+	switch(mask)
+	{
+		case THREAD_CREATE: event = "Create";
+							break;
+		case THREAD_START: event = "Start";
+						   break;
+		case THREAD_EXIT: event = "Exit";
+						  break;
+		case THREAD_DELETE: event = "Delete";
+							break;
+		default: break;
+	};
+
+	memset(&thinfo, 0, sizeof(thinfo));
+	thinfo.size = sizeof(thinfo);
+	if(sceKernelReferThreadStatus(thid, &thinfo) == 0)
+	{
+		thname = thinfo.name;
+	}
+
+	printf("Thread %-6s: thid 0x%08X name %s\n", event, thid, thname);
+
+	return 0;
+}
+
+static int thmon_cmd(int argc, char **argv)
+{
+	SceUID ev;
+	SceUID uid;
+	int mask = 0;
+
+	if(g_context.thevent >= 0)
+	{
+		sceKernelReleaseThreadEventHandler(g_context.thevent);
+		g_context.thevent = -1;
+	}
+
+	switch(argv[0][0])
+	{
+		case 'a': uid = THREADEVENT_ALL;
+				  break;
+		case 'u': uid = THREADEVENT_USER;
+				  break;
+		case 'k': uid = THREADEVENT_KERN;
+				  break;
+		default: return CMD_ERROR;
+	};
+
+	if(argc > 1)
+	{
+		int loop;
+
+		for(loop = 0; argv[1][loop]; loop++)
+		{
+			switch(argv[1][loop])
+			{
+				case 'c': mask |= THREAD_CREATE;
+						  break;
+				case 's': mask |= THREAD_START;
+						  break;
+				case 'e': mask |= THREAD_EXIT;
+						  break;
+				case 'd': mask |= THREAD_DELETE;
+						  break;
+				default: /* Do nothing */
+						  break;
+			};
+		}
+	}
+	else
+	{
+		mask = THREAD_CREATE | THREAD_START | THREAD_EXIT | THREAD_DELETE;
+	}
+
+	ev = sceKernelRegisterThreadEventHandler("PSPLINK_THEV", uid, mask, thread_event_handler, NULL);
+	g_context.thevent = ev;
+
+	return CMD_OK;
+}
+
+static int thmonoff_cmd(int argc, char **argv)
+{
+	if(g_context.thevent >= 0)
+	{
+		sceKernelReleaseThreadEventHandler(g_context.thevent);
+		g_context.thevent = -1;
+	}
+
+	return CMD_OK;
+}
+
 static int uidlist_cmd(int argc, char **argv)
 {
 	const char *name = NULL;
@@ -1297,6 +1394,8 @@ static int modexec_cmd(int argc, char **argv)
 		le.argp = args;
 		le.key = key;
 
+		psplinkStop();
+
 		sceKernelLoadExec(path, &le);
 	}
 
@@ -1525,7 +1624,7 @@ static int exec_cmd(int argc, char **argv)
 				size = build_bootargs(args, g_context.bootfile, file, argc-1, &argv[1]);
 			}
 
-			stop_usbmass();
+			psplinkStop();
 
 			le.size = sizeof(le);
 			le.args = size;
@@ -3689,6 +3788,8 @@ const struct sh_command commands[] = {
 	{ "mppinfo","pi", mppinfo_cmd, 1, "Print info about a message pipe", "uid|@name" },
 	{ "thevlist","tel", thevlist_cmd, 0, "List the thread event handlers in the system", "[v]" },
 	{ "thevinfo","tei", thevinfo_cmd, 1, "Print info about a thread event handler", "uid|@name" },
+	{ "thmon", "tm", thmon_cmd, 1, "Monitor thread events", "u|k|a [csed]" },
+	{ "thmonoff", NULL, thmonoff_cmd, 0, "Disable the thread monitor", "" },
 	
 	{ "module", NULL, NULL, 0, "Commands to handle modules", NULL },
 	{ "modlist","ml", modlist_cmd, 0, "List the currently loaded modules", "[v]" },
@@ -3703,7 +3804,7 @@ const struct sh_command commands[] = {
 	{ "exec", "e", exec_cmd, 0, "Execute a new program (under psplink)", "[path] [args]" },
 	{ "ldstart","ld", ldstart_cmd, 1, "Load and start a module", "path [args]" },
 	{ "kill", "k", kill_cmd, 1, "Kill a module and all it's threads", "uid|@name" },
-	{ "debug", "d", debug_cmd, 1, "Start a module under NetGDB", "program.elf [args]" },
+	{ "debug", "d", debug_cmd, 1, "Start a module under GDB", "program.elf [args]" },
 	{ "modexp", "mp", modexp_cmd, 1, "List the exports from a module", "uid|@name" },
 	{ "modimp", NULL, modimp_cmd, 1, "List the imports in a module", "uid|@name" },
 	{ "modfindx", "mfx", modfindx_cmd, 3, "Find a module's export address", "uid|@name library nid|@name" },

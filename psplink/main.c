@@ -228,13 +228,10 @@ void exit_reset(void)
 	}
 }
 
-void psplinkReset(void)
+void psplinkStop(void)
 {
-	struct SceKernelLoadExecParam le;
 	int status;
 
-	psplinkSetK1(0);
-	printf("Resetting psplink\n");
 	stop_usbmass();
 	if(g_context.netshelluid >= 0)
 	{
@@ -244,6 +241,19 @@ void psplinkReset(void)
 	{
 		sceKernelStopModule(g_context.conshelluid, 0, NULL, &status, NULL);
 	}
+	if(g_context.thevent >= 0)
+	{
+		sceKernelReleaseThreadEventHandler(g_context.thevent);
+	}
+}
+
+void psplinkReset(void)
+{
+	struct SceKernelLoadExecParam le;
+
+	psplinkSetK1(0);
+	printf("Resetting psplink\n");
+	psplinkStop();
 
 	le.size = sizeof(le);
 	le.args = strlen(g_context.bootfile) + 1;
@@ -302,6 +312,7 @@ void initialise(SceSize args, void *argp)
 	exceptionInit();
 	g_context.netshelluid = -1;
 	g_context.conshelluid = -1;
+	g_context.thevent = -1;
 	parse_sceargs(args, argp);
 	configLoad(g_context.bootpath, &ctx);
 	disasmSetSymResolver(symbolFindNameByAddressEx);
@@ -398,11 +409,7 @@ int main_thread(SceSize args, void *argp)
 	{
 		shellStart();
 
-		if(g_context.netshelluid >= 0)
-		{
-			int status;
-			sceKernelStopModule(g_context.netshelluid, 0, NULL, &status, NULL);
-		}
+		psplinkStop();
 
 		psplinkExitShell();
 	}

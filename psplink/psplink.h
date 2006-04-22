@@ -42,6 +42,7 @@
 int fdprintf(int fd, const char *fmt, ...);
 
 void psplinkReset(void);
+void psplinkStop(void);
 u32  psplinkSetK1(u32 k1);
 void psplinkGetCop0(u32 *regs);
 int psplinkParseComamnd(char *command);
@@ -74,6 +75,7 @@ struct GlobalContext
 	int pcterm;
 	SceUID netshelluid;
 	SceUID conshelluid;
+	SceUID thevent;
 	int sioshell;
 	int wifi;
 	int wifishell;
