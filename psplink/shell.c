@@ -999,6 +999,31 @@ static int modunld_cmd(int argc, char **argv)
 
 }
 
+static int modstun_cmd(int argc, char **argv)
+{
+	SceUID uid;
+	int ret = CMD_ERROR;
+
+	uid = get_module_uid(argv[0]);
+	if(uid >= 0)
+	{
+		SceUID stop, unld;
+		int status;
+
+		stop = sceKernelStopModule(uid, 0, NULL, &status, NULL);
+		unld = sceKernelUnloadModule(uid);
+		printf("Module Stop/Unload 0x%08X/0x%08X Status 0x%08X\n", stop, unld, status);
+
+		ret = CMD_OK;
+	}
+	else
+	{
+		printf("ERROR: Invalid argument %s\n", argv[0]);
+	}
+
+	return ret;
+}
+
 static int modstart_cmd(int argc, char **argv)
 {
 	SceUID uid;
@@ -3670,6 +3695,7 @@ const struct sh_command commands[] = {
 	{ "modinfo","mi", modinfo_cmd, 1, "Print info about a module", "uid|@name" },
 	{ "modstop","ms", modstop_cmd, 1, "Stop a running module", "uid|@name" },
 	{ "modunld","mu", modunld_cmd, 1, "Unload a module (must be stopped)", "uid|@name" },
+	{ "modstun","mn", modstun_cmd, 1, "Stop and unload a module", "uid|@name" },
 	{ "modload","md", modload_cmd, 1, "Load a module", "path" },
 	{ "modstart","mt", modstart_cmd, 1, "Start a module", "uid|@name [args]" },
 	{ "modexec","me", modexec_cmd, 1, "LoadExec a module", "[@key] path [args]" },
