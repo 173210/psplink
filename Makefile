@@ -15,8 +15,9 @@ all:
 release: all
 	mkdir -p release/v1.0/psplink
 	mkdir -p release/v1.5
+	mkdir -p release/v1.5_nocorrupt
 	mkdir -p release/pc
-	cp -R scripts release/scripts
+	cp -Rf scripts release/scripts
 	cp bootstrap/EBOOT.PBP release/v1.0/psplink
 	cp psplink/psplink.prx release/v1.0/psplink
 	cp psplink/psplink.ini release/v1.0/psplink
@@ -40,9 +41,11 @@ release: all
 	cp usbshell/usbshell.prx release/v1.5/psplink
 	cp conshell/conshell.prx release/v1.5/psplink
 	cp usbgdb/usbgdb.prx release/v1.5/psplink
-	cp -R pcterm release/pc
-	cp -R usbhostfs_pc release/pc
-	cp -R windows release/pc
+	cp -R release/v1.5/psplink "release/v1.5_nocorrupt/plinkx                         1"
+	cp -R release/v1.5/psplink% release/v1.5_nocorrupt/PLINKX~1%
+	cp -Rf pcterm release/pc
+	cp -Rf usbhostfs_pc release/pc
+	cp -Rf windows release/pc
 	cp usbhostfs/usbhostfs.h release/pc/usbhostfs_pc
 	cp README release
 	cp LICENSE release
