@@ -3993,18 +3993,28 @@ int shellParse(char *command)
 			}
 			else
 			{
-				found_cmd = find_command(cmd);
-				if((found_cmd) && (found_cmd->func))
+				if(strcmp(cmd, "compcmd") == 0)  /* Complete Command Name */
 				{
-					if((found_cmd->min_args > (argc - 1)) || ((ret = found_cmd->func(argc-1, &argv[1])) == CMD_ERROR))
-					{
-						printf("Usage: %s\n", found_cmd->help);
-					}
+				}
+				else if(strcmp(cmd, "compfile") == 0) /* Complete Filename */
+				{
 				}
 				else
 				{
-					printf("Unknown command %s\n", cmd);
-					ret = CMD_ERROR;
+					/* Check for a completion function */
+					found_cmd = find_command(cmd);
+					if((found_cmd) && (found_cmd->func))
+					{
+						if((found_cmd->min_args > (argc - 1)) || ((ret = found_cmd->func(argc-1, &argv[1])) == CMD_ERROR))
+						{
+							printf("Usage: %s\n", found_cmd->help);
+						}
+					}
+					else
+					{
+						printf("Unknown command %s\n", cmd);
+						ret = CMD_ERROR;
+					}
 				}
 			}
 		}

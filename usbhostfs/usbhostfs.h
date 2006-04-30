@@ -29,8 +29,23 @@
 
 #define HOSTFS_RENAME_BUFSIZE (1024)
 
+enum USB_ASYNC_WRITE_CHANNELS
+{
+	WRITE_STDOUT = 0,
+	WRITE_STDERR = 1,
+	WRITE_GDB    = 2,
+	WRITE_SHELL  = 3,
+};
+
+enum USB_ASYNC_READ_CHANNELS
+{
+	READ_SHELL = 0,
+	READ_GDB = 1,
+};
+
 #define MAX_ASYNC_BUFFER 4096
-#define MAX_ASYNC_CHANNELS 2
+#define MAX_ASYNC_READ_CHANNELS 2
+#define MAX_ASYNC_WRITE_CHANNELS 4
 
 enum HostFsCommands
 {
@@ -333,6 +348,10 @@ struct AsyncCommand
 int32_t usb_connected(void);
 int32_t command_xchg(void *outcmd, int32_t outcmdlen, void *incmd, int32_t incmdlen, const void *outdata, 
 		int32_t outlen, void *indata, int32_t inlen);
+int usb_write_async_data(unsigned int chan, const void *data, int len);
+int usb_wait_for_connect(void);
+int usb_read_async_data(unsigned int chan, unsigned char *data, int len);
+void usb_async_flush(unsigned int chan);
 int32_t hostfs_init(void);
 void hostfs_term(void);
 #endif

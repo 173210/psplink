@@ -1,7 +1,7 @@
 #ifndef __GDBCOMMON_H__
 #define __GDBCOMMON_H__
 
-#define MODULE_NAME "GDBServer"
+#define GDB_MODULE_NAME "GDBServer"
 
 #define EVENT_HANDLE_EXP  0x1
 #define EVENT_CONTINUE    0x2
@@ -41,7 +41,6 @@ int GdbReadByte(unsigned char *address, unsigned char *dest);
 int GdbWriteByte(char val, unsigned char *dest);
 int GdbHandleException (PspDebugRegBlock *regs);
 void GdbStubInit(void);
-//int GdbTrapEntry(PspDebugRegBlock *regs);
 int GdbTrapEntry(struct PsplinkContext *ctx);
 void GdbMain(void);
 int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info);

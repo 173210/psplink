@@ -6,7 +6,7 @@ BUILD_PRX=1
 USE_USER_LIBS=1
 
 INCDIR = 
-CFLAGS = -O0 -G0 -Wall -g -I../gdbcommon/
+CFLAGS = -O0 -G0 -Wall -g -I../gdbcommon/ -I../usbhostfs
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 LDFLAGS = -L../gdbcommon/

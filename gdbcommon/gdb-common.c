@@ -83,7 +83,7 @@ void GdbMain(void)
 		{
 			if(sceKernelSetEventFlag(g_context.evid, EVENT_CONTINUE) < 0)
 			{
-				printf(MODULE_NAME ": Error setting event flag\n");
+				printf(GDB_MODULE_NAME ": Error setting event flag\n");
 				break;
 			}
 		}
@@ -95,7 +95,7 @@ void GdbMain(void)
 		/* Perhaps set a timeout and poll the socket to see if we have been sent a break */
 		if(sceKernelWaitEventFlag(g_context.evid, EVENT_HANDLE_EXP, PSP_EVENT_WAITOR | PSP_EVENT_WAITCLEAR, &bits, NULL) < 0)
 		{
-			printf(MODULE_NAME ": Error waiting on event flag\n");
+			printf(GDB_MODULE_NAME ": Error waiting on event flag\n");
 			break;
 		}
 	}

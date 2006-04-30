@@ -20,7 +20,7 @@
 #include "gdb-common.h"
 #include "../psplink_user/psplink_user.h"
 
-PSP_MODULE_INFO(MODULE_NAME, 0, 1, 1);
+PSP_MODULE_INFO(GDB_MODULE_NAME, 0, 1, 1);
 PSP_MAIN_THREAD_NAME("GDBServer");
 
 /* Simple thread */
@@ -42,7 +42,7 @@ int main(int argc, char **argv)
 	g_context.evid = sceKernelCreateEventFlag("GdbEvent", PSP_EVENT_WAITMULTIPLE, 0, NULL);
 	if(g_context.evid < 0)
 	{
-		printf(MODULE_NAME ": Error creating event flag 0x%08X\n", g_context.evid);
+		printf(GDB_MODULE_NAME ": Error creating event flag 0x%08X\n", g_context.evid);
 		return 1;
 	}
 
@@ -69,16 +69,16 @@ int main(int argc, char **argv)
 		g_context.uid = sceKernelLoadModule(argv[1], 0, NULL);
 		if(g_context.uid < 0)
 		{
-			printf(MODULE_NAME ": Could not load %s - 0x%08X\n", argv[1], g_context.uid);
+			printf(GDB_MODULE_NAME ": Could not load %s - 0x%08X\n", argv[1], g_context.uid);
 			return 1;
 		}
 
-		printf(MODULE_NAME ": Loaded %s - UID 0x%08X\n", argv[1], g_context.uid);
+		printf(GDB_MODULE_NAME ": Loaded %s - UID 0x%08X\n", argv[1], g_context.uid);
 
 		g_context.info.size = sizeof(g_context.info);
 		if(psplinkReferModule(g_context.uid, &g_context.info) == 0)
 		{
-			printf(MODULE_NAME ": Could not get module information\n");
+			printf(GDB_MODULE_NAME ": Could not get module information\n");
 			return 1;
 		}
 

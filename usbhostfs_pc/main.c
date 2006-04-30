@@ -95,6 +95,7 @@ int  g_verbose = 0;
 int  g_gdbdebug = 0;
 int  g_nocase = 0;
 int  g_pid = HOSTFSDRIVER_PID;
+int  g_timeout = USB_TIMEOUT;
 unsigned short g_shellport = BASE_PORT;
 unsigned short g_gdbport = BASE_PORT+1;
 
@@ -1983,12 +1984,15 @@ void do_async(struct AsyncCommand *cmd, int readlen)
 		data = (uint8_t *) cmd + sizeof(struct AsyncCommand);
 		switch(cmd->channel)
 		{
-			case 0: if(g_shellsock >= 0)
+			case WRITE_STDOUT: 
+			case WRITE_STDERR:
+			case WRITE_SHELL:
+					if(g_shellsock >= 0)
 					{
 						write(g_shellsock, data, readlen - sizeof(struct AsyncCommand));
 					}
 					break;
-			case 1: if(g_gdbdebug)
+			case WRITE_GDB: if(g_gdbdebug)
 					{
 						print_gdbdebug(0, data, readlen - sizeof(struct AsyncCommand));
 					}
@@ -2025,7 +2029,7 @@ int start_hostfs(void)
 			{
 				while(1)
 				{
-					readlen = euid_usb_bulk_read(g_hDev, 0x81, (char*) data, 512, USB_TIMEOUT);
+					readlen = euid_usb_bulk_read(g_hDev, 0x81, (char*) data, 512, g_timeout);
 					if(readlen == 0)
 					{
 						fprintf(stderr, "Read cancelled (remote disconnected)\n");
@@ -2102,7 +2106,7 @@ int parse_args(int argc, char **argv)
 	{
 		int ch;
 
-		ch = getopt(argc, argv, "vhdcg:s:p:f:");
+		ch = getopt(argc, argv, "vhdcg:s:p:f:t:");
 		if(ch == -1)
 		{
 			break;
@@ -2123,6 +2127,8 @@ int parse_args(int argc, char **argv)
 			case 'c': g_nocase = 1;
 					  break;
 			case 'f': g_mapfile = optarg;
+					  break;
+			case 't': g_timeout = atoi(optarg);
 					  break;
 			case 'h': return 0;
 			default:  printf("Unknown option\n");
@@ -2177,6 +2183,7 @@ void print_help(void)
 	fprintf(stderr, "-d                : Print GDB transfers\n");
 	fprintf(stderr, "-f filename       : Load the host drive mappings from a file\n");
 	fprintf(stderr, "-c                : Enable case-insensitive filenames\n");
+	fprintf(stderr, "-t timeout        : Specify the USB timeout (default %d)\n", USB_TIMEOUT);
 	fprintf(stderr, "-h                : Print this help\n");
 }
 
@@ -2641,11 +2648,11 @@ void *async_thread(void *arg)
 
 	cmd = (struct AsyncCommand *) shell;
 	cmd->magic = LE32(ASYNC_MAGIC);
-	cmd->channel = LE32(0);
+	cmd->channel = LE32(READ_SHELL);
 
 	cmd = (struct AsyncCommand *) gdb;
 	cmd->magic = LE32(ASYNC_MAGIC);
-	cmd->channel = LE32(1);
+	cmd->channel = LE32(READ_GDB);
 
 	shdata = shell + sizeof(struct AsyncCommand);
 	gdbdata = gdb + sizeof(struct AsyncCommand);

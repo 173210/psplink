@@ -41,8 +41,8 @@ release: all
 	cp usbshell/usbshell.prx release/v1.5/psplink
 	cp conshell/conshell.prx release/v1.5/psplink
 	cp usbgdb/usbgdb.prx release/v1.5/psplink
-	cp -R release/v1.5/psplink "release/v1.5_nocorrupt/plinkx                         1"
-	cp -R release/v1.5/psplink% release/v1.5_nocorrupt/PLINKX~1%
+	cp -R release/v1.5/psplink release/v1.5_nocorrupt/__SCE__psplink
+	cp -R release/v1.5/psplink% release/v1.5_nocorrupt/%__SCE__psplink
 	cp -Rf pcterm release/pc
 	cp -Rf usbhostfs_pc release/pc
 	cp -Rf windows release/pc

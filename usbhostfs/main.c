@@ -69,7 +69,7 @@ static struct UsbdDeviceReq g_async_req;
 /* Indicates we have a connection to the PC */
 static int g_connected = 0;
 /* Buffers for async data */
-static struct AsyncEndpoint g_async_chan[MAX_ASYNC_CHANNELS];
+static struct AsyncEndpoint g_async_chan[MAX_ASYNC_READ_CHANNELS];
 
 /* HI-Speed device descriptor */
 struct DeviceDescriptor devdesc_hi = 
@@ -614,7 +614,7 @@ void fill_async(void *async_data, int len)
 		data = async_data + sizeof(struct AsyncCommand);
 		cmd = (struct AsyncCommand *) async_data;
 		DEBUG_PRINTF("magic %08X, channel %d\n", cmd->magic, cmd->channel);
-		if((cmd->magic == ASYNC_MAGIC) && (cmd->channel >= 0) && (cmd->channel < MAX_ASYNC_CHANNELS))
+		if((cmd->magic == ASYNC_MAGIC) && (cmd->channel >= 0) && (cmd->channel < MAX_ASYNC_READ_CHANNELS))
 		{
 			intc = pspSdkDisableInterrupts();
 			sizeleft = len < (MAX_ASYNC_BUFFER - g_async_chan[cmd->channel].size) ? len 
@@ -648,7 +648,7 @@ int usb_read_async_data_generic(unsigned int chan, unsigned char *data, int len,
 
 	k1 = psplinkSetK1(0);
 
-	if(chan >= MAX_ASYNC_CHANNELS)
+	if(chan >= MAX_ASYNC_READ_CHANNELS)
 	{
 		return -1;
 	}
@@ -688,7 +688,7 @@ int usb_read_async_data(unsigned int chan, unsigned char *data, int len)
 
 	k1 = psplinkSetK1(0);
 
-	if(chan >= MAX_ASYNC_CHANNELS)
+	if(chan >= MAX_ASYNC_READ_CHANNELS)
 	{
 		return -1;
 	}
@@ -723,7 +723,7 @@ void usb_async_flush(unsigned int chan)
 {
 	int intc;
 
-	if(chan >= MAX_ASYNC_CHANNELS)
+	if(chan >= MAX_ASYNC_READ_CHANNELS)
 	{
 		return;
 	}
@@ -753,7 +753,7 @@ int usb_write_async_data(unsigned int chan, const void *data, int len)
 			break;
 		}
 
-		if(chan >= MAX_ASYNC_CHANNELS)
+		if(chan >= MAX_ASYNC_WRITE_CHANNELS)
 		{
 			MODPRINTF("Invalid async write channel %d\n", chan);
 			break;

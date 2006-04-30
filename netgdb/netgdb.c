@@ -115,31 +115,31 @@ void start_server(void)
 	g_servsock = make_socket(SERVER_PORT);
 	if(g_servsock < 0)
 	{
-		printf(MODULE_NAME ": Error creating server socket\n");
+		printf(GDB_MODULE_NAME ": Error creating server socket\n");
 		return;
 	}
 
 	ret = sceNetInetListen(g_servsock, 1);
 	if(ret < 0)
 	{
-		printf(MODULE_NAME ": Error calling listen\n");
+		printf(GDB_MODULE_NAME ": Error calling listen\n");
 		return;
 	}
 
-	printf(MODULE_NAME ": Listening for connections ip %s port %d\n", ip, SERVER_PORT);
+	printf(GDB_MODULE_NAME ": Listening for connections ip %s port %d\n", ip, SERVER_PORT);
 
 	while(1)
 	{
 		g_sock = sceNetInetAccept(g_servsock, (struct sockaddr *) &client, &size);
 		if(g_sock < 0)
 		{
-			printf(MODULE_NAME ": Error in accept\n");
+			printf(GDB_MODULE_NAME ": Error in accept\n");
 			return;
 		}
 
 		sceNetInetSetsockopt(g_sock, SOL_TCP, TCP_NODELAY, &flag, sizeof(int));
 
-		printf(MODULE_NAME ": New connection %d from %s:%d\n", g_sock, 
+		printf(GDB_MODULE_NAME ": New connection %d from %s:%d\n", g_sock, 
 				inet_ntoa(client.sin_addr), ntohs(client.sin_port));
 
 		GdbMain();
