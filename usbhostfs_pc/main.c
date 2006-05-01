@@ -2545,6 +2545,36 @@ int save_drives(void)
 	return COMMAND_OK;
 }
 
+int print_wd(void)
+{
+	printf("%s\n", g_rootdir);
+
+	return COMMAND_OK;
+}
+
+int ch_dir(void)
+{
+	char *dir;
+
+	dir = strtok(NULL, "");
+	if(dir == NULL)
+	{
+		printf("Must specify a directory\n");
+		return COMMAND_ERR;
+	}
+
+	if(chdir(dir) == 0)
+	{
+		getcwd(g_rootdir, PATH_MAX);
+	}
+	else
+	{
+		perror("chdir:");
+	}
+
+	return COMMAND_OK;
+}
+
 int help_cmd(void)
 {
 	return COMMAND_HELP;
@@ -2558,6 +2588,8 @@ struct ShellCmd g_commands[] = {
 	{ "nocase", "Set case sensitivity (nocase on|off)", nocase_set },
 	{ "gdbdebug", "Set the GDB debug option (gdbdebug on|off)", gdbdebug_set },
 	{ "verbose", "Set the verbose level (verbose 0|1|2)", verbose_set },
+	{ "pwd", "Print the current directory", print_wd },
+	{ "chdir", "Change the current local directory", ch_dir },
 	{ "help", "Print this help", help_cmd },
 	{ "exit", "Exit the application", exit_app },
 };
@@ -2672,44 +2704,50 @@ void *async_thread(void *arg)
 				}
 			}
 
-			if(FD_ISSET(g_shellserv, &read_set))
+			if(g_shellserv >= 0)
 			{
-				if(g_shellsock >= 0)
+				if(FD_ISSET(g_shellserv, &read_set))
 				{
-					FD_CLR(g_shellsock, &read_save);
-					close(g_shellsock);
-				}
-				size = sizeof(client);
-				g_shellsock = accept(g_shellserv, (struct sockaddr *) &client, &size);
-				if(g_shellsock >= 0)
-				{
-					printf("Accepting shell connection from %s\n", inet_ntoa(client.sin_addr));
-					FD_SET(g_shellsock, &read_save);
-					setsockopt(g_shellsock, SOL_TCP, TCP_NODELAY, &flag, sizeof(int));
-					if(g_shellsock > max_fd)
+					if(g_shellsock >= 0)
 					{
-						max_fd = g_shellsock;
+						FD_CLR(g_shellsock, &read_save);
+						close(g_shellsock);
+					}
+					size = sizeof(client);
+					g_shellsock = accept(g_shellserv, (struct sockaddr *) &client, &size);
+					if(g_shellsock >= 0)
+					{
+						printf("Accepting shell connection from %s\n", inet_ntoa(client.sin_addr));
+						FD_SET(g_shellsock, &read_save);
+						setsockopt(g_shellsock, SOL_TCP, TCP_NODELAY, &flag, sizeof(int));
+						if(g_shellsock > max_fd)
+						{
+							max_fd = g_shellsock;
+						}
 					}
 				}
 			}
 
-			if(FD_ISSET(g_gdbserv, &read_set))
+			if(g_gdbserv >= 0)
 			{
-				if(g_gdbsock >= 0)
+				if(FD_ISSET(g_gdbserv, &read_set))
 				{
-					FD_CLR(g_gdbsock, &read_save);
-					close(g_gdbsock);
-				}
-				size = sizeof(client);
-				g_gdbsock = accept(g_gdbserv, (struct sockaddr *) &client, &size);
-				if(g_gdbsock >= 0)
-				{
-					printf("Accepting gdb connection from %s\n", inet_ntoa(client.sin_addr));
-					FD_SET(g_gdbsock, &read_save);
-					setsockopt(g_gdbsock, SOL_TCP, TCP_NODELAY, &flag, sizeof(int));
-					if(g_gdbsock > max_fd)
+					if(g_gdbsock >= 0)
 					{
-						max_fd = g_gdbsock;
+						FD_CLR(g_gdbsock, &read_save);
+						close(g_gdbsock);
+					}
+					size = sizeof(client);
+					g_gdbsock = accept(g_gdbserv, (struct sockaddr *) &client, &size);
+					if(g_gdbsock >= 0)
+					{
+						printf("Accepting gdb connection from %s\n", inet_ntoa(client.sin_addr));
+						FD_SET(g_gdbsock, &read_save);
+						setsockopt(g_gdbsock, SOL_TCP, TCP_NODELAY, &flag, sizeof(int));
+						if(g_gdbsock > max_fd)
+						{
+							max_fd = g_gdbsock;
+						}
 					}
 				}
 			}
