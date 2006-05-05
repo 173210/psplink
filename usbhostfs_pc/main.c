@@ -1032,7 +1032,7 @@ int handle_read(struct usb_dev_handle *hDev, struct HostFsReadCmd *cmd, int cmdl
 			if(open_files[fid].opened)
 			{
 				resp.res = LE32(fixed_read(fid, read_block, LE32(cmd->len)));
-				if(resp.res >= 0)
+				if(LE32(resp.res) >= 0)
 				{
 					resp.cmd.extralen = resp.res;
 				}
@@ -2238,6 +2238,7 @@ void signal_handler(int sig)
 int make_socket(unsigned short port)
 {
 	int sock;
+	int on = 1;
 	struct sockaddr_in name;
 
 	sock = socket(PF_INET, SOCK_STREAM, 0);
@@ -2246,6 +2247,8 @@ int make_socket(unsigned short port)
 		perror("socket");
 		return -1;
 	}
+
+	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 
 	name.sin_family = AF_INET;
 	name.sin_port = htons(port);
