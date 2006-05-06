@@ -107,6 +107,7 @@ int main_thread(SceSize args, void *argp)
 
 	pspSdkInstallNoDeviceCheckPatch();
 	pspSdkInstallNoPlainModuleCheckPatch();
+	pspSdkInstallKernelLoadModulePatch();
 
 	parse_args(args, argp);
 	path = strrchr(g_argv[0], '/');
