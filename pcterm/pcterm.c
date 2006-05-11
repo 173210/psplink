@@ -44,6 +44,7 @@ struct Args
 {
 	const char *ip;
 	const char *hist;
+	const char *log;
 	unsigned short port;
 	unsigned int baud;
 	unsigned int realbaud;
@@ -67,6 +68,7 @@ struct GlobalContext
 	fd_set readsave;
 	fd_set writesave;
 	int sock;
+	int log;
 	enum State state;
 	int promptwait;
 	char history_file[PATH_MAX];
@@ -270,7 +272,7 @@ int parse_args(int argc, char **argv, struct Args *args)
 		int error = 0;
 
 #ifdef SERIAL_SUPPORT
-		ch = getopt(argc, argv, "sp:h:r:b:");
+		ch = getopt(argc, argv, "sp:h:r:b:l:");
 #else
 		ch = getopt(argc, argv, "p:h:r:");
 #endif
@@ -286,6 +288,8 @@ int parse_args(int argc, char **argv, struct Args *args)
 			case 'h': args->hist = optarg;
 					  break;
 			case 'r': args->retries = atoi(optarg);
+					  break;
+			case 'l': args->log = optarg;
 					  break;
 #ifdef SERIAL_SUPPORT
 			case 'b': args->baud = map_int_to_speed(atoi(optarg));
@@ -338,6 +342,7 @@ void print_help(void)
 	fprintf(stderr, "-p port     : Specify the port number\n");
 	fprintf(stderr, "-h history  : Specify the history file (default ~/%s)\n", HISTORY_FILE);
 	fprintf(stderr, "-r retries  : Number of connection retries (default %d)\n", CONNECT_RETRIES);
+	fprintf(stderr, "-l logfile  : Write out all shell text to a log file\n");
 #ifdef SERIAL_SUPPORT
 	fprintf(stderr, "-b baud     : Specify the baud rate (default %d)\n", BAUD_RATE);
 	fprintf(stderr, "-s          : Set serial mode\n");
@@ -453,6 +458,10 @@ int read_socket(int sock)
 	
 	printf("%s", buf);
 	fflush(stdout);
+	if(g_context.log >= 0)
+	{
+		write(g_context.log, buf, strlen(buf));
+	}
 
 	if(promptfind)
 	{
@@ -712,13 +721,27 @@ int main(int argc, char **argv)
 {
 	memset(&g_context, 0, sizeof(g_context));
 	g_context.sock = -1;
+	g_context.log  = -1;
 	if(parse_args(argc, argv, &g_context.args))
 	{
+		if(g_context.args.log)
+		{
+			g_context.log = open(g_context.args.log, O_WRONLY | O_CREAT | O_TRUNC, 0660);
+			if(g_context.log < 0)
+			{
+				fprintf(stderr, "Warning: Could not open log file %s (%s)\n", g_context.args.log, 
+						strerror(errno));
+			}
+		}
 		build_histfile();
 		shell();
 		if(g_context.sock >= 0)
 		{
 			close(g_context.sock);
+		}
+		if(g_context.log >= 0)
+		{
+			close(g_context.log);
 		}
 	}
 	else
