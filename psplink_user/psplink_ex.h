@@ -6,6 +6,9 @@
 /* Define maximum number of thread exception context */
 #define PSPLINK_MAX_CONTEXT 16
 
+#define PSPLINK_EXTYPE_NORMAL 0
+#define PSPLINK_EXTYPE_DEBUG  1
+
 /** Structure to hold the register data associated with an exception */
 typedef struct _PsplinkRegBlock
 {
@@ -43,6 +46,8 @@ typedef struct _PsplinkRegBlock
 	u32 cop0_14;
 	/* PRId should still be okay */
 	u32 prid;
+	/* Type of exception (normal or debug) */
+	u32 type;
 	u32 padding[100];
 } PsplinkRegBlock;
 
@@ -53,6 +58,7 @@ struct PsplinkContext
 	struct PsplinkContext *pNext;
 	PsplinkRegBlock regs;
 	SceUID thid;
+	unsigned int drcntl;
 };
 
 int psplinkInitException(void);

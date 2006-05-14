@@ -20,6 +20,8 @@
 #include "util.h"
 #include "psplink.h"
 #include "disasm.h"
+#include "debug.h"
+#include "decodeaddr.h"
 
 #define MAX_BPS 16
 #define SW_BREAK_INST	0x0000000d
@@ -74,7 +76,7 @@ static struct BreakPoint g_stepbp[2];
 #define BCXTL_OPCODE	0x103
 
 /* Generic step command , if skip then will try to skip over jals */
-static void step_generic(PspDebugRegBlock *regs, int skip)
+static void step_generic(PsplinkRegBlock *regs, int skip)
 {
 	u32 opcode;
 	u32 epc;
@@ -218,9 +220,9 @@ static void step_generic(PspDebugRegBlock *regs, int skip)
 
 void debugStep(int skip)
 {
-	if(g_exception.exception)
+	if(g_currex)
 	{
-		step_generic(&g_exception.regs, skip);
+		step_generic(&g_currex->regs, skip);
 		sceKernelDcacheWritebackInvalidateAll();
 		sceKernelIcacheInvalidateAll();
 		exceptionResume();
@@ -340,7 +342,7 @@ int check_bp(unsigned int address)
 	return 0;
 }
 
-int debugHandleException(PspDebugRegBlock *pRegs)
+int debugHandleException(PsplinkRegBlock *pRegs)
 {
 	unsigned int address;
 	struct BreakPoint *pBp;
@@ -378,4 +380,209 @@ int debugHandleException(PspDebugRegBlock *pRegs)
 	}
 
 	return ret;
+}
+
+void debugEnableHW(void)
+{
+	asm( 
+			"mfc0 $t0, $12\n"
+			"lui  $t1, 8\n"
+			"or   $t1, $t1, $t0\n"
+			"mtc0 $t1, $12\n"
+	   );
+}
+
+void debugDisableHW(void)
+{
+	asm( 
+			"mfc0 $t0, $12\n"
+			"lui  $t1, 8\n"
+			"not  $t1, $t1\n"
+			"and  $t1, $t1, $t0\n"
+			"mtc0 $t1, $12\n"
+	   );
+}
+
+int debugHWEnabled(void)
+{
+	int ret = 0;
+	asm( 
+			"mfc0 $t0, $12\n"
+			"lui  $t1, 8\n"
+			"and  %0, $t1, $t0\n" 
+			: "=r"(ret)
+	   );
+
+	return ret;
+}
+
+static struct DebugEnv *debug_get_env(void)
+{
+	struct DebugEnv *pEnv = NULL;
+
+	if(debugHWEnabled())
+	{
+		asm(
+				"cfc0  %0, $28\n"
+				"li    $t0, 0x1\n"
+				"sw    $t0, 0(%0)\n"
+				"dbreak\n"
+				"nop\n"
+				: "=r"(pEnv)
+		   );
+	}
+
+	return pEnv;
+}
+
+static void debug_set_env(void)
+{
+	if(debugHWEnabled())
+	{
+		asm(
+				"cfc0  $t1, $28\n"
+				"li    $t0, 0x2\n"
+				"sw    $t0, 0($t1)\n"
+				"dbreak\n"
+				"nop\n"
+		   );
+	}
+}
+
+int debugGetEnv(struct DebugEnv *env)
+{
+	struct DebugEnv *pEnv;
+
+	pEnv = debug_get_env();
+	if(pEnv)
+	{
+		memcpy(env, pEnv, sizeof(struct DebugEnv));
+		return 0;
+	}
+
+	return 1;
+}
+
+int debugSetEnv(struct DebugEnv *env)
+{
+	struct DebugEnv *pEnv;
+
+	pEnv = debug_get_env();
+	if(pEnv)
+	{
+		memcpy(pEnv, env, sizeof(struct DebugEnv));
+		debug_set_env();
+		return 0;
+	}
+
+	return 1;
+}
+
+void debugSetHWRegs(int argc, char **argv)
+{
+	int i;
+	struct DebugEnv *pEnv;
+
+	pEnv = debug_get_env();
+	if(pEnv == NULL)
+	{
+		return;
+	}
+
+	for(i = 0; i < argc; i++)
+	{
+		char *pEquals;
+
+		pEquals = strchr(argv[i], '=');
+		if(pEquals)
+		{
+			u32 val;
+			*pEquals = 0;
+			pEquals++;
+			if(memDecode(pEquals, &val))
+			{
+				if(strcmp(argv[i], "IBC") == 0)
+				{
+					pEnv->IBC = val;
+				}
+				else if(strcmp(argv[i], "DBC") == 0)
+				{
+					pEnv->DBC = val;
+				}
+				else if(strcmp(argv[i], "IBA") == 0)
+				{
+					pEnv->IBA = val;
+				}
+				else if(strcmp(argv[i], "IBAM") == 0)
+				{
+					pEnv->IBAM = val;
+				}
+				else if(strcmp(argv[i], "DBA") == 0)
+				{
+					pEnv->DBA = val;
+				}
+				else if(strcmp(argv[i], "DBAM") == 0)
+				{
+					pEnv->DBAM = val;
+				}
+				else if(strcmp(argv[i], "DBD") == 0)
+				{
+					pEnv->DBD = val;
+				}
+				else if(strcmp(argv[i], "DBDM") == 0)
+				{
+					pEnv->DBDM = val;
+				}
+				else
+				{
+					printf("Unknown register %s\n", argv[i]);
+					return;
+				}
+
+				debug_set_env();
+			}
+			else
+			{
+				printf("Invalid memory specification %s\n", pEquals);
+				return;
+			}
+
+		}
+		else
+		{
+			printf("Invalid register specification %s\n", argv[i]);
+			return;
+		}
+	}
+}
+
+void debugPrintHWRegs(void)
+{
+	if(!g_isv1)
+	{
+		struct DebugEnv *pEnv;
+
+		pEnv = debug_get_env();
+		if(pEnv)
+		{
+			printf("<HW Debug Registers>\n");
+			printf("%-6s: 0x%08X\n", "DRCNTL", pEnv->DRCNTL);
+			printf("%-6s: 0x%08X\n", "IBC", pEnv->IBC);
+			printf("%-6s: 0x%08X\n", "DBC", pEnv->DBC);
+			printf("%-6s: 0x%08X\n", "IBA", pEnv->IBA);
+			printf("%-6s: 0x%08X\n", "IBAM", pEnv->IBAM);
+			printf("%-6s: 0x%08X\n", "DBA", pEnv->DBA);
+			printf("%-6s: 0x%08X\n", "DBAM", pEnv->DBAM);
+			printf("%-6s: 0x%08X\n", "DBD", pEnv->DBD);
+			printf("%-6s: 0x%08X\n", "DBDM", pEnv->DBDM);
+		}
+		else
+		{
+			printf("HW Debugger not enabled\n");
+		}
+	}
+	else
+	{
+		printf("Not available on v1.0 firmware\n");
+	}
 }

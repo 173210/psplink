@@ -14,15 +14,17 @@
 #include <pspkernel.h>
 #include <string.h>
 #include <stdio.h>
+#include "../psplink/debug.h"
 #include "psplink_user.h"
 #include "psplink_ex.h"
 
 struct PsplinkContext g_psplinkContext[PSPLINK_MAX_CONTEXT];
 static GdbHandler g_gdbhandler = NULL;
 
-void psplinkExceptionHandler(void);
-int sceKernelRegisterDefaultExceptionHandler(void *func);
-int psplinkHandleException(PspDebugRegBlock *regs);
+void psplinkDefaultExHandler(void);
+void psplinkDebugExHandler(void);
+int psplinkHandleException(struct PsplinkContext *regs);
+int psplinkRegisterExceptions(void *def, void *debug, void *ctx);
 
 void psplinkUserRegisterGdbHandler(GdbHandler gdbhandler)
 {
@@ -40,7 +42,8 @@ int psplinkInitException(void)
 		g_psplinkContext[i].pNext = &g_psplinkContext[i+1];
 	}
 
-	return sceKernelRegisterDefaultExceptionHandler((void *) psplinkExceptionHandler);
+	return psplinkRegisterExceptions((void *) psplinkDefaultExHandler,
+			(void *) psplinkDebugExHandler, g_psplinkContext);
 }
 
 /**
@@ -60,6 +63,15 @@ void psplinkTrap(struct PsplinkContext *ctx)
 	}
 
 	ctx->thid = thid;
+	if(ctx->regs.type == PSPLINK_EXTYPE_DEBUG)
+	{
+		struct DebugEnv env;
+
+		if(!debugGetEnv(&env))
+		{
+			ctx->drcntl = env.DRCNTL;
+		}
+	}
 
 	if(g_gdbhandler)
 	{
@@ -68,7 +80,7 @@ void psplinkTrap(struct PsplinkContext *ctx)
 
 	if(handled == 0)
 	{
-		psplinkHandleException((PspDebugRegBlock *) &ctx->regs);
+		psplinkHandleException(ctx);
 	}
 
 	psplinkResumeFromException(ctx);

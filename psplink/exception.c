@@ -13,6 +13,7 @@
 #include <pspkernel.h>
 #include <pspdebug.h>
 #include <pspsdk.h>
+#include <pspexception.h>
 #include <stdio.h>
 #include <string.h>
 #include "exception.h"
@@ -21,7 +22,8 @@
 #include "debug.h"
 #include "sio.h"
 
-struct ExceptionContext g_exception;
+struct PsplinkContext *g_currex = NULL;
+struct PsplinkContext *g_list = NULL;
 
 #define FPU_EXCEPTION 15
 
@@ -48,17 +50,27 @@ static const char *codeTxt[32] =
 };
 
 const char codeFpu[6] = { 'I', 'U', 'O', 'Z', 'V', 'E' };
+const char codeDebug[7] = { 'X', 'S', 'B', '?', '?', 'I', 'D' };
+
+int psplinkRegisterExceptions(void *def, void *debug, void *ctx)
+{
+	g_list = ctx;
+	sceKernelRegisterDefaultExceptionHandler(def);
+	sceKernelRegisterPriorityExceptionHandler(24, 1, debug);
+
+	return 0;
+}
 
 /* Get a pointer to a register based on its name */
 u32 *exceptionGetReg(const char *reg)
 {
 	if(strcmp(reg, "epc") == 0)
 	{
-		return &g_exception.regs.epc;
+		return &g_currex->regs.epc;
 	}
 	else if(strcmp(reg, "fsr") == 0)
 	{
-		return &g_exception.regs.fsr;
+		return &g_currex->regs.fsr;
 	}
 	else 
 	{
@@ -68,7 +80,7 @@ u32 *exceptionGetReg(const char *reg)
 		{
 			if(strcmp(regName[reg_loop], reg) == 0)
 			{
-				return &g_exception.regs.r[reg_loop];
+				return &g_currex->regs.r[reg_loop];
 			}
 		}
 	}
@@ -93,47 +105,154 @@ void exceptionPrintCPURegs(u32 *pRegs)
 	}
 }
 
-/* Print the current exception */
-void exceptionPrint(void)
+static const char *exception_cause(struct PsplinkContext *pCtx)
 {
-	if(g_exception.exception)
+	static char excause[40];
+
+	if(pCtx->regs.type == PSPLINK_EXTYPE_NORMAL)
 	{
-		if(((g_exception.regs.cause >> 2) & 31) == FPU_EXCEPTION)
+		if(((pCtx->regs.cause >> 2) & 31) == FPU_EXCEPTION)
 		{
 			int i;
 			u32 fpu;
+			char *end;
 
-			printf("Exception - %s (", 
-					codeTxt[(g_exception.regs.cause >> 2) & 31]);
+			strcpy(excause, codeTxt[(pCtx->regs.cause >> 2) & 31]);
+			strcat(excause, " (");
+			end = excause + strlen(excause);
 
-			fpu = g_exception.regs.fsr >> 12;
+			fpu = pCtx->regs.fsr >> 12;
 			for(i = 0; i < 6; i++)
 			{
 				if((fpu >> i) & 1)
 				{
-					printf("%c", codeFpu[i]);
+					*end++ = codeFpu[i];
 				}
 			}
-			printf(")\n");
+			*end++ = ')';
+			*end = 0;
 		}
 		else
 		{
-			printf("Exception - %s\n", 
-					codeTxt[(g_exception.regs.cause >> 2) & 31]);
+			strcpy(excause, codeTxt[(pCtx->regs.cause >> 2) & 31]);
 		}
-		printf("Thread ID - 0x%08X\n", g_exception.thid);
-		printf("Th Name   - %s\n", g_exception.threadname);
-		printf("Module ID - 0x%08X\n", g_exception.modid);
-		printf("Mod Name  - %s\n", g_exception.modulename);
-		printf("EPC       - 0x%08X\n", g_exception.regs.epc);
-		printf("Cause     - 0x%08X\n", g_exception.regs.cause);
-		printf("Status    - 0x%08X\n", g_exception.regs.status);
-		printf("BadVAddr  - 0x%08X\n", g_exception.regs.badvaddr);
-		exceptionPrintCPURegs(g_exception.regs.r);
+	}
+	else
+	{
+		int i;
+		char *end;
+
+		strcpy(excause, "DEBUG");
+		strcat(excause, " (");
+		end = excause + strlen(excause);
+		for(i = 0; i < 7; i++)
+		{
+			if(pCtx->drcntl & (1 << (i + 6)))
+			{
+				*end++ = codeDebug[i];
+			}
+		}
+		*end++ = ')';
+		*end = 0;
+	}
+
+	return excause;
+}
+
+/* Print the current exception */
+void exceptionPrint(int ex)
+{
+	SceModule *pMod;
+	SceKernelModuleInfo mod;
+	SceKernelThreadInfo thread;
+	u32 addr;
+	struct PsplinkContext *ctx = NULL;
+
+	if((ex >= 0) && (ex < PSPLINK_MAX_CONTEXT))
+	{
+		if((g_list) && (g_list[ex].valid))
+		{
+			ctx = &g_list[ex];
+		}
+	}
+	else
+	{
+		ctx = g_currex;
+	}
+
+	if(ctx)
+	{
+		printf("Exception - %s\n", exception_cause(ctx));
+		printf("Thread ID - 0x%08X\n", ctx->thid);
+
+		memset(&thread, 0, sizeof(thread));
+		thread.size = sizeof(thread);
+		if(!sceKernelReferThreadStatus(ctx->thid, &thread))
+		{
+			printf("Th Name   - %s\n", thread.name);
+		}
+
+		if((ctx->regs.epc < 0x88000000) || (ctx->regs.epc > 0x88400000))
+		{
+			addr = ctx->regs.epc & 0x7FFFFFFF;
+		}
+		else
+		{
+			addr = ctx->regs.epc;
+		}
+
+		pMod = sceKernelFindModuleByAddress(addr);
+		if(pMod)
+		{
+			printf("Module ID - 0x%08X\n", pMod->modid);
+			memset(&mod, 0, sizeof(mod));
+			mod.size = sizeof(mod);
+			sioDisableKprintf();
+			if(!g_QueryModuleInfo(pMod->modid, &mod))
+			{
+				printf("Mod Name  - %s\n", mod.name);
+			}
+			sioEnableKprintf();
+		}
+
+		printf("EPC       - 0x%08X\n", ctx->regs.epc);
+		if(g_currex->regs.type == PSPLINK_EXTYPE_NORMAL)
+		{
+			printf("Cause     - 0x%08X\n", ctx->regs.cause);
+			printf("BadVAddr  - 0x%08X\n", ctx->regs.badvaddr);
+		}
+		else
+		{
+			printf("DRCNTL    - 0x%08X\n", ctx->drcntl);
+		}
+
+		printf("Status    - 0x%08X\n", ctx->regs.status);
+		exceptionPrintCPURegs(ctx->regs.r);
 	}
 	else
 	{
 		printf("No exception occurred\n");
+	}
+}
+
+void exceptionList(void)
+{
+	int i;
+
+	if(g_list)
+	{
+		for(i = 0; i < PSPLINK_MAX_CONTEXT; i++)
+		{
+			if(g_list[i].valid)
+			{
+				printf("Exception %-2d: EPC 0x%08X, Cause %s\n", i, g_list[i].regs.epc, 
+						exception_cause(&g_list[i]));
+			}
+		}
+	}
+	else
+	{
+		printf("No exception handler registered\n");
 	}
 }
 
@@ -154,12 +273,26 @@ void exceptionPrintFPURegs(float *pFpu, unsigned int fsr, unsigned int fir)
 	printf("fsr: %08X   - fir %08X\n", fsr, fir);
 }
 
-void exceptionFpuPrint(void)
+void exceptionFpuPrint(int ex)
 {
-	if(g_exception.exception)
+	struct PsplinkContext *ctx = NULL;
+
+	if((ex >= 0) && (ex < PSPLINK_MAX_CONTEXT))
 	{
-		exceptionPrintFPURegs(g_exception.regs.fpr, g_exception.regs.fsr,
-				g_exception.regs.fir);
+		if((g_list) && (g_list[ex].valid))
+		{
+			ctx = &g_list[ex];
+		}
+	}
+	else
+	{
+		ctx = g_currex;
+	}
+
+	if(ctx)
+	{
+		exceptionPrintFPURegs(ctx->regs.fpr, ctx->regs.fsr,
+				ctx->regs.fir);
 	}
 	else
 	{
@@ -167,79 +300,45 @@ void exceptionFpuPrint(void)
 	}
 }
 
-void psplinkHandleException(PspDebugRegBlock *regs)
+void psplinkHandleException(struct PsplinkContext *ctx)
 {
 	u32 k1;
-	SceModule *pMod;
-	SceKernelModuleInfo mod;
-	SceKernelThreadInfo thread;
-	u32 addr;
 
 	k1 = psplinkSetK1(0);
 
-	memset(&g_exception, 0, sizeof(g_exception));
-	memcpy(&g_exception.regs, regs, sizeof(*regs));
-	g_exception.exception = 1;
-	g_exception.thid = sceKernelGetThreadId();
-	memset(&thread, 0, sizeof(thread));
-	thread.size = sizeof(thread);
-	if(!sceKernelReferThreadStatus(g_exception.thid, &thread))
-	{
-		strncpy(g_exception.threadname, thread.name, 31);
-		g_exception.threadname[31] = 0;
-	}
-
-	if((g_exception.regs.epc < 0x88000000) || (g_exception.regs.epc > 0x88400000))
-	{
-		addr = g_exception.regs.epc & 0x7FFFFFFF;
-	}
-	else
-	{
-		addr = g_exception.regs.epc;
-	}
-
-	pMod = sceKernelFindModuleByAddress(addr);
-	if(pMod)
-	{
-		g_exception.modid = pMod->modid;
-		memset(&mod, 0, sizeof(mod));
-		mod.size = sizeof(mod);
-		sioDisableKprintf();
-		if(!g_QueryModuleInfo(g_exception.modid, &mod))
-		{
-			strncpy(g_exception.modulename, mod.name, 31);
-			g_exception.modulename[31] = 0;
-		}
-		sioEnableKprintf();
-	}
-	else
-	{
-		g_exception.modid = -1;
-	}
+	g_currex = ctx;
 
 	/* If this was not an exception caused by us then just dump the registers to screen */
-	if(!debugHandleException(&g_exception.regs))
+	if(!debugHandleException(&g_currex->regs))
 	{
-		exceptionPrint();
+		exceptionPrint(-1);
 	}
 	psplinkSetK1(k1);
 
 	/* Sleep thread */
 	sceKernelSleepThread();
-
-	memcpy(regs, &g_exception.regs, sizeof(*regs));
 }
 
 void exceptionResume(void)
 {
-	if(g_exception.exception)
+	if(g_currex)
 	{
-		g_exception.exception = 0;
-		sceKernelWakeupThread(g_exception.thid);
+		sceKernelWakeupThread(g_currex->thid);
+		g_currex = NULL;
+	}
+}
+
+void exceptionSetCtx(int ex)
+{
+	if((ex >= 0) && (ex < PSPLINK_MAX_CONTEXT))
+	{
+		if((g_list) && (g_list[ex].valid))
+		{
+			g_currex = &g_list[ex];
+		}
 	}
 }
 
 void exceptionInit(void)
 {
-	memset(&g_exception, 0, sizeof(g_exception));
 }

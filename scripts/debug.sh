@@ -3,5 +3,5 @@
 # Call it 'run filename'
 modload $1.prx
 symload $1.sym
-bpset ?$!:main?
-modstart @$! $1.prx
+bpset '?$!:main?'
+modstart '@$!' $1.prx

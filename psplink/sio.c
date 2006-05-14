@@ -171,7 +171,7 @@ int sioReadCharWithTimeout(void)
 {
 	int ch;
 	u32 result;
-	u32 timeout;
+	SceUInt timeout;
 
 	timeout = 500000;
 	ch = sioGetchar();

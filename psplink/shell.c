@@ -138,7 +138,7 @@ int set_shell_var(const char *name, const char *data)
 	{
 		return 0;
 	}
-
+;
 	strncpy(vardata, data, MAX_SHELL_VAR-1);
 	vardata[MAX_SHELL_VAR-1] = 0;
 
@@ -294,7 +294,7 @@ static int threadmanlist_cmd(int argc, char **argv, enum SceKernelIdListType typ
 	ret = sceKernelGetThreadmanIdList(type, ids, 100, &count);
 	if(ret >= 0)
 	{
-		printf("<%s List>\n", name);
+		printf("<%s List (%d entries)>\n", name, count);
 		for(i = 0; i < count; i++)
 		{
 			if(pinfo(ids[i], verbose) < 0)
@@ -1037,7 +1037,7 @@ static int modlist_cmd(int argc, char **argv)
 	ret = g_GetModuleIdList(ids, 100 * sizeof(SceUID), &count);
 	if(ret >= 0)
 	{
-		printf("<Module List>\n");
+		printf("<Module List (%d modules)>\n", count);
 		for(i = 0; i < count; i++)
 		{
 			print_modinfo(ids[i], verbose);
@@ -3312,14 +3312,40 @@ static int modaddr_cmd(int argc, char **argv)
 
 static int exprint_cmd(int argc, char **argv)
 {
-	exceptionPrint();
+	int ex = -1;
+
+	if(argc > 0)
+	{
+		ex = atoi(argv[0]);
+	}
+	exceptionPrint(ex);
+
+	return CMD_OK;
+}
+
+static int exlist_cmd(int argc, char **argv)
+{
+	exceptionList();
+
+	return CMD_OK;
+}
+
+static int exctx_cmd(int argc, char **argv)
+{
+	exceptionSetCtx(atoi(argv[0]));
 
 	return CMD_OK;
 }
 
 static int exprfpu_cmd(int argc, char **argv)
 {
-	exceptionFpuPrint();
+	int ex = -1;
+
+	if(argc > 0)
+	{
+		ex = atoi(argv[0]);
+	}
+	exceptionFpuPrint(ex);
 
 	return CMD_OK;
 }
@@ -3376,6 +3402,45 @@ static int setreg_cmd(int argc, char **argv)
 		}
 
 		*reg = addr;
+	}
+
+	return CMD_OK;
+}
+
+static int hwena_cmd(int argc, char **argv)
+{
+	if(argc > 0)
+	{
+		if(strcmp(argv[0], "on") == 0)
+		{
+			debugEnableHW();
+		}
+		else if(strcmp(argv[0], "off") == 0)
+		{
+			debugDisableHW();
+		}
+		else
+		{
+			return CMD_ERROR;
+		}
+	}
+	else
+	{
+		printf("Debug HW: %s\n", debugHWEnabled() ? "on" : "off" );
+	}
+
+	return CMD_OK;
+}
+
+static int hwregs_cmd(int argc, char **argv)
+{
+	if(argc == 0)
+	{
+		debugPrintHWRegs();
+	}
+	else
+	{
+		debugSetHWRegs(argc, argv);
 	}
 
 	return CMD_OK;
@@ -3854,10 +3919,14 @@ const struct sh_command commands[] = {
 	{ "pwd",   NULL, pwd_cmd, 0, "Print the current working directory", ""},
 
 	{ "debugger", NULL, NULL, 0, "Debug commands", NULL},
-	{ "exprint", "ep", exprint_cmd, 0, "Print the current exception info", ""},
+	{ "exprint", "ep", exprint_cmd, 0, "Print the current exception info", "[ex]"},
+	{ "exlist",  "el", exlist_cmd, 0, "List the exception contexts", "" },
+	{ "exctx",   "ec", exctx_cmd, 1, "Set the current exception context", "ex" },
 	{ "exresume", "c", exresume_cmd, 0, "Resume from the exception", "[addr]"},
-	{ "exprfpu", "ef", exprfpu_cmd, 0, "Print the current FPU registers", ""},
+	{ "exprfpu", "ef", exprfpu_cmd, 0, "Print the current FPU registers", "[ex]"},
 	{ "setreg", "str", setreg_cmd, 2, "Set the value of an exception register", "$reg value"},
+	{ "hwena",  NULL, hwena_cmd, 0, "Enable or disable the HW debugger", "[on|off]" },
+	{ "hwregs", NULL, hwregs_cmd, 0, "Print or change the current HW breakpoint setup (v1.5 only)", "[reg=val]..." },
 	{ "bpset", "bp", bpset_cmd, 1, "Set a break point", "addr"},
 	{ "bpprint", "bt", bpprint_cmd, 0, "Print the current breakpoints", ""},
 	{ "step", "s", step_cmd, 0, "Step the next instruction", ""},
@@ -4069,8 +4138,8 @@ int psplinkParseCommand(char *command, int direct_term)
 	if(ret >= 0)
 	{
 		/* Wait 60 seconds for completion */
-		unsigned int timeout = (60*1000*1000);
-		unsigned int result;
+		SceUInt timeout = (60*1000*1000);
+		u32 result;
 		ret = sceKernelWaitEventFlag(g_command_event, COMMAND_EVENT_DONE, 0x21, &result, &timeout);
 		if(ret >= 0)
 		{

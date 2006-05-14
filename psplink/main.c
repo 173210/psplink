@@ -250,6 +250,10 @@ void psplinkStop(void)
 void psplinkReset(void)
 {
 	struct SceKernelLoadExecParam le;
+	struct SavedContext *save = (struct SavedContext *) SAVED_ADDR;
+
+	save->magic = SAVED_MAGIC;
+	strcpy(save->currdir, g_context.currdir);
 
 	psplinkSetK1(0);
 	printf("Resetting psplink\n");
@@ -306,6 +310,7 @@ void initialise(SceSize args, void *argp)
 {
 	struct ConfigContext ctx;
 	const char *init_dir = "ms0:/";
+	struct SavedContext *save = (struct SavedContext *) SAVED_ADDR;
 
 	map_firmwarerev();
 	memset(&g_context, 0, sizeof(g_context));
@@ -326,6 +331,12 @@ void initialise(SceSize args, void *argp)
 	else if(ctx.usbmass)
 	{
 		init_usbmass();
+	}
+
+	if(save->magic == SAVED_MAGIC)
+	{
+		init_dir = save->currdir;
+		save->magic = 0;
 	}
 
 	if(shellInit(ctx.cliprompt, ctx.path, init_dir) < 0)

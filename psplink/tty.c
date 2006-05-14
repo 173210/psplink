@@ -26,6 +26,7 @@
 #include "apihook.h"
 #include "util.h"
 #include "libs.h"
+#include "stdio.h"
 
 #define STDIN_BUFSIZE 4096
 
@@ -165,9 +166,9 @@ void ttyInit(void)
 {
 	SceUID uid;
 
-	pspDebugInstallStdoutHandler(outputHandler);
-	pspDebugInstallStderrHandler(outputHandler);
-	pspDebugInstallStdinHandler(inputHandler);
+	stdioInstallStdoutHandler(outputHandler);
+	stdioInstallStderrHandler(outputHandler);
+	stdioInstallStdinHandler(inputHandler);
 	/* Install a patch to prevent a naughty app from closing stdout */
 	uid = refer_module_by_name("sceIOFileManager", NULL);
 	if(uid >= 0)

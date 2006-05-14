@@ -99,6 +99,24 @@
 #define REG_FSR		 (REG_FPR_31 + 4)
 #define REG_FIR      (REG_FSR + 4)
 #define REG_FP       (REG_FIR + 4)
+#define REG_UNUSED1  (REG_FP  + 4)
+#define REG_INDEX    (REG_UNUSED1 + 4)
+#define REG_RANDOM   (REG_INDEX  + 4)
+#define REG_ENTRYLO0 (REG_RANDOM + 4)
+#define REG_ENTRYLO1 (REG_ENTRYLO0 + 4)
+#define REG_CONTEXT  (REG_ENTRYLO1 + 4)
+#define REG_PAGEMASK (REG_CONTEXT  + 4)
+#define REG_WIRED    (REG_PAGEMASK + 4)
+#define REG_COP0_7   (REG_WIRED + 4)
+#define REG_COP0_8   (REG_COP0_7 + 4)
+#define REG_COP0_9   (REG_COP0_8 + 4)
+#define REG_ENTRYHI  (REG_COP0_9 + 4)
+#define REG_COP0_11  (REG_ENTRYHI + 4)
+#define REG_COP0_12  (REG_COP0_11 + 4)
+#define REG_COP0_13  (REG_COP0_12 + 4)
+#define REG_COP0_14  (REG_COP0_13 + 4)
+#define REG_PRID     (REG_COP0_14 + 4)
+#define REG_TYPE     (REG_PRID + 4)
 
 	.extern g_psplinkContext
 	.extern psplinkTrap
@@ -111,15 +129,40 @@ psplinkResumeFromException:
 
 	.end    psplinkResumeFromException
 
-	.global psplinkExceptionHandler
-	.ent    psplinkExceptionHandler
-psplinkExceptionHandler:
+	.global psplinkDefaultExHandler
+	.ent    psplinkDefaultExHandler
+psplinkDefaultExHandler:
+
 	nop
 	nop
 	la		$v1, psplinkResumeFromException
 	mfc0    $v0, EPC
 	beq     $v0, $v1, _psplinkExceptionResume
 	nop
+# Set exception type to NORMAL
+	la		$v1, _psplinkExType
+	sw		$0, 0($v1)
+	j		psplinkExceptionHandler
+	nop
+
+	.end    psplinkDefaultExHandler
+
+	.global psplinkDebugExHandler
+	.ent    psplinkDebugExHandler
+psplinkDebugExHandler:
+	nop
+	nop
+# Set exception type to DEBUG
+	la		$v1, _psplinkExType
+	li		$v0, 1
+	sw		$v0, 0($v1)
+	j		psplinkExceptionHandler
+	nop
+	.end    psplinkDebugExHandler
+
+	.global psplinkExceptionHandler
+	.ent    psplinkExceptionHandler
+psplinkExceptionHandler:
 
 # Scan the context array for a free handler, if we don't find one pass 
 # NULL in $a0 so the thread can be terminated
@@ -179,12 +222,20 @@ psplinkExceptionHandler:
 	sw		$v1,  REG_HI($v0)
 	mfc0	$v1,  BadVAddr
 	sw		$v1,  REG_BADVADDR($v0)
-	mfc0	$v1,  Cause
+# Get cause
+	cfc0	$v1,  $3
 	sw		$v1,  REG_CAUSE($v0)
-	mfc0	$v1,  EPC
+# Get EPC
+	cfc0	$v1,  $0
 	sw		$v1,  REG_EPC($v0)
-	mfc0	$v1,  Status
+# Get Status
+	cfc0	$v1,  $2
 	sw		$v1,  REG_STATUS($v0)
+
+# Copy in the exception type
+	la		$a0,  _psplinkExType
+	lw		$a0,  0($a0)
+	sw		$a0,  REG_TYPE($v0)
 
 # Check if cop1 is enabled and skip if not
 	lui		$a0, 0x2000
@@ -342,8 +393,17 @@ _psplinkExceptionResume:
 	lw		$1, REG_GPR_1($v0)
 	lw		$2, REG_GPR_2($v0)
 
+# When resuming debug exceptions take the value of status and make a decision
+# whether to resume in user or kernel modes
+
 	nop
 	nop
 	eret
 
 	.end	_psplinkExceptionResume
+
+	.data
+
+	.global _psplinkExType
+_psplinkExType:
+	.word	0

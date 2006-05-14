@@ -46,6 +46,7 @@ void psplinkStop(void);
 u32  psplinkSetK1(u32 k1);
 void psplinkGetCop0(u32 *regs);
 int psplinkParseComamnd(char *command);
+int psplinkRegisterExceptions(void *def, void *debug, void *ctx);
 SceUID load_wifi(const char *bootpath, int ap);
 SceUID load_wifishell(const char *bootpath);
 SceUID load_conshell(const char *bootpath);
@@ -54,6 +55,15 @@ SceUID load_gdb(const char *bootpath, int argc, char **argv);
 struct ConfigContext;
 struct GlobalContext;
 void copy_consconfig(const struct ConfigContext *cctx, struct GlobalContext *gctx);
+
+#define SAVED_MAGIC 0xBAA1A11C
+#define SAVED_ADDR  0x883F0000
+
+struct SavedContext
+{
+	uint32_t magic;
+	char currdir[MAXPATHLEN];
+};
 
 struct GlobalContext
 {
