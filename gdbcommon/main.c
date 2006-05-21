@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include "gdb-common.h"
 #include "../psplink_user/psplink_user.h"
+#include "../psplink/debug.h"
 
 PSP_MODULE_INFO(GDB_MODULE_NAME, 0, 1, 1);
 PSP_MAIN_THREAD_NAME("GDBServer");
@@ -57,6 +58,17 @@ int main(int argc, char **argv)
 	{
 		char *ext;
 
+		if(sceKernelDevkitVersion() != 0x01000300)
+		{
+			struct DebugEnv env;
+			
+			debugEnableHW();
+			debugGetEnv(&env);
+			memset(&env, 0, sizeof(env));
+			debugSetEnv(&env);
+			g_context.hw = 1;
+		}
+
 		ext = strrchr(argv[1], '.');
 		if(ext)
 		{
@@ -83,8 +95,8 @@ int main(int argc, char **argv)
 		}
 
 		/* Create a fake register block */
-		g_context.regs.epc = g_context.info.entry_addr;
-		g_context.regs.cause = 9 << 2;
+		g_context.ctx.regs.epc = g_context.info.entry_addr;
+		g_context.ctx.regs.cause = 9 << 2;
 		g_context.argc = argc - 1;
 		g_context.argv = &argv[1];
 

@@ -78,6 +78,16 @@ typedef struct tag_TCB{
 	u32    unk7;         //+F8
 	void   *vfpu_context;   //+FC
 } TCB;
+
+struct ThreadKContext
+{
+	unsigned int status;
+	unsigned int epc;
+	unsigned int sp;
+	unsigned int ra;
+	unsigned int k1;
+	unsigned int unk[3];
+};
  
 static TCB *find_thread_tcb(SceUID uid)
 {
@@ -98,7 +108,6 @@ int threadFindContext(SceUID uid)
 	TCB *tcb;
 	TCB tcbCopy;
 	CONTEXT ctxCopy;
-	//u32 realepc, realsp, realra;
 	int intc;
 
 	intc = pspSdkDisableInterrupts();
@@ -124,4 +133,54 @@ int threadFindContext(SceUID uid)
 	}
 
 	return 0;
+}
+
+/* Get the thread context of a user thread, trys to infer the real address */
+int psplinkFindUserThreadContext(SceUID uid, struct PsplinkContext *ctx)
+{
+	int intc;
+	TCB *tcb;
+	int ret = 1;
+
+	intc = pspSdkDisableInterrupts();
+
+	tcb = find_thread_tcb(uid);
+
+	if(tcb)
+	{
+		if(tcb->attribute & PSP_THREAD_ATTR_USER)
+		{
+			CONTEXT *th = tcb->context;
+
+			memset(ctx, 0, sizeof(struct PsplinkContext));
+			ctx->thid = uid;
+			memcpy(&ctx->regs.r[1], th->gpr, 31 * sizeof(u32));
+			memcpy(&ctx->regs.fpr[0], th->fpr, 32 * sizeof(float));
+			ctx->regs.hi = th->hi;
+			ctx->regs.lo = th->lo;
+			/* If thread context in kernel mode (i.e. in a syscall) */
+			if(th->gpr[28] & 0x80000000)
+			{
+				struct ThreadKContext *kth;
+
+				kth = (struct ThreadKContext *) (tcb->kstack + tcb->kstacksize - sizeof(struct ThreadKContext));
+				ctx->regs.epc = kth->epc;
+				ctx->regs.status = kth->status;
+				ctx->regs.frame_ptr = kth->sp;
+				ctx->regs.r[29] = kth->sp;
+				ctx->regs.r[31] = kth->ra;
+				ctx->regs.r[27] = kth->k1;
+			}
+			else
+			{
+				ctx->regs.epc = th->EPC;
+				ctx->regs.status = th->SR;
+				ctx->regs.frame_ptr = th->gpr[28];
+			}
+		}
+	}
+
+	pspSdkEnableInterrupts(intc);
+
+	return ret;
 }

@@ -13,7 +13,6 @@
 #include <pspkernel.h>
 #include <pspdebug.h>
 #include <pspsdk.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -22,6 +21,7 @@
 #include <pspnet_apctl.h>
 #include <pspnet_resolver.h>
 #include <netinet/in.h>
+#include <stdio.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <sys/select.h>

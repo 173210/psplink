@@ -28,7 +28,7 @@ int GdbTrapEntry(struct PsplinkContext *ctx)
 	SceKernelThreadInfo info;
 	struct ExceptionMsg msg;
 	u32 bits;
-	int intc;
+	//int intc;
 
 	memset(&msg, 0, sizeof(msg));
 	memset(&info, 0, sizeof(info));
@@ -40,15 +40,13 @@ int GdbTrapEntry(struct PsplinkContext *ctx)
 	}
 
 	/* Check if this is a thread from our debugged application */
-	if((ctx->regs.epc < g_context.info.text_addr) 
-			|| (ctx->regs.epc > (g_context.info.text_addr + g_context.info.text_size)))
+	if(((u32) info.entry < g_context.info.text_addr) 
+			|| ((u32) info.entry >= (g_context.info.text_addr + g_context.info.text_size)))
 	{
 		return 0;
 	}
 
-	intc = pspSdkDisableInterrupts();
-	memcpy(&g_context.regs, &ctx->regs, sizeof(g_context.regs));
-	pspSdkEnableInterrupts(intc);
+	memcpy(&g_context.ctx, ctx, sizeof(g_context.ctx));
 
 	msg.ctx = ctx;
 
@@ -62,6 +60,8 @@ int GdbTrapEntry(struct PsplinkContext *ctx)
 		return 0;
 	}
 
+	memcpy(ctx, &g_context.ctx, sizeof(g_context.ctx));
+
 	return 1;
 }
 
@@ -74,7 +74,7 @@ void GdbMain(void)
 	while(1)
 	{
 		/* Should suspend all threads in the application, except perhaps the one we came from */
-		if(GdbHandleException(&g_context.regs) == 0)
+		if(GdbHandleException(&g_context.ctx) == 0)
 		{
 			break;
 		}

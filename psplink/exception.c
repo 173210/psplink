@@ -291,8 +291,64 @@ void exceptionFpuPrint(int ex)
 
 	if(ctx)
 	{
-		exceptionPrintFPURegs(ctx->regs.fpr, ctx->regs.fsr,
-				ctx->regs.fir);
+		if(ctx->regs.status & 0x20000000)
+		{
+			exceptionPrintFPURegs(ctx->regs.fpr, ctx->regs.fsr,
+					ctx->regs.fir);
+		}
+		else
+		{
+			printf("FPU not enabled in context\n");
+		}
+	}
+	else
+	{
+		printf("No exception occurred\n");
+	}
+}
+
+void exceptionPrintVFPURegs(float *pFpu, int mode)
+{
+	int i;
+
+	pspSdkDisableFPUExceptions();
+
+	for(i = 0; i < 128; i+=2)
+	{
+		char left[64], right[64];
+
+		f_cvt(pFpu[i], left, sizeof(left), 6, MODE_GENERIC);
+		f_cvt(pFpu[i+1], right, sizeof(right), 6, MODE_GENERIC);
+		printf("S%03d: %-20s - S%03d: %-20s\n", i, left, i+1, right);
+	}
+}
+
+void exceptionVfpuPrint(int ex, int mode)
+{
+	struct PsplinkContext *ctx = NULL;
+
+	if((ex >= 0) && (ex < PSPLINK_MAX_CONTEXT))
+	{
+		if((g_list) && (g_list[ex].valid))
+		{
+			ctx = &g_list[ex];
+		}
+	}
+	else
+	{
+		ctx = g_currex;
+	}
+
+	if(ctx)
+	{
+		if(ctx->regs.status & 0x40000000)
+		{
+			exceptionPrintVFPURegs(ctx->regs.vfpu, mode);
+		}
+		else
+		{
+			printf("VFPU not enabled in context\n");
+		}
 	}
 	else
 	{

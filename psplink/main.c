@@ -25,6 +25,7 @@
 #include "psplink.h"
 #include "psplinkcnf.h"
 #include "parse_args.h"
+#include "debug.h"
 #include "util.h"
 #include "sio.h"
 #include "shell.h"
@@ -255,6 +256,7 @@ void psplinkReset(void)
 	save->magic = SAVED_MAGIC;
 	strcpy(save->currdir, g_context.currdir);
 
+	debugDisableHW();
 	psplinkSetK1(0);
 	printf("Resetting psplink\n");
 	psplinkStop();

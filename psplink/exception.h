@@ -9,6 +9,7 @@ extern struct PsplinkContext *g_currex;
 void exceptionInit(void);
 void exceptionPrint(int ex);
 void exceptionFpuPrint(int ex);
+void exceptionVfpuPrint(int ex, int mode);
 u32 *exceptionGetReg(const char *reg);
 void exceptionResume(void);
 void exceptionPrintFPURegs(float *pFpu, unsigned int fsr, unsigned int fir);

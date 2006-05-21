@@ -21,8 +21,10 @@
 #include <string.h>
 #include <signal.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include "../psplink/debug.h"
 #include "gdb-common.h"
 
 //#define DEBUG
@@ -321,6 +323,19 @@ static int hexToInt(char **ptr, unsigned int *intValue)
 	return numChars;
 }
 
+static char *strtohex(char *ptr, const char *str)
+{
+	while(*str)
+	{
+		*ptr++ = hexchars[*str >> 4];
+		*ptr++ = hexchars[*str & 0xf];
+		str++;
+	}
+	*ptr = 0;
+
+	return ptr;
+}
+
 /* Define some opcode stuff for the stepping function */
 #define BEQ_OPCODE		0x4
 #define BEQL_OPCODE		0x14
@@ -361,7 +376,7 @@ static int hexToInt(char **ptr, unsigned int *intValue)
 #define BCXTL_OPCODE	0x103
 
 /* Generic step command , if skip then will try to skip over jals */
-static void step_generic(PspDebugRegBlock *regs, int skip)
+static void step_generic(struct PsplinkContext *ctx, int skip)
 {
 	u32 opcode;
 	u32 epc;
@@ -370,7 +385,7 @@ static void step_generic(PspDebugRegBlock *regs, int skip)
 	int cond   = 0;
 	int link   = 0;
 
-	epc = regs->epc;
+	epc = ctx->regs.epc;
 	targetpc = epc + 4;
 
 	opcode = _lw(epc);
@@ -436,13 +451,13 @@ static void step_generic(PspDebugRegBlock *regs, int skip)
 													 u32 rs;
 
 													 rs = (opcode >> 21) & 0x1f;
-													 targetpc = regs->r[rs];
+													 targetpc = ctx->regs.r[rs];
 													 branch = 1;
 													 cond = 0;
 												 }
 												 break;
 								 case SYSCALL_OPCODE:
-												 targetpc = regs->r[31];
+												 targetpc = ctx->regs.r[31];
 												 break;
 							 };
 						 }
@@ -503,7 +518,7 @@ static void step_generic(PspDebugRegBlock *regs, int skip)
 	}
 }
 
-void build_trap_cmd(int sigval, PspDebugRegBlock *regs)
+void build_trap_cmd(int sigval, struct PsplinkContext *ctx)
 {
 	char *ptr;
 	/*
@@ -520,7 +535,7 @@ void build_trap_cmd(int sigval, PspDebugRegBlock *regs)
 	*ptr++ = hexchars[37 >> 4];
 	*ptr++ = hexchars[37 & 0xf];
 	*ptr++ = ':';
-	ptr = mem2hex((unsigned char *) &regs->epc, ptr, sizeof(u32));
+	ptr = mem2hex((unsigned char *) &ctx->regs.epc, ptr, sizeof(u32));
 	*ptr++ = ';';
 
 	/*
@@ -529,7 +544,7 @@ void build_trap_cmd(int sigval, PspDebugRegBlock *regs)
 	*ptr++ = hexchars[30 >> 4];
 	*ptr++ = hexchars[30 & 0xf];
 	*ptr++ = ':';
-	ptr = mem2hex((unsigned char *)&regs->r[30], ptr, sizeof(u32));
+	ptr = mem2hex((unsigned char *)&ctx->regs.r[30], ptr, sizeof(u32));
 	*ptr++ = ';';
 
 	/*
@@ -538,8 +553,36 @@ void build_trap_cmd(int sigval, PspDebugRegBlock *regs)
 	*ptr++ = hexchars[29 >> 4];
 	*ptr++ = hexchars[29 & 0xf];
 	*ptr++ = ':';
-	ptr = mem2hex((unsigned char *)&regs->r[29], ptr, sizeof(u32));
+	ptr = mem2hex((unsigned char *)&ctx->regs.r[29], ptr, sizeof(u32));
 	*ptr++ = ';';
+
+	sprintf(ptr, "thread:%08x;", ctx->thid);
+	ptr += strlen(ptr);
+
+	if((ctx->regs.type == PSPLINK_EXTYPE_DEBUG) && 
+			(g_context.daddr != 0) && (ctx->drcntl & (1 << 12)))
+	{
+		const char *type = NULL;
+
+		switch(g_context.datatype)
+		{
+			case DATABP_TYPE_READ: type = "rwatch:";
+								   break;
+			case DATABP_TYPE_WRITE : type = "watch:";
+									 break;
+			case DATABP_TYPE_ACCESS: type = "awatch:";
+									 break;
+			default: break;
+		};
+
+		if(type)
+		{
+			strcpy(ptr, type);
+			ptr += strlen(ptr);
+			ptr = mem2hex((unsigned char *)&g_context.daddr, ptr, sizeof(u32));
+			*ptr++ = ';';
+		}
+	}
 
 	*ptr++ = 0;
 }
@@ -552,17 +595,43 @@ static void handle_query(char *str)
 
 	switch(str[0])
 	{
+		case 'C': sprintf(output, "QC%08X", g_context.ctx.thid);
+				  break;
 		case 'f': 
 				if(strncmp(str, "fThreadInfo", strlen("fThreadInfo")) == 0)
 				{
-					thread_count = sceKernelGetThreadmanIdList(SCE_KERNEL_TMID_Thread, threads, 100, &thread_count);
+					SceUID thread_temp[100];
+					thread_count = sceKernelGetThreadmanIdList(SCE_KERNEL_TMID_Thread, thread_temp, 100, &thread_count);
 					if(thread_count > 0)
 					{
-						thread_loc = 0;
-						output[0] = 'm';
-						mem2hex((unsigned char *) &threads[thread_loc], &output[1], 4);
-						output[9] = 0;
-						thread_loc++;
+						SceKernelThreadInfo info;
+						int valid = 0;
+						int i;
+
+						for(i = 0; i < thread_count; i++)
+						{
+							memset(&info, 0, sizeof(info));
+							info.size = sizeof(info);
+
+							if(sceKernelReferThreadStatus(thread_temp[i], &info) == 0)
+							{
+								/* Check if this is a thread from our debugged application */
+								if(((u32) info.entry >= g_context.info.text_addr) 
+									&& ((u32) info.entry < (g_context.info.text_addr + g_context.info.text_size)))
+								{
+									threads[valid++] = thread_temp[i];
+								}
+							}
+						}
+
+						thread_count = valid;
+
+						if(thread_count > 0)
+						{
+							thread_loc = 0;
+							sprintf(output, "m%08X", threads[thread_loc]);
+							thread_loc++;
+						}
 					}
 				}
 				break;
@@ -572,9 +641,7 @@ static void handle_query(char *str)
 				{
 					if(thread_loc < thread_count)
 					{
-						output[0] = 'm';
-						mem2hex((unsigned char *) &threads[thread_loc], &output[1], 4);
-						output[9] = 0;
+						sprintf(output, "m%08X", threads[thread_loc]);
 						thread_loc++;
 					}
 					else
@@ -583,6 +650,32 @@ static void handle_query(char *str)
 					}
 				}
 				break;
+		case 'T': if(strncmp(str, "ThreadExtraInfo,", strlen("ThreadExtraInfo,")) == 0)
+				  {
+					SceKernelThreadInfo info;
+					SceUID thid;
+					int i;
+
+					str += strlen("ThreadExtraInfo,");
+					if(hexToInt(&str, (unsigned int *) &thid))
+					{
+						memset(&info, 0, sizeof(info));
+						info.size = sizeof(info);
+
+						i = sceKernelReferThreadStatus(thid, &info);
+						if(i == 0)
+						{
+							strtohex(output, info.name);
+						}
+						else
+						{
+							char temp[32];
+							sprintf(temp, "Error: 0x%08X", i);
+							strtohex(output, temp);
+						}
+					}
+				  }
+				  break;
 		case 'P':
 				break;
 		case 'O': if(strncmp(str, "Offsets", strlen("Offsets")) == 0)
@@ -611,7 +704,121 @@ static void handle_query(char *str)
 	};
 }
 
-int GdbHandleException (PspDebugRegBlock *regs)
+void handle_hwbp(char *str, int set)
+{
+	char *ptr;
+	unsigned int addr;
+	unsigned int len;
+	struct DebugEnv env;
+	int datatype = 0;
+
+	if(g_context.hw == 0)
+	{
+		/* We dont have the hardware debugger on our side */
+		return;
+	}
+
+	if((!isdigit(str[0])) || (str[1] != ','))
+	{
+		DEBUG_PRINTF("Invalid Z string (%s)\n", str);
+		strcpy(output, "E01");
+		return;
+	}
+
+	ptr = &str[2];
+
+	if (hexToInt(&ptr, &addr) && *ptr++ == ',' && hexToInt(&ptr, &len))
+   	{
+		DEBUG_PRINTF("%c%c: addr 0x%08X, len 0x%08X\n", set ? 'Z' : 'z', str[0], addr, len);
+		switch(str[0])
+		{
+			case '0': break;  /* We dont support inbuilt software breaks */
+			case '1': if(set)
+					  {
+						  if(g_context.iaddr == 0)
+						  {
+							  debugGetEnv(&env);
+							  env.IBA = addr;
+							  env.IBAM = 0;
+							  env.IBC = 2;
+							  debugSetEnv(&env);
+							  g_context.iaddr = addr;
+							  strcpy(output, "OK");
+						  }
+						  else
+						  {
+							  strcpy(output, "E03");
+						  }
+					  }
+					  else
+					  {
+						  if(g_context.iaddr != 0)
+						  {
+							  debugGetEnv(&env);
+							  env.IBA = 0;
+							  env.IBAM = 0;
+							  env.IBC = 0;
+							  debugSetEnv(&env);
+							  g_context.iaddr = 0;
+							  strcpy(output, "OK");
+						  }
+						  else
+						  {
+							  strcpy(output, "E03");
+						  }
+					  }
+					  break;
+			case '4': datatype++;
+			case '2': datatype++;
+			case '3': datatype++;
+					  if(set)
+					  {
+						  if(g_context.daddr == 0)
+						  {
+							  debugGetEnv(&env);
+							  env.DBA = addr;
+							  env.DBAM = 0;
+							  env.DBC = (datatype << 20) | 2;
+							  debugSetEnv(&env);
+							  g_context.daddr = addr;
+							  g_context.datatype = datatype;
+							  strcpy(output, "OK");
+						  }
+						  else
+						  {
+							  strcpy(output, "E03");
+						  }
+					  }
+					  else
+					  {
+						  if(g_context.daddr != 0)
+						  {
+							  debugGetEnv(&env);
+							  env.DBA = 0;
+							  env.DBAM = 0;
+							  env.DBC = 0;
+							  debugSetEnv(&env);
+							  g_context.daddr = 0;
+							  g_context.datatype = 0;
+							  strcpy(output, "OK");
+						  }
+						  else
+						  {
+							  strcpy(output, "E03");
+						  }
+					  }
+					  break;
+					  
+			default:  break;
+		};
+	} 
+	else
+	{
+		strcpy(output,"E01");
+	}
+}
+
+int GdbHandleException (struct PsplinkContext *ctx)
 {
 	int ret = 1;
 	int trap;
@@ -623,8 +830,15 @@ int GdbHandleException (PspDebugRegBlock *regs)
 
 	DEBUG_PRINTF("In GDB Handle Exception\n");
 
-	trap = (regs->cause & 0x7c) >> 2;
-	sigval = computeSignal(trap);
+	if(ctx->regs.type == PSPLINK_EXTYPE_DEBUG)
+	{
+		sigval = SIGTRAP;
+	}
+	else
+	{
+		trap = (ctx->regs.cause & 0x7c) >> 2;
+		sigval = computeSignal(trap);
+	}
 
 	if(sigval == SIGHUP)
 	{
@@ -646,7 +860,7 @@ int GdbHandleException (PspDebugRegBlock *regs)
 
 	if(g_context.started)
 	{
-		build_trap_cmd(sigval, regs);
+		build_trap_cmd(sigval, ctx);
 		putpacket((unsigned char *) output);
 	}
 
@@ -672,7 +886,7 @@ int GdbHandleException (PspDebugRegBlock *regs)
 		switch (input[0])
 		{
 		case '?':
-			build_trap_cmd(sigval, regs);
+			build_trap_cmd(sigval, ctx);
 			break;
 
 		case 'c':
@@ -699,7 +913,7 @@ int GdbHandleException (PspDebugRegBlock *regs)
 			{
 				if (hexToInt(&ptr, &addr))
 				{
-					regs->epc = addr;
+					ctx->regs.epc = addr;
 				}
 			}
 	  
@@ -714,27 +928,27 @@ int GdbHandleException (PspDebugRegBlock *regs)
 
 		case 'g':
 			ptr = output;
-			ptr = (char*) mem2hex((unsigned char *)&regs->r[0], ptr, 32*sizeof(u32)); /* r0...r31 */
-			ptr = (char*) mem2hex((unsigned char *)&regs->status, ptr, 6*sizeof(u32)); /* cp0 */
-			ptr = (char*) mem2hex((unsigned char *)&regs->fpr[0], ptr, 32*sizeof(u32)); /* f0...31 */
-			ptr = (char*) mem2hex((unsigned char *)&regs->fsr, ptr, 2*sizeof(u32)); /* cp1 */
-			ptr = (char*) mem2hex((unsigned char *)&regs->frame_ptr, ptr, 2*sizeof(u32)); /* frp */
-			ptr = (char*) mem2hex((unsigned char *)&regs->index, ptr, 16*sizeof(u32)); /* cp0 */
+			ptr = (char*) mem2hex((unsigned char *)&ctx->regs.r[0], ptr, 32*sizeof(u32)); /* r0...r31 */
+			ptr = (char*) mem2hex((unsigned char *)&ctx->regs.status, ptr, 6*sizeof(u32)); /* cp0 */
+			ptr = (char*) mem2hex((unsigned char *)&ctx->regs.fpr[0], ptr, 32*sizeof(u32)); /* f0...31 */
+			ptr = (char*) mem2hex((unsigned char *)&ctx->regs.fsr, ptr, 2*sizeof(u32)); /* cp1 */
+			ptr = (char*) mem2hex((unsigned char *)&ctx->regs.frame_ptr, ptr, 2*sizeof(u32)); /* frp */
+			ptr = (char*) mem2hex((unsigned char *)&ctx->regs.index, ptr, 16*sizeof(u32)); /* cp0 */
 			break;
 
 		case 'G':
 			ptr = &input[1];
-			hex2mem(ptr, (char *)&regs->r[0], 32*sizeof(unsigned int), 0);
+			hex2mem(ptr, (char *)&ctx->regs.r[0], 32*sizeof(unsigned int), 0);
 			ptr += 32*(2*sizeof(unsigned int));
-			hex2mem(ptr, (char *)&regs->status, 6*sizeof(unsigned int), 0);
+			hex2mem(ptr, (char *)&ctx->regs.status, 6*sizeof(unsigned int), 0);
 			ptr += 6*(2*sizeof(unsigned int));
-			hex2mem(ptr, (char *)&regs->fpr[0], 32*sizeof(unsigned int), 0);
+			hex2mem(ptr, (char *)&ctx->regs.fpr[0], 32*sizeof(unsigned int), 0);
 			ptr += 32*(2*sizeof(unsigned int));
-			hex2mem(ptr, (char *)&regs->fsr, 2*sizeof(unsigned int), 0);
+			hex2mem(ptr, (char *)&ctx->regs.fsr, 2*sizeof(unsigned int), 0);
 			ptr += 2*(2*sizeof(unsigned int));
-			hex2mem(ptr, (char *)&regs->frame_ptr, 2*sizeof(unsigned int), 0);
+			hex2mem(ptr, (char *)&ctx->regs.frame_ptr, 2*sizeof(unsigned int), 0);
 			ptr += 2*(2*sizeof(unsigned int));
-			hex2mem(ptr, (char *)&regs->index, 16*sizeof(unsigned int), 0);
+			hex2mem(ptr, (char *)&ctx->regs.index, 16*sizeof(unsigned int), 0);
 			strcpy(output,"OK");
 			break;
 
@@ -784,14 +998,20 @@ int GdbHandleException (PspDebugRegBlock *regs)
 		case 's': 	ptr = &input[1];
 					if (hexToInt(&ptr, &addr))
 					{
-						regs->epc = addr;
+						ctx->regs.epc = addr;
 					}
 
-					step_generic(regs, 0);
+					step_generic(ctx, 0);
 					goto restart;
 					break;
 
 		case 'q': handle_query(&input[1]);
+				  break;
+
+		case 'Z': handle_hwbp(&input[1], 1);
+				  break;
+
+		case 'z': handle_hwbp(&input[1], 0);
 				  break;
 
 		/*

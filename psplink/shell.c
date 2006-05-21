@@ -3350,6 +3350,19 @@ static int exprfpu_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int exprvfpu_cmd(int argc, char **argv)
+{
+	int ex = -1;
+
+	if(argc > 0)
+	{
+		ex = atoi(argv[0]);
+	}
+	exceptionVfpuPrint(ex, 0);
+
+	return CMD_OK;
+}
+
 static int exresume_cmd(int argc, char **argv)
 {
 	if(argc > 0)
@@ -3924,6 +3937,7 @@ const struct sh_command commands[] = {
 	{ "exctx",   "ec", exctx_cmd, 1, "Set the current exception context", "ex" },
 	{ "exresume", "c", exresume_cmd, 0, "Resume from the exception", "[addr]"},
 	{ "exprfpu", "ef", exprfpu_cmd, 0, "Print the current FPU registers", "[ex]"},
+	{ "exprvfpu", "ev", exprvfpu_cmd, 0, "Print the current VFPU registers", "[ex]"},
 	{ "setreg", "str", setreg_cmd, 2, "Set the value of an exception register", "$reg value"},
 	{ "hwena",  NULL, hwena_cmd, 0, "Enable or disable the HW debugger", "[on|off]" },
 	{ "hwregs", NULL, hwregs_cmd, 0, "Print or change the current HW breakpoint setup (v1.5 only)", "[reg=val]..." },

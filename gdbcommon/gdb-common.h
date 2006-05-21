@@ -17,7 +17,7 @@ struct ExceptionMsg
 struct GdbContext
 {
 	SceUID main_thread;
-	PspDebugRegBlock regs;
+	struct PsplinkContext ctx;
 	/* Module args */
 	char **argv;
 	int  argc;
@@ -33,13 +33,22 @@ struct GdbContext
 	SceUID mbx;
 	/* Indicates if we are debugging an ELF or a PRX */
 	int elf;
+	/* Indicates if we have been enable to enable hardware debugging */
+	int hw;
+	unsigned int iaddr; /* HW instruction BP address */
+	unsigned int daddr; /* HW data BP address */
+	int datatype;
 };
+
+#define DATABP_TYPE_READ   1
+#define DATABP_TYPE_WRITE  2
+#define DATABP_TYPE_ACCESS 3
 
 extern struct GdbContext g_context;
 
 int GdbReadByte(unsigned char *address, unsigned char *dest);
 int GdbWriteByte(char val, unsigned char *dest);
-int GdbHandleException (PspDebugRegBlock *regs);
+int GdbHandleException (struct PsplinkContext *ctx);
 void GdbStubInit(void);
 int GdbTrapEntry(struct PsplinkContext *ctx);
 void GdbMain(void);

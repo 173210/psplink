@@ -117,6 +117,7 @@
 #define REG_COP0_14  (REG_COP0_13 + 4)
 #define REG_PRID     (REG_COP0_14 + 4)
 #define REG_TYPE     (REG_PRID + 4)
+#define REG_VFPU    (REG_TYPE + 4)
 
 	.extern g_psplinkContext
 	.extern psplinkTrap
@@ -169,7 +170,7 @@ psplinkExceptionHandler:
 	la		$v0, g_psplinkContext
 1:
 	# If we have no more context then exit
-	beq     $v0, $0, 3f
+	beq     $v0, $0, 4f
 	nop	
 
 	lw		$v1, 0($v0)
@@ -285,10 +286,54 @@ psplinkExceptionHandler:
 # Jump target for ignore cop1
 2:
 
+# Check for VFPU enable
+	cfc0	$v1,  $2
+	lui		$a0, 0x4000
+	and		$a0, $a0, $v1
+	beq		$a0, $0, 3f
+	nop
+
+# Store VFPU registers
+	usv.q	C000, REG_VFPU($v0)
+	usv.q	C010, REG_VFPU+16($v0)
+	usv.q	C020, REG_VFPU+32($v0)
+	usv.q	C030, REG_VFPU+48($v0)
+	usv.q	C100, REG_VFPU+64($v0)
+	usv.q	C110, REG_VFPU+80($v0)
+	usv.q	C120, REG_VFPU+96($v0)
+	usv.q	C130, REG_VFPU+112($v0)
+	usv.q	C200, REG_VFPU+128($v0)
+	usv.q	C210, REG_VFPU+144($v0)
+	usv.q	C220, REG_VFPU+160($v0)
+	usv.q	C230, REG_VFPU+176($v0)
+	usv.q	C300, REG_VFPU+192($v0)
+	usv.q	C310, REG_VFPU+208($v0)
+	usv.q	C320, REG_VFPU+224($v0)
+	usv.q	C330, REG_VFPU+240($v0)
+	usv.q	C400, REG_VFPU+256($v0)
+	usv.q	C410, REG_VFPU+272($v0)
+	usv.q	C420, REG_VFPU+288($v0)
+	usv.q	C430, REG_VFPU+304($v0)
+	usv.q	C500, REG_VFPU+320($v0)
+	usv.q	C510, REG_VFPU+336($v0)
+	usv.q	C520, REG_VFPU+352($v0)
+	usv.q	C530, REG_VFPU+368($v0)
+	usv.q	C600, REG_VFPU+384($v0)
+	usv.q	C610, REG_VFPU+400($v0)
+	usv.q	C620, REG_VFPU+416($v0)
+	usv.q	C630, REG_VFPU+432($v0)
+	usv.q	C700, REG_VFPU+448($v0)
+	usv.q	C710, REG_VFPU+464($v0)
+	usv.q	C720, REG_VFPU+480($v0)
+	usv.q	C730, REG_VFPU+496($v0)
+
+# Jump target for ignore cop2
+3:
 	sw			$sp, REG_FP($v0)
 	addiu		$v0, $v0, -8
 
-3:
+
+4:
 	move	$a0, $v0
 	la		$v0, psplinkTrap
 	mtc0	$v0, EPC 
@@ -310,10 +355,54 @@ _psplinkExceptionResume:
 
 	lw		$v1,  REG_STATUS($v0)
 
+# Check if cop2 is enabled and skip if not
+	lui		$a0, 0x4000
+	and		$a0, $a0, $v1
+	beq		$a0, $0, 1f
+	nop
+
+# Restore VFPU registers
+	ulv.q	C000, REG_VFPU($v0)
+	ulv.q	C010, REG_VFPU+16($v0)
+	ulv.q	C020, REG_VFPU+32($v0)
+	ulv.q	C030, REG_VFPU+48($v0)
+	ulv.q	C100, REG_VFPU+64($v0)
+	ulv.q	C110, REG_VFPU+80($v0)
+	ulv.q	C120, REG_VFPU+96($v0)
+	ulv.q	C130, REG_VFPU+112($v0)
+	ulv.q	C200, REG_VFPU+128($v0)
+	ulv.q	C210, REG_VFPU+144($v0)
+	ulv.q	C220, REG_VFPU+160($v0)
+	ulv.q	C230, REG_VFPU+176($v0)
+	ulv.q	C300, REG_VFPU+192($v0)
+	ulv.q	C310, REG_VFPU+208($v0)
+	ulv.q	C320, REG_VFPU+224($v0)
+	ulv.q	C330, REG_VFPU+240($v0)
+	ulv.q	C400, REG_VFPU+256($v0)
+	ulv.q	C410, REG_VFPU+272($v0)
+	ulv.q	C420, REG_VFPU+288($v0)
+	ulv.q	C430, REG_VFPU+304($v0)
+	ulv.q	C500, REG_VFPU+320($v0)
+	ulv.q	C510, REG_VFPU+336($v0)
+	ulv.q	C520, REG_VFPU+352($v0)
+	ulv.q	C530, REG_VFPU+368($v0)
+	ulv.q	C600, REG_VFPU+384($v0)
+	ulv.q	C610, REG_VFPU+400($v0)
+	ulv.q	C620, REG_VFPU+416($v0)
+	ulv.q	C630, REG_VFPU+432($v0)
+	ulv.q	C700, REG_VFPU+448($v0)
+	ulv.q	C710, REG_VFPU+464($v0)
+	ulv.q	C720, REG_VFPU+480($v0)
+	ulv.q	C730, REG_VFPU+496($v0)
+
+1:
+
+	lw		$v1,  REG_STATUS($v0)
+
 # Check if cop1 is enabled and skip if not
 	lui		$a0, 0x2000
 	and		$a0, $a0, $v1
-	beq		$a0, $0, 1f
+	beq		$a0, $0, 2f
 	nop
 
 	lwc1		$0, REG_FPR_0($v0)
@@ -353,7 +442,7 @@ _psplinkExceptionResume:
 	li			$t1, 0xFFFC0F83
 	and			$t0, $t0, $t1	# Clear the cause and flags before ret
 	ctc1 		$t0, FSR
-1:
+2:
 
 # Don't do 1 or 2 yet
 	lw		$3, REG_GPR_3($v0)
