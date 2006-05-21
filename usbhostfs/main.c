@@ -320,7 +320,7 @@ int set_bulkin_req(void *data, int size)
 	g_bulkin_req.data = data;
 	g_bulkin_req.size = size;
 	g_bulkin_req.func = bulkin_req_done;
-	sceKernelClearEventFlag(g_transevent, USB_TRANSEVENT_BULKIN_DONE);
+	sceKernelClearEventFlag(g_transevent, ~USB_TRANSEVENT_BULKIN_DONE);
 	return sceUsbbdReqSend(&g_bulkin_req);
 }
 
@@ -349,7 +349,7 @@ int set_bulkout_req(void *data, int size)
 	g_bulkout_req.data = (void *) addr;
 	g_bulkout_req.size = size;
 	g_bulkout_req.func = bulkout_req_done;
-	sceKernelClearEventFlag(g_transevent, USB_TRANSEVENT_BULKOUT_DONE);
+	sceKernelClearEventFlag(g_transevent, ~USB_TRANSEVENT_BULKOUT_DONE);
 	return sceUsbbdReqRecv(&g_bulkout_req);
 }
 
@@ -366,7 +366,6 @@ int read_data(void *data, int size)
 
 	while(readlen < size)
 	{
-		/* TODO: 512 should actually come from the endpoint size */
 		nextsize = (size - readlen) > sizeof(tx_buf) ? sizeof(tx_buf) : (size - readlen);
 		if(set_bulkout_req(tx_buf, nextsize) < 0)
 		{
@@ -589,7 +588,7 @@ int set_ayncreq(void *data, int size)
 	g_async_req.data = (void *) addr;
 	g_async_req.size = size;
 	g_async_req.func = async_req_done;
-	sceKernelClearEventFlag(g_mainevent, USB_EVENT_ASYNC);
+	sceKernelClearEventFlag(g_mainevent, ~USB_EVENT_ASYNC);
 	return sceUsbbdReqRecv(&g_async_req);
 }
 
