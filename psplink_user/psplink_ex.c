@@ -56,10 +56,16 @@ void psplinkTrap(struct PsplinkContext *ctx)
 
 	thid = sceKernelGetThreadId();
 
-	if(ctx == NULL)
+	if((ctx == NULL) && (thid >= 0))
 	{
 		printf("No more free contexts for exception trap, deleting thread 0x%08X\n", thid);
 		sceKernelExitDeleteThread(0);
+	}
+
+	if(thid < 0)
+	{
+		/* Means we are most likely in an interrupt context, just return */
+		return;
 	}
 
 	ctx->thid = thid;

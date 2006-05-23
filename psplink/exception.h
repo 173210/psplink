@@ -4,6 +4,12 @@
 #include <pspdebug.h>
 #include "../psplink_user/psplink_ex.h"
 
+#define VFPU_PRINT_SINGLE 0
+#define VFPU_PRINT_COL    1
+#define VFPU_PRINT_ROW    2
+#define VFPU_PRINT_MATRIX 3
+#define VFPU_PRINT_TRANS  4
+
 extern struct PsplinkContext *g_currex;
 
 void exceptionInit(void);

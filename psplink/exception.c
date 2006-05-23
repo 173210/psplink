@@ -25,6 +25,10 @@
 struct PsplinkContext *g_currex = NULL;
 struct PsplinkContext *g_list = NULL;
 
+#define ROW_NUM(x) ((x) / 16)
+#define COL_NUM(x) (((x) / 4) & 3)
+#define MAT_NUM(x) ((x) & 3)
+
 #define FPU_EXCEPTION 15
 
 /* Mnemonic register names */
@@ -313,13 +317,18 @@ void exceptionPrintVFPURegs(float *pFpu, int mode)
 
 	pspSdkDisableFPUExceptions();
 
-	for(i = 0; i < 128; i+=2)
+	if(mode == VFPU_PRINT_SINGLE)
 	{
-		char left[64], right[64];
+		for(i = 0; i < 128; i+=2)
+		{
+			char left[64], right[64];
 
-		f_cvt(pFpu[i], left, sizeof(left), 6, MODE_GENERIC);
-		f_cvt(pFpu[i+1], right, sizeof(right), 6, MODE_GENERIC);
-		printf("S%03d: %-20s - S%03d: %-20s\n", i, left, i+1, right);
+			f_cvt(pFpu[i], left, sizeof(left), 6, MODE_GENERIC);
+			f_cvt(pFpu[i+1], right, sizeof(right), 6, MODE_GENERIC);
+			printf("S%d%d%d: %-20s - S%d%d%d: %-20s\n", 
+					MAT_NUM(i), COL_NUM(i), ROW_NUM(i), left, 
+					MAT_NUM(i+1), COL_NUM(i+1), ROW_NUM(i+1),  right);
+		}
 	}
 }
 
