@@ -21,6 +21,8 @@ release: all
 	cp bootstrap/EBOOT.PBP release/v1.0/psplink
 	cp psplink/psplink.prx release/v1.0/psplink
 	cp psplink/psplink.ini release/v1.0/psplink
+	cp psplink/psplink.ini.usb release/v1.0/psplink
+	cp psplink/psplink.ini.wifi release/v1.0/psplink
 	cp psplink_user/psplink_user.prx release/v1.0/psplink
 	cp modnet/modnet.prx release/v1.0/psplink
 	cp netshell/netshell.prx release/v1.0/psplink
@@ -33,6 +35,8 @@ release: all
 	cp -R bootstrap/psplink% release/v1.5
 	cp psplink/psplink.prx release/v1.5/psplink
 	cp psplink/psplink.ini release/v1.5/psplink
+	cp psplink/psplink.ini.usb release/v1.5/psplink
+	cp psplink/psplink.ini.wifi release/v1.5/psplink
 	cp psplink_user/psplink_user.prx release/v1.5/psplink
 	cp modnet/modnet.prx release/v1.5/psplink
 	cp netshell/netshell.prx release/v1.5/psplink
