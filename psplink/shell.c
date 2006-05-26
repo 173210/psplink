@@ -327,9 +327,46 @@ static int threadmaninfo_cmd(int argc, char **argv, const char *name, threadmanp
 	return ret;
 }
 
+static const char* get_thread_status(int stat, char *str)
+{
+	str[0] = 0;
+	if(stat & PSP_THREAD_RUNNING)
+	{
+		strcat(str, "RUNNING ");
+	}
+	
+	if(stat & PSP_THREAD_READY)
+	{
+		strcat(str, "READY ");
+	}
+
+	if(stat & PSP_THREAD_WAITING)
+	{
+		strcat(str, "WAITING ");
+	}
+	
+	if(stat & PSP_THREAD_SUSPEND)
+	{
+		strcat(str, "SUSPEND ");
+	}
+
+	if(stat & PSP_THREAD_STOPPED)
+	{
+		strcat(str, "STOPPED ");
+	}
+
+	if(stat & PSP_THREAD_KILLED)
+	{
+		strcat(str, "KILLED ");
+	}
+
+	return str;
+}
+
 static int print_threadinfo(SceUID uid, int verbose)
 {
 	SceKernelThreadInfo info;
+	char status[256];
 	int ret;
 
 	memset(&info, 0, sizeof(info));
@@ -340,7 +377,8 @@ static int print_threadinfo(SceUID uid, int verbose)
 		printf("UID: 0x%08X - Name: %s\n", uid, info.name);
 		if(verbose)
 		{
-			printf("Attr: 0x%08X - Status: %d - Entry: %p\n", info.attr, info.status, info.entry);
+			printf("Attr: 0x%08X - Status: %d/%s- Entry: %p\n", info.attr, info.status, 
+					get_thread_status(info.status, status), info.entry);
 			printf("Stack: %p - StackSize 0x%08X - GP: 0x%08X\n", info.stack, info.stackSize,
 					(u32) info.gpReg);
 			printf("InitPri: %d - CurrPri: %d - WaitType %d\n", info.initPriority,
@@ -349,7 +387,7 @@ static int print_threadinfo(SceUID uid, int verbose)
 					info.wakeupCount, info.exitStatus);
 			printf("RunClocks: %d - IntrPrempt: %d - ThreadPrempt: %d\n", info.runClocks.low,
 					info.intrPreemptCount, info.threadPreemptCount);
-			printf("ReleaseCount: %d\n", info.releaseCount);
+			printf("ReleaseCount: %d, StackFree: %d\n", info.releaseCount, sceKernelGetThreadStackFreeSize(uid));
 		}
 	}
 

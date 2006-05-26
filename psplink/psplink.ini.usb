@@ -1,10 +1,10 @@
 # Example psplink configuration file.
 
 # usbmass=[0 1] Enable USB mass storage. Set to 1 to enable automatically
-usbmass=1
+usbmass=0
 
 # usbhost=[0 1] Enable USB host file system. Set to 1 to enable automatically
-usbhost=0
+usbhost=1
 
 # pluser=[0 1] Enable the PSPLink user module
 pluser=1
@@ -14,7 +14,7 @@ pluser=1
 resetonexit=1
 
 # sioshell=[0 1] Specify whether to start up the sio shell
-sioshell=1
+sioshell=0
 
 # kprintf=[0 1] Specify that SIO should be used for kprintf only, setting sioshell
 # to 1 overrides this setting.
@@ -28,10 +28,10 @@ wifi=0
 wifishell=0
 
 # usbshell=[0 1] Specify whether to start up the usb shell
-usbshell=0
+usbshell=1
 
 # usbgdb=[0 1] Specify whether to use USB gdb or wifi gdb
-usbgdb=0
+usbgdb=1
 
 # conshell=[0 1] Specify whether to start up the console shell
 conshell=0
@@ -62,7 +62,7 @@ prompt="%d> "
 
 # pcterm=[0 1] Indicates whether we are using pcterm as a client or normal
 # tools
-pcterm=0
+pcterm=1
 
 # baud=[4800..115200] Set the SIO baud rate (should only use as a last resort)
 # baud=115200
