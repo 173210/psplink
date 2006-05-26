@@ -8,7 +8,7 @@ USE_KERNEL_LIBS = 1
 
 INCDIR = 
 #CFLAGS = -O2 -G0 -Wall -fno-builtin-printf -DDEBUG
-CFLAGS = -O2 -G0 -Wall -fno-builtin-printf -I../usbhostfs
+CFLAGS = -Os -G0 -Wall -fno-builtin-printf -I../usbhostfs
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 

@@ -116,6 +116,8 @@ static void config_wifishell(struct ConfigContext *ctx, const char *szVal, unsig
 	}
 }
 
+#ifndef USB_ONLY
+
 static void config_conshell(struct ConfigContext *ctx, const char* szVal, unsigned int iVal)
 {
 	ctx->conshell = iVal;
@@ -206,6 +208,8 @@ static void config_consinterfere(struct ConfigContext *ctx, const char* szVal, u
 	ctx->consinterfere = iVal;
 }
 
+#endif
+
 static void config_sioshell(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
 {
 	ctx->sioshell = iVal;
@@ -256,6 +260,7 @@ struct psplink_config config_names[] = {
 	{ "wifishell", 1, config_wifishell },
 	{ "sioshell", 1, config_sioshell },
 	{ "pcterm", 1, config_pcterm },
+#ifndef USB_ONLY
 	{ "conshell", 1, config_conshell },
 	{ "consinterfere", 1, config_consinterfere },
 	{ "conscrosscmd", 0, config_conscrosscmd },
@@ -268,6 +273,7 @@ struct psplink_config config_names[] = {
 	{ "consleftcmd", 0, config_consleftcmd },
 	{ "consupcmd", 0, config_consupcmd },
 	{ "consrightcmd", 0, config_consrightcmd },
+#endif
 	{ "wifi", 1, config_wifi },
 	{ "path", 0, config_path },
 	{ "disopt", 0, config_disopt },

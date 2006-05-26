@@ -48,6 +48,7 @@ extern struct GlobalContext g_context;
 
 static int outputHandler(const char *data, int size)
 {
+#ifndef USB_ONLY
 	if(g_sioHandler)
 	{
 		g_sioHandler(data, size);
@@ -57,11 +58,14 @@ static int outputHandler(const char *data, int size)
 	{
 		g_wifiHandler(data, size);
 	}
+#endif
 
 	if(g_usbHandler)
 	{
 		g_usbHandler(data, size);
 	}
+
+#ifndef USB_ONLY
 
 	if(g_consHandler)
 	{
@@ -70,6 +74,7 @@ static int outputHandler(const char *data, int size)
 			g_consHandler(data, size);
 		}
 	}
+#endif
 
 	return size;
 }

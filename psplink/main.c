@@ -382,6 +382,7 @@ void initialise(SceSize args, void *argp)
 		load_psplink_user(g_context.bootpath);
 	}
 
+#ifndef USB_ONLY
 	if(ctx.wifi > 0)
 	{
 		load_wifi(g_context.bootpath, ctx.wifi);
@@ -398,6 +399,7 @@ void initialise(SceSize args, void *argp)
 		g_context.conshelluid = load_conshell(g_context.bootpath);
 		copy_conscontext(&ctx, &g_context);
 	}
+#endif
 
 	g_context.resetonexit = ctx.resetonexit;
 	g_context.pcterm  = ctx.pcterm;
@@ -418,6 +420,7 @@ int main_thread(SceSize args, void *argp)
 
 	printf(WELCOME_MESSAGE);
 
+#ifndef USB_ONLY
 	if(g_context.sioshell)
 	{
 		shellStart();
@@ -427,6 +430,7 @@ int main_thread(SceSize args, void *argp)
 		psplinkExitShell();
 	}
 	else
+#endif
 	{
 		sceKernelSleepThread();
 	}

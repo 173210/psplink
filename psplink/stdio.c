@@ -49,11 +49,6 @@ static int io_open(PspIoDrvFileArg *arg, char *file, int mode, SceMode mask)
 	return 0;
 }
 
-static int io_close(PspIoDrvFileArg *arg)
-{
-	return 0;
-}
-
 static int io_read(PspIoDrvFileArg *arg, char *data, int len)
 {
 	int ret = 0;
@@ -86,110 +81,30 @@ static int io_write(PspIoDrvFileArg *arg, const char *data, int len)
 	return ret;
 }
 
-static int io_lseek(PspIoDrvFileArg *arg, u32 unk, long long ofs, int whence)
-{
-	return 0;
-}
-
-static int io_ioctl(PspIoDrvFileArg *arg, unsigned int cmd, void *indata, int inlen, void *outdata, int outlen)
-{
-	return 0;
-}
-
-static int io_remove(PspIoDrvFileArg *arg, const char *name)
-{
-	return 0;
-}
-
-static int io_mkdir(PspIoDrvFileArg *arg, const char *name, SceMode mode)
-{
-	return 0;
-}
-
-static int io_rmdir(PspIoDrvFileArg *arg, const char *name)
-{
-	return 0;
-}
-
-static int io_dopen(PspIoDrvFileArg *arg, const char *dir)
-{
-	return 0;
-}
-
-static int io_dclose(PspIoDrvFileArg *arg)
-{
-	return 0;
-}
-
-static int io_dread(PspIoDrvFileArg *arg, SceIoDirent *dir)
-{
-	return 0;
-}
-
-static int io_getstat(PspIoDrvFileArg *arg, const char *file, SceIoStat *stat)
-{
-	return 0;
-}
-
-static int io_chstat(PspIoDrvFileArg *arg, const char *file, SceIoStat *stat, int bits)
-{
-	return 0;
-}
-
-static int io_rename(PspIoDrvFileArg *arg, const char *oldname, const char *newname)
-{
-	return 0;
-}
-
-static int io_chdir(PspIoDrvFileArg *arg, const char *dir)
-{
-	return 0;
-}
-
-static int io_mount(PspIoDrvFileArg *arg)
-{
-	return 0;
-}
-
-static int io_umount(PspIoDrvFileArg *arg)
-{
-	return 0;
-}
-
-static int io_devctl(PspIoDrvFileArg *arg, const char *devname, unsigned int cmd, void *indata, int inlen, void *outdata, int outlen)
-{
-	return 0;
-}
-
-static int io_unknown(PspIoDrvFileArg *arg)
-{
-	return 0;
-}
-
 static PspIoDrvFuncs tty_funcs = 
 {
 	io_init,
 	io_exit,
 	io_open,
-	io_close,
+	NULL,
 	io_read,
 	io_write,
-	io_lseek,
-	io_ioctl,
-	io_remove,
-	io_mkdir,
-	io_rmdir,
-	io_dopen,
-	io_dclose,
-	io_dread,
-	io_getstat,
-	io_chstat,
-	io_rename,
-	io_chdir,
-	io_mount,
-	io_umount,
-	io_devctl,
-	io_unknown,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
 };
 
 static PspIoDrv tty_driver = 

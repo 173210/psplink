@@ -68,6 +68,7 @@ typedef struct _CommandMsg
 	int    res;
 } CommandMsg;
 
+#ifndef USB_ONLY
 /* Last command line (history) */
 static char g_lastcli[CLI_HISTSIZE][CLI_MAX];
 /* Current command line */
@@ -81,6 +82,8 @@ static int  g_lastcli_pos = 0;
 /* Current scrolling position in the history buffer */
 static int  g_currcli_pos = 0;
 /* Message box for command line parsing */
+#endif 
+
 static SceUID g_command_msg = -1;
 /* Thread ID for the command line parsing */
 static SceUID g_command_thid = -1;
@@ -4017,7 +4020,7 @@ const struct sh_command commands[] = {
 	{ "profmode", NULL, profmode_cmd, 0, "Set or display the current profiler mode", "[t|g|o]" },
 	{ "debugreg", NULL, debugreg_cmd, 0, "Set or display the current debug register", "[val]" },
 	{ "help", "?", help_cmd, 0, "Help (Obviously)", "[command|category]"},
-	{ "custom", "cst", custom_cmd, 1, "Custom command (for Conshell)", "commandnumber"},
+	{ "custom", "cst", custom_cmd, 1, NULL, NULL},
 	{ NULL, NULL, NULL, 0, NULL, NULL}
 };
 
@@ -4114,28 +4117,19 @@ int shellParse(char *command)
 			}
 			else
 			{
-				if(strcmp(cmd, "compcmd") == 0)  /* Complete Command Name */
+				/* Check for a completion function */
+				found_cmd = find_command(cmd);
+				if((found_cmd) && (found_cmd->func))
 				{
-				}
-				else if(strcmp(cmd, "compfile") == 0) /* Complete Filename */
-				{
+					if((found_cmd->min_args > (argc - 1)) || ((ret = found_cmd->func(argc-1, &argv[1])) == CMD_ERROR))
+					{
+						printf("Usage: %s\n", found_cmd->help);
+					}
 				}
 				else
 				{
-					/* Check for a completion function */
-					found_cmd = find_command(cmd);
-					if((found_cmd) && (found_cmd->func))
-					{
-						if((found_cmd->min_args > (argc - 1)) || ((ret = found_cmd->func(argc-1, &argv[1])) == CMD_ERROR))
-						{
-							printf("Usage: %s\n", found_cmd->help);
-						}
-					}
-					else
-					{
-						printf("Unknown command %s\n", cmd);
-						ret = CMD_ERROR;
-					}
+					printf("Unknown command %s\n", cmd);
+					ret = CMD_ERROR;
 				}
 			}
 		}
@@ -4209,6 +4203,8 @@ int psplinkParseCommand(char *command, int direct_term)
 
 	return ret;
 }
+
+#ifndef USB_ONLY
 
 /* Process command line */
 static int process_cli()
@@ -4449,6 +4445,8 @@ void shellStart(void)
 	}
 }
 
+#endif
+
 /* Help command */
 static int help_cmd(int argc, char **argv)
 {
@@ -4471,7 +4469,7 @@ static int help_cmd(int argc, char **argv)
 		const struct sh_command* found_cmd;
 
 		found_cmd = find_command(argv[0]);
-		if(found_cmd != NULL)
+		if((found_cmd != NULL) && (found_cmd->desc))
 		{
 			if(found_cmd->func == NULL)
 			{
@@ -4479,7 +4477,10 @@ static int help_cmd(int argc, char **argv)
 				printf("Category %s\n\n", found_cmd->name);
 				for(cmd_loop = 1; found_cmd[cmd_loop].name && found_cmd[cmd_loop].func != NULL; cmd_loop++)
 				{
-					printf("%-10s - %s\n", found_cmd[cmd_loop].name, found_cmd[cmd_loop].desc);
+					if(found_cmd[cmd_loop].desc)
+					{
+						printf("%-10s - %s\n", found_cmd[cmd_loop].name, found_cmd[cmd_loop].desc);
+					}
 				}
 			}
 			else
