@@ -25,9 +25,9 @@
 struct PsplinkContext *g_currex = NULL;
 struct PsplinkContext *g_list = NULL;
 
-#define ROW_NUM(x) ((x) / 16)
+#define MAT_NUM(x) ((x) / 16)
 #define COL_NUM(x) (((x) / 4) & 3)
-#define MAT_NUM(x) ((x) & 3)
+#define ROW_NUM(x) ((x) & 3)
 
 #define FPU_EXCEPTION 15
 
@@ -311,9 +311,29 @@ void exceptionFpuPrint(int ex)
 	}
 }
 
+static void print_vfpu_row(char type, int m, int c, int r, float x, float y, float z, float w)
+{
+	char xs[64], ys[64], zs[64], ws[64];
+
+	f_cvt(x, xs, sizeof(xs), 6, MODE_GENERIC);
+	f_cvt(y, ys, sizeof(ys), 6, MODE_GENERIC);
+	f_cvt(z, zs, sizeof(zs), 6, MODE_GENERIC);
+	f_cvt(w, ws, sizeof(ws), 6, MODE_GENERIC);
+	if(type != 0)
+	{
+		printf("%c%d%d%d: { %14s, %14s, %14s, %14s }\n", 
+				type, m, c, r, xs, ys, zs, ws );
+	}
+	else
+	{
+		printf("      { %14s, %14s, %14s, %14s }\n", 
+				xs, ys, zs, ws );
+	}
+}
+
 void exceptionPrintVFPURegs(float *pFpu, int mode)
 {
-	int i;
+	int i, j;
 
 	pspSdkDisableFPUExceptions();
 
@@ -328,6 +348,45 @@ void exceptionPrintVFPURegs(float *pFpu, int mode)
 			printf("S%d%d%d: %-20s - S%d%d%d: %-20s\n", 
 					MAT_NUM(i), COL_NUM(i), ROW_NUM(i), left, 
 					MAT_NUM(i+1), COL_NUM(i+1), ROW_NUM(i+1),  right);
+		}
+	}
+	else if(mode == VFPU_PRINT_COL)
+	{
+		for(i = 0; i < 128; i+=4)
+		{
+			print_vfpu_row('C', MAT_NUM(i), COL_NUM(i), 0, pFpu[i], pFpu[i+1], pFpu[i+2], pFpu[i+3]);
+		}
+	}
+	else if(mode == VFPU_PRINT_ROW)
+	{
+		for(i = 0; i < 128; i+=16)
+		{
+			for(j = 0; j < 4; j++)
+			{
+				print_vfpu_row('R', MAT_NUM(i), 0, j, pFpu[i+j], pFpu[i+j+4], pFpu[i+j+8], pFpu[i+j+12]);
+			}
+		}
+	}
+	else if(mode == VFPU_PRINT_MATRIX)
+	{
+		for(i = 0; i < 128; i+=16)
+		{
+			print_vfpu_row('M', MAT_NUM(i), 0, 0, pFpu[i], pFpu[i+4], pFpu[i+8], pFpu[i+12]);
+			for(j = 1; j < 4; j++)
+			{
+				print_vfpu_row(0, 0, 0, 0, pFpu[i+j], pFpu[i+j+4], pFpu[i+j+8], pFpu[i+j+12]);
+			}
+		}
+	}
+	else if(mode == VFPU_PRINT_TRANS)
+	{
+		for(i = 0; i < 128; i+=16)
+		{
+			print_vfpu_row('E', MAT_NUM(i), 0, 0, pFpu[i], pFpu[i+1], pFpu[i+2], pFpu[i+3]);
+			for(j = 1; j < 4; j++)
+			{
+				print_vfpu_row(0, 0, 0, 0, pFpu[i+(j*4)], pFpu[i+(j*4)+1], pFpu[i+(j*4)+2], pFpu[i+(j*4)+3]);
+			}
 		}
 	}
 }
