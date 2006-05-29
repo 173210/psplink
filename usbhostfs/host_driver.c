@@ -385,9 +385,9 @@ static int io_write(PspIoDrvFileArg *arg, const char *data, int len)
 	return usb_write_data((int) arg->arg, data, len);
 }
 
-static int io_lseek(PspIoDrvFileArg *arg, u32 unk, long long ofs, int whence)
+static SceOff io_lseek(PspIoDrvFileArg *arg, SceOff ofs, int whence)
 {
-	int ret = -1;
+	SceOff ret = -1;
 	struct HostFsLseekCmd cmd;
 	struct HostFsLseekResp resp;
 
