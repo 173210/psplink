@@ -156,7 +156,7 @@ psplinkGetCop0:
 	.global _apiHookEntry
 	.ent    _apiHookEntry
 _apiHookEntry:
-	addiu	$sp, $sp, -(4*7) # Allocate space for 6 args + $ra
+	addiu	$sp, $sp, -(4*8) # Allocate space for 6 args + $ra + hooknum
 	sw		$ra, 0($sp)		 # Save $ra and args
 	sw		$a0, 4($sp)
 	sw		$a1, 8($sp)
@@ -164,26 +164,36 @@ _apiHookEntry:
 	sw		$a3, 16($sp)
 	sw		$t0, 20($sp)
 	sw		$t1, 24($sp)
+	sw		$v0, 28($sp)
 	move	$a0, $v0		# Copy api hook number into first arg
 	jal		_apiHookHandle
 	addiu	$a1, $sp, 4		# Copy pointer to args into second arg
 
-	lw		$ra, 0($sp)		 # Restore $ra and args
-	lw		$a0, 4($sp)
+	lw		$a0, 4($sp)  # Restore args
 	lw		$a1, 8($sp)
 	lw		$a2, 12($sp)
 	lw		$a3, 16($sp)
-	lw		$t0, 20($sp)
-	lw		$t1, 24($sp)
 
 	beq		$v0, $0, 1f
-	addiu	$sp, $sp, (4*7)
-	jr		$v0
-	nop
+	lw		$t0, 20($sp)
+
+	jalr	$v0				# Will call with a 32 byte overhead
+	lw		$t1, 24($sp)
+
+	sw		$v0, 4($sp)		# Save return values
+	sw		$v1, 8($sp)
+	lw		$a0, 28($sp)	# Load hook address
+
+	jal		_apiHookReturn  # Print return values
+	addiu	$a1, $sp, 4		# Copy pointer to return values into second arg
+
+	lw		$v0, 4($sp)		# Restore return values
+	lw		$v1, 4($sp)
 
 1:
+	lw		$ra, 0($sp)		 # Restore $ra
 	jr		$ra
-	move	$v0, $0
+	addiu	$sp, $sp, (4*8)
 	.end    _apiHookEntry
 
 	.global _apiHook0

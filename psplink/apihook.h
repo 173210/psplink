@@ -15,8 +15,8 @@
 
 u32 apiHookByName(SceUID uid, const char *library, const char *name, void *func);
 u32 apiHookByNid(SceUID uid, const char *library, u32 nid, void *func);
-int apiHookGenericByName(SceUID uid, const char *library, const char *name, const char *format, int sleep);
-int apiHookGenericByNid(SceUID uid, const char *library, u32 nid, const char *format, int sleep);
+int apiHookGenericByName(SceUID uid, const char *library, const char *name, char ret, const char *format, int sleep);
+int apiHookGenericByNid(SceUID uid, const char *library, u32 nid, char ret, const char *format, int sleep);
 void apiHookGenericDelete(int id);
 void apiHookGenericPrint(void);
 

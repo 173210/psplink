@@ -1301,9 +1301,9 @@ static int apihook_common(int argc, char **argv, int sleep)
 	int ret = CMD_ERROR;
 	const char *param = "";
 
-	if(argc > 3)
+	if(argc > 4)
 	{
-		param = argv[3];
+		param = argv[4];
 	}
 
 	uid = get_module_uid(argv[0]);
@@ -1311,7 +1311,7 @@ static int apihook_common(int argc, char **argv, int sleep)
 	{
 		if(argv[2][0] == '@')
 		{
-			if(apiHookGenericByName(uid, argv[1], &argv[2][1], param, sleep))
+			if(apiHookGenericByName(uid, argv[1], &argv[2][1], argv[3][0], param, sleep))
 			{
 				ret = CMD_OK;
 			}
@@ -1328,7 +1328,7 @@ static int apihook_common(int argc, char **argv, int sleep)
 			}
 			else
 			{
-				if(apiHookGenericByNid(uid, argv[1], nid, param, 0))
+				if(apiHookGenericByNid(uid, argv[1], nid, argv[3][0], param, 0))
 				{
 					ret = CMD_OK;
 				}
@@ -3948,8 +3948,8 @@ const struct sh_command commands[] = {
 	{ "modexp", "mp", modexp_cmd, 1, "List the exports from a module", "uid|@name" },
 	{ "modimp", NULL, modimp_cmd, 1, "List the imports in a module", "uid|@name" },
 	{ "modfindx", "mfx", modfindx_cmd, 3, "Find a module's export address", "uid|@name library nid|@name" },
-	{ "apihook", NULL, apihook_cmd, 3, "Hook a user mode API call", "uid|@name library nid|@name [param]" },
-	{ "apihooks", NULL, apihooks_cmd, 3, "Hook a user mode API call with sleep", "uid|@name library nid|@name [param]" },
+	{ "apihook", NULL, apihook_cmd, 4, "Hook a user mode API call", "uid|@name library nid|@name ret [param]" },
+	{ "apihooks", NULL, apihooks_cmd, 4, "Hook a user mode API call with sleep", "uid|@name library nid|@name ret [param]" },
 	{ "apihp", NULL, apihp_cmd, 0, "Print the user mode API hooks", "" },
 	{ "apihd", NULL, apihd_cmd, 1, "Delete an user mode API hook", "" },
 	

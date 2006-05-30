@@ -59,7 +59,11 @@ struct SyscallHeader
 #define PARAM_TYPE_HEX 'x'
 #define PARAM_TYPE_OCT 'o'
 #define PARAM_TYPE_STR 's'
-#define PARAM_TYPE_PTR 'p'
+
+#define RET_TYPE_VOID  'v'
+#define RET_TYPE_HEX32 'x'
+#define RET_TYPE_HEX64 'X'
+#define RET_TYPE_INT32 'i'
 
 struct ApiHookGeneric
 {
@@ -67,6 +71,8 @@ struct ApiHookGeneric
 	char name[APIHOOK_MAXNAME];
 	/* Parameter list */
 	char param[APIHOOK_MAXPARAM];
+	/* Return code */
+	char ret;
 	/* Pointer to the real function, if NULL the invalid */
 	void *func;
 	/* Pointer to the location in the syscall table */
@@ -78,22 +84,22 @@ struct ApiHookGeneric
 };
 
 static struct ApiHookGeneric g_apihooks[APIHOOK_MAXIDS] = {
-	{ "", "", NULL, NULL, _apiHook0, 0 },
-	{ "", "", NULL, NULL, _apiHook1, 0 },
-	{ "", "", NULL, NULL, _apiHook2, 0 },
-	{ "", "", NULL, NULL, _apiHook3, 0 },
-	{ "", "", NULL, NULL, _apiHook4, 0 },
-	{ "", "", NULL, NULL, _apiHook5, 0 },
-	{ "", "", NULL, NULL, _apiHook6, 0 },
-	{ "", "", NULL, NULL, _apiHook7, 0 },
-	{ "", "", NULL, NULL, _apiHook8, 0 },
-	{ "", "", NULL, NULL, _apiHook9, 0 },
-	{ "", "", NULL, NULL, _apiHook10, 0 },
-	{ "", "", NULL, NULL, _apiHook11, 0 },
-	{ "", "", NULL, NULL, _apiHook12, 0 },
-	{ "", "", NULL, NULL, _apiHook13, 0 },
-	{ "", "", NULL, NULL, _apiHook14, 0 },
-	{ "", "", NULL, NULL, _apiHook15, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook0, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook1, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook2, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook3, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook4, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook5, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook6, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook7, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook8, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook9, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook10, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook11, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook12, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook13, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook14, 0 },
+	{ "", "", 'v', NULL, NULL, _apiHook15, 0 },
 };
 
 void *find_syscall_addr(u32 addr)
@@ -150,7 +156,7 @@ void *_apiHookHandle(int id, u32 *args)
 		char str[128];
 		int strleft;
 
-		printf("Function %s called from thread %08X\n", g_apihooks[id].name, sceKernelGetThreadId());
+		printf("Function %s called from thread 0x%08X\n", g_apihooks[id].name, sceKernelGetThreadId());
 		for(i = 0; i < APIHOOK_MAXPARAM; i++)
 		{
 			if(g_apihooks[id].param[i])
@@ -158,13 +164,13 @@ void *_apiHookHandle(int id, u32 *args)
 				printf("Arg %d: ", i);
 				switch(g_apihooks[id].param[i])
 				{
-					case 'i': printf("%d\n", args[i]);
+					case PARAM_TYPE_INT: printf("%d\n", args[i]);
 							  break;
-					case 'x': printf("0x%08X\n", args[i]);
+					case PARAM_TYPE_HEX: printf("0x%08X\n", args[i]);
 							  break;
-					case 'o': printf("0%o\n", args[i]);
+					case PARAM_TYPE_OCT: printf("0%o\n", args[i]);
 							  break;
-					case 's': strleft = memValidate(args[i], MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
+					case PARAM_TYPE_STR: strleft = memValidate(args[i], MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
 							  if(strleft == 0)
 							  {
 								  printf("Invalid pointer 0x%08X\n", args[i]);
@@ -201,6 +207,46 @@ void *_apiHookHandle(int id, u32 *args)
 	psplinkSetK1(k1);
 
 	return func;
+}
+
+void _apiHookReturn(int id, u32* ret)
+{
+	int intc;
+	void *func = NULL;
+	int k1;
+
+	intc = pspSdkDisableInterrupts();
+	if((id >= 0) && (id < APIHOOK_MAXIDS))
+	{
+		func = g_apihooks[id].func;
+	}
+	pspSdkEnableInterrupts(intc);
+
+	k1 = psplinkSetK1(0);
+
+	if(func)
+	{
+		printf("Function %s returned ", g_apihooks[id].name);
+		switch(g_apihooks[id].ret)
+		{
+			case RET_TYPE_INT32: printf("%d\n", ret[0]);
+					  break;
+			case RET_TYPE_HEX32: printf("0x%08X\n", ret[0]);
+								 break;
+			case RET_TYPE_HEX64: printf("0x%08X%08X\n", ret[1], ret[0]);
+					  break;
+			default: printf("void\n");
+					break;
+		}
+
+		if(g_apihooks[id].sleep)
+		{
+			printf("Sleeping thread 0x%08X\n", sceKernelGetThreadId());
+			sceKernelSleepThread();
+		}
+	}
+
+	psplinkSetK1(k1);
 }
 
 void apiHookGenericDelete(int id)
@@ -273,7 +319,7 @@ static void *apiHookAddr(u32 *addr, void *func)
 	return addr;
 }
 
-int apiHookGenericByName(SceUID uid, const char *library, const char *name, const char *format, int sleep)
+int apiHookGenericByName(SceUID uid, const char *library, const char *name, char ret, const char *format, int sleep)
 {
 	int id;
 	u32 addr;
@@ -294,6 +340,7 @@ int apiHookGenericByName(SceUID uid, const char *library, const char *name, cons
 		{
 			g_apihooks[id].syscall = syscall;
 			g_apihooks[id].func = (void *) addr;
+			g_apihooks[id].ret = ret;
 			g_apihooks[id].sleep = sleep;
 			strncpy(g_apihooks[id].param, format, APIHOOK_MAXPARAM);
 			strncpy(g_apihooks[id].name, name, APIHOOK_MAXNAME);
@@ -315,7 +362,7 @@ int apiHookGenericByName(SceUID uid, const char *library, const char *name, cons
 	return 0;
 }
 
-int apiHookGenericByNid(SceUID uid, const char *library, u32 nid, const char *format, int sleep)
+int apiHookGenericByNid(SceUID uid, const char *library, u32 nid, char ret, const char *format, int sleep)
 {
 	int id;
 	u32 addr;
@@ -336,6 +383,7 @@ int apiHookGenericByNid(SceUID uid, const char *library, u32 nid, const char *fo
 		{
 			g_apihooks[id].syscall = syscall;
 			g_apihooks[id].func = (void *) addr;
+			g_apihooks[id].ret = ret;
 			g_apihooks[id].sleep = sleep;
 			strncpy(g_apihooks[id].param, format, APIHOOK_MAXPARAM);
 			sprintf(g_apihooks[id].name, "Nid:0x%08X", nid);
