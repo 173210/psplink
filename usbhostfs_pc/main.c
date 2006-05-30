@@ -1982,7 +1982,7 @@ void do_async(struct AsyncCommand *cmd, int readlen)
 	if(readlen > sizeof(struct AsyncCommand))
 	{
 		data = (uint8_t *) cmd + sizeof(struct AsyncCommand);
-		switch(cmd->channel)
+		switch(LE32(cmd->channel))
 		{
 			case WRITE_STDOUT: 
 			case WRITE_STDERR:
