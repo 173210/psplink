@@ -8,6 +8,11 @@ ifdef BUILD_BIGENDIAN
 CFLAGS += -DBUILD_BIGENDIAN
 endif
 
+ifdef READLINE_SHELL
+CFLAGS += -DREADLINE_SHELL
+LIBS += -lreadline -lcurses
+endif
+
 ifdef BUILD_WIN32
 CFLAGS  += -I../windows/lib -Wno-format
 LDFLAGS += -L../windows/lib

@@ -32,6 +32,12 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
+
+#ifdef READLINE_SHELL
+#include <readline/readline.h>
+#include <readline/history.h>
+#endif
+
 #include "psp_fileio.h"
 
 #define MAX_FILES 256
@@ -2622,51 +2628,63 @@ void parse_shell(char *buf)
 {
 	int len;
 
-	/* Remove whitespace */
-	len = strlen(buf);
-	while((len > 0) && (isspace(buf[len-1])))
+	if((buf) && (*buf))
 	{
-		buf[len-1] = 0;
-		len--;
-	}
-
-	while(isspace(*buf))
-	{
-		buf++;
-		len--;
-	}
-
-	if(len > 0)
-	{
-		const char *cmd;
-		int i;
-		int ret = COMMAND_HELP;
-
-		cmd = strtok(buf, " \t");
-		for(i = 0; i < (sizeof(g_commands) / sizeof(struct ShellCmd)); i++)
+		/* Remove whitespace */
+		len = strlen(buf);
+		while((len > 0) && (isspace(buf[len-1])))
 		{
-			if(strcmp(cmd, g_commands[i].name) == 0)
-			{
-				if(g_commands[i].fn)
-				{
-					ret = g_commands[i].fn();
-				}
-				break;
-			}
+			buf[len-1] = 0;
+			len--;
 		}
 
-		if(ret == COMMAND_HELP)
+		while(isspace(*buf))
 		{
-			int i;
+			buf++;
+			len--;
+		}
 
-			printf("-= Help =-\n");
+		if(len > 0)
+		{
+			const char *cmd;
+			int i;
+			int ret = COMMAND_HELP;
+
+			cmd = strtok(buf, " \t");
 			for(i = 0; i < (sizeof(g_commands) / sizeof(struct ShellCmd)); i++)
 			{
-				printf("%-10s: %s\n", g_commands[i].name, g_commands[i].help);
+				if(strcmp(cmd, g_commands[i].name) == 0)
+				{
+					if(g_commands[i].fn)
+					{
+						ret = g_commands[i].fn();
+					}
+					break;
+				}
+			}
+
+			if(ret == COMMAND_HELP)
+			{
+				int i;
+
+				printf("-= Help =-\n");
+				for(i = 0; i < (sizeof(g_commands) / sizeof(struct ShellCmd)); i++)
+				{
+					printf("%-10s: %s\n", g_commands[i].name, g_commands[i].help);
+				}
 			}
 		}
 	}
 }
+
+#ifdef READLINE_SHELL
+int init_readline(void)
+{
+	rl_callback_handler_install("sh> ", parse_shell);
+
+	return 1;
+}
+#endif
 
 void *async_thread(void *arg)
 {
@@ -2679,6 +2697,10 @@ void *async_thread(void *arg)
 	size_t size;
 	int max_fd = 0;
 	int flag = 1;
+
+#ifdef READLINE_SHELL
+	init_readline();
+#endif
 
 	FD_ZERO(&read_save);
 	FD_SET(STDIN_FILENO, &read_save);
@@ -2720,12 +2742,16 @@ void *async_thread(void *arg)
 		{
 			if(FD_ISSET(STDIN_FILENO, &read_set))
 			{
+#ifdef READLINE_SHELL
+				rl_callback_read_char();
+#else
 				char buffer[4096];
 
 				if(fgets(buffer, sizeof(buffer), stdin))
 				{
 					parse_shell(buffer);
 				}
+#endif
 			}
 
 			if(g_shellserv >= 0)
