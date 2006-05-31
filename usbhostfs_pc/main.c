@@ -1601,6 +1601,7 @@ int handle_rename(struct usb_dev_handle *hDev, struct HostFsRenameCmd *cmd, int 
 	char path[HOSTFS_PATHMAX];
 	char oldpath[PATH_MAX];
 	char newpath[PATH_MAX];
+	char destpath[PATH_MAX];
 	int  oldpathlen;
 	int  newpathlen;
 
@@ -1613,7 +1614,7 @@ int handle_rename(struct usb_dev_handle *hDev, struct HostFsRenameCmd *cmd, int 
 	{
 		if(cmdlen != sizeof(struct HostFsRenameCmd)) 
 		{
-			fprintf(stderr, "Error, invalid mkdir command size %d\n", cmdlen);
+			fprintf(stderr, "Error, invalid rename command size %d\n", cmdlen);
 			break;
 		}
 
@@ -1637,8 +1638,28 @@ int handle_rename(struct usb_dev_handle *hDev, struct HostFsRenameCmd *cmd, int 
 		oldpathlen = strlen(path);
 		newpathlen = strlen(path+oldpathlen+1);
 
-		V_PRINTF(2, "Rename command oldname %s, newname %s\n", path, path+oldpathlen+1);
-		if(!make_path(LE32(cmd->fsnum), path, oldpath, 0) && !make_path(LE32(cmd->fsnum), path+oldpathlen+1, newpath, 0))
+
+		/* If the old path is absolute and the new path is relative then rebase newpath */
+		if((*path == '/') && (*(path+oldpathlen+1) != '/'))
+		{
+			char *slash;
+			
+			strcpy(destpath, path);
+			/* No need to check, should at least stop on the first slash */
+			slash = strrchr(destpath, '/');
+			/* Nul terminate after slash */
+			*(slash+1) = 0;
+			strcat(destpath, path+oldpathlen+1);
+		}
+		else
+		{
+			/* Just copy in oldpath */
+			strcpy(destpath, path+oldpathlen+1);
+		}
+
+		V_PRINTF(2, "Rename command oldname %s, newname %s\n", path, destpath);
+
+		if(!make_path(LE32(cmd->fsnum), path, oldpath, 0) && !make_path(LE32(cmd->fsnum), destpath, newpath, 0))
 		{
 			resp.res = LE32(rename(oldpath, newpath));
 		}
@@ -2661,7 +2682,7 @@ void *async_thread(void *arg)
 
 	FD_ZERO(&read_save);
 	FD_SET(STDIN_FILENO, &read_save);
-	max_fd = STDIN_FILENO + 1;
+	max_fd = STDIN_FILENO;
 
 	if(g_shellserv >= 0)
 	{
@@ -2839,7 +2860,6 @@ int main(int argc, char **argv)
 		g_shellserv = make_socket(g_shellport);
 		g_gdbserv = make_socket(g_gdbport);
 
-		/* Mask out any executable bits, as they don't make sense */
 		pthread_create(&thid, NULL, async_thread, NULL);
 		start_hostfs();
 	}
