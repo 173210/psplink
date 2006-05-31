@@ -2619,7 +2619,7 @@ struct ShellCmd g_commands[] = {
 	{ "gdbdebug", "Set the GDB debug option (gdbdebug on|off)", gdbdebug_set },
 	{ "verbose", "Set the verbose level (verbose 0|1|2)", verbose_set },
 	{ "pwd", "Print the current directory", print_wd },
-	{ "chdir", "Change the current local directory", ch_dir },
+	{ "cd", "Change the current local directory", ch_dir },
 	{ "help", "Print this help", help_cmd },
 	{ "exit", "Exit the application", exit_app },
 };
@@ -2646,31 +2646,38 @@ void parse_shell(char *buf)
 
 		if(len > 0)
 		{
-			const char *cmd;
-			int i;
-			int ret = COMMAND_HELP;
-
-			cmd = strtok(buf, " \t");
-			for(i = 0; i < (sizeof(g_commands) / sizeof(struct ShellCmd)); i++)
+			if(*buf == '!')
 			{
-				if(strcmp(cmd, g_commands[i].name) == 0)
-				{
-					if(g_commands[i].fn)
-					{
-						ret = g_commands[i].fn();
-					}
-					break;
-				}
+				system(buf+1);
 			}
-
-			if(ret == COMMAND_HELP)
+			else
 			{
+				const char *cmd;
 				int i;
+				int ret = COMMAND_HELP;
 
-				printf("-= Help =-\n");
+				cmd = strtok(buf, " \t");
 				for(i = 0; i < (sizeof(g_commands) / sizeof(struct ShellCmd)); i++)
 				{
-					printf("%-10s: %s\n", g_commands[i].name, g_commands[i].help);
+					if(strcmp(cmd, g_commands[i].name) == 0)
+					{
+						if(g_commands[i].fn)
+						{
+							ret = g_commands[i].fn();
+						}
+						break;
+					}
+				}
+
+				if(ret == COMMAND_HELP)
+				{
+					int i;
+
+					printf("-= Help =-\n");
+					for(i = 0; i < (sizeof(g_commands) / sizeof(struct ShellCmd)); i++)
+					{
+						printf("%-10s: %s\n", g_commands[i].name, g_commands[i].help);
+					}
 				}
 			}
 		}
