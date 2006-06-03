@@ -404,30 +404,61 @@ int write_data(const void *data, int size)
 	int ret;
 	u32 result;
 
-	while(writelen < size)
+	if((u32) data & 63)
 	{
-		nextsize = (size - writelen) > sizeof(tx_buf) ? sizeof(tx_buf) : (size - writelen);
-		memcpy(tx_buf, data, nextsize);
-		set_bulkin_req(tx_buf, nextsize);
-		/* TODO: Add a timeout to the event flag wait */
-		ret = sceKernelWaitEventFlag(g_transevent, USB_TRANSEVENT_BULKIN_DONE, PSP_EVENT_WAITOR | PSP_EVENT_WAITCLEAR, &result, NULL);
-		if(ret == 0)
+		while(writelen < size)
 		{
-			if((g_bulkin_req.retcode == 0) && (g_bulkin_req.recvsize > 0))
+			nextsize = (size - writelen) > sizeof(tx_buf) ? sizeof(tx_buf) : (size - writelen);
+			memcpy(tx_buf, data, nextsize);
+			set_bulkin_req(tx_buf, nextsize);
+			/* TODO: Add a timeout to the event flag wait */
+			ret = sceKernelWaitEventFlag(g_transevent, USB_TRANSEVENT_BULKIN_DONE, PSP_EVENT_WAITOR | PSP_EVENT_WAITCLEAR, &result, NULL);
+			if(ret == 0)
 			{
-				writelen += g_bulkin_req.recvsize;
-				data += g_bulkin_req.recvsize;
+				if((g_bulkin_req.retcode == 0) && (g_bulkin_req.recvsize > 0))
+				{
+					writelen += g_bulkin_req.recvsize;
+					data += g_bulkin_req.recvsize;
+				}
+				else
+				{
+					MODPRINTF("Error in BULKIN request %d\n", g_bulkin_req.retcode);
+					return -1;
+				}
 			}
 			else
 			{
-				MODPRINTF("Error in BULKIN request %d\n", g_bulkin_req.retcode);
+				MODPRINTF("Error waiting for BULKIN %08X\n", ret);
 				return -1;
 			}
 		}
-		else
+	}
+	else
+	{
+		while(writelen < size)
 		{
-			MODPRINTF("Error waiting for BULKIN %08X\n", ret);
-			return -1;
+			nextsize = (size - writelen) > sizeof(tx_buf) ? sizeof(tx_buf) : (size - writelen);
+			set_bulkin_req((char *) data, nextsize);
+			/* TODO: Add a timeout to the event flag wait */
+			ret = sceKernelWaitEventFlag(g_transevent, USB_TRANSEVENT_BULKIN_DONE, PSP_EVENT_WAITOR | PSP_EVENT_WAITCLEAR, &result, NULL);
+			if(ret == 0)
+			{
+				if((g_bulkin_req.retcode == 0) && (g_bulkin_req.recvsize > 0))
+				{
+					writelen += g_bulkin_req.recvsize;
+					data += g_bulkin_req.recvsize;
+				}
+				else
+				{
+					MODPRINTF("Error in BULKIN request %d\n", g_bulkin_req.retcode);
+					return -1;
+				}
+			}
+			else
+			{
+				MODPRINTF("Error waiting for BULKIN %08X\n", ret);
+				return -1;
+			}
 		}
 	}
 
@@ -638,46 +669,6 @@ void fill_async(void *async_data, int len)
 	}
 }
 
-int usb_read_async_data_generic(unsigned int chan, unsigned char *data, int len, int poll)
-{
-	int ret;
-	int intc;
-	int i;
-	int k1;
-
-	k1 = psplinkSetK1(0);
-
-	if(chan >= MAX_ASYNC_READ_CHANNELS)
-	{
-		return -1;
-	}
-
-	ret = sceKernelWaitEventFlag(g_asyncevent, 1 << chan, PSP_EVENT_WAITOR | PSP_EVENT_WAITCLEAR, NULL, NULL);
-	if(ret < 0)
-	{
-		return -1;
-	}
-
-	intc = pspSdkDisableInterrupts();
-	len = len < g_async_chan[chan].size ? len : g_async_chan[chan].size;
-	for(i = 0; i < len; i++)
-	{
-		data[i] = g_async_chan[chan].buffer[g_async_chan[chan].read_pos++];
-		g_async_chan[chan].read_pos %= MAX_ASYNC_BUFFER;
-		g_async_chan[chan].size--;
-	}
-
-	if(g_async_chan[chan].size != 0)
-	{
-		sceKernelSetEventFlag(g_asyncevent, 1 << chan);
-	}
-	pspSdkEnableInterrupts(intc);
-
-	psplinkSetK1(k1);
-
-	return len;
-}
-
 int usb_read_async_data(unsigned int chan, unsigned char *data, int len)
 {
 	int ret;
@@ -779,6 +770,73 @@ int usb_write_async_data(unsigned int chan, const void *data, int len)
 		}
 
 		ret = written;
+	}
+	while(0);
+
+	psplinkSetK1(k1);
+
+	return ret;
+}
+
+int usb_write_bulk_data(const void *data, int len)
+{
+	int ret = -1;
+	int err;
+	struct BulkCommand cmd;
+	int k1;
+
+	k1 = psplinkSetK1(0);
+
+	do
+	{
+		if(!usb_connected())
+		{
+			DEBUG_PRINTF("Error PC side not connected\n");
+			break;
+		}
+
+		if((len <= 0) || (len > HOSTFS_BULK_MAXWRITE))
+		{
+			MODPRINTF("Invalid length %d\n", len);
+			break;
+		}
+
+		cmd.magic = BULK_MAGIC;
+		cmd.size = len;
+
+		/* TODO: Set timeout on semaphore */
+		err = sceKernelWaitSema(g_mainsema, 1, NULL);
+		if(err < 0)
+		{
+			MODPRINTF("Error waiting on xchg semaphore %08X\n", err);
+			break;
+		}
+
+		do
+		{
+			err = write_data(&cmd, sizeof(cmd));
+			if(err != sizeof(cmd))
+			{
+				MODPRINTF("Error writing bulk header %d\n", err);
+				err = -1;
+				break;
+			}
+
+			err = write_data(data, len);
+			if(err != len)
+			{
+				MODPRINTF("Error writing bulk data %d\n", err);
+				err = -1;
+				break;
+			}
+		}
+		while(0);
+
+		(void) sceKernelSignalSema(g_mainsema, 1);
+		if(err >= 0)
+		{
+			ret = len;
+		}
 	}
 	while(0);
 

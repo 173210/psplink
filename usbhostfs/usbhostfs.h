@@ -22,12 +22,17 @@
 
 #define HOSTFS_MAGIC 0x782F0812
 #define ASYNC_MAGIC  0x782F0813
+#define BULK_MAGIC   0x782F0814
 
 #define HOSTFS_PATHMAX (4096)
 
 #define HOSTFS_MAX_BLOCK (64*1024)
 
 #define HOSTFS_RENAME_BUFSIZE (1024)
+
+#define HOSTFS_BULK_MAXWRITE  (1024*1024)
+
+#define HOSTFS_BULK_OPEN      (1 << 24)
 
 enum USB_ASYNC_WRITE_CHANNELS
 {
@@ -333,6 +338,12 @@ struct AsyncCommand
 {
 	uint32_t magic;
 	uint32_t channel;
+} __attribute__((packed));
+
+struct BulkCommand
+{
+	uint32_t magic;
+	uint32_t size;
 } __attribute__((packed));
 
 #ifndef PC_SIDE

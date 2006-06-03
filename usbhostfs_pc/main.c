@@ -92,6 +92,7 @@ static int g_shellsock = -1;
 static int g_gdbserv = -1;
 static int g_gdbsock = -1;
 static const char *g_mapfile = NULL;
+static int g_bulkfd = -1;
 
 pthread_mutex_t g_drivemtx = PTHREAD_MUTEX_INITIALIZER;
 struct HostDrive g_drives[MAX_HOSTDRIVES];
@@ -574,6 +575,11 @@ int open_file(int drive, const char *path, unsigned int mode, unsigned int mask)
 			open_files[fd].opened = 1;
 			open_files[fd].mode = mode;
 			open_files[fd].name = strdup(fullpath);
+			if(mode & HOSTFS_BULK_OPEN)
+			{
+				V_PRINTF(1, "Opened in bulk mode (%d)\n", fd);
+				g_bulkfd = fd;
+			}
 		}
 		else
 		{
@@ -1095,6 +1101,10 @@ int handle_close(struct usb_dev_handle *hDev, struct HostFsCloseCmd *cmd, int cm
 		{
 			resp.res = LE32(close(fid));
 			open_files[fid].opened = 0;
+			if(fid == g_bulkfd)
+			{
+				g_bulkfd = -1;
+			}
 			if(open_files[fid].name)
 			{
 				free(open_files[fid].name);
@@ -2035,6 +2045,51 @@ void do_async(struct AsyncCommand *cmd, int readlen)
 	}
 }
 
+void do_bulk(struct BulkCommand *cmd, int readlen)
+{
+	static char block[HOSTFS_BULK_MAXWRITE];
+	int  read = 0;
+	int  len = 0;
+	int  ret = -1;
+
+	len = LE32(cmd->size);
+
+	V_PRINTF(2, "Bulk write command length: %d\n", len);
+
+	while(read < len)
+	{
+		int readsize;
+
+		readsize = (len - read) > HOSTFS_MAX_BLOCK ? HOSTFS_MAX_BLOCK : (len - read);
+		ret = euid_usb_bulk_read(g_hDev, 0x81, &block[read], readsize, 10000);
+		if(ret != readsize)
+		{
+			fprintf(stderr, "Error reading write data readsize %d, ret %d\n", readsize, ret);
+			break;
+		}
+		read += readsize;
+	}
+
+	if(read >= len)
+	{
+		if((g_bulkfd >= 0) && (g_bulkfd < MAX_FILES))
+		{
+			if(open_files[g_bulkfd].opened)
+			{
+				fixed_write(g_bulkfd, block, len);
+			}
+			else
+			{
+				fprintf(stderr, "Error fid not open %d\n", g_bulkfd);
+			}
+		}
+		else
+		{
+			fprintf(stderr, "Error invalid fid %d\n", g_bulkfd);
+		}
+	}
+}
+
 int start_hostfs(void)
 {
 	uint32_t data[512/sizeof(uint32_t)];
@@ -2096,6 +2151,16 @@ int start_hostfs(void)
 						}
 
 						do_async((struct AsyncCommand *) data, readlen);
+					}
+					else if(LE32(data[0]) == BULK_MAGIC)
+					{
+						if(readlen < sizeof(struct BulkCommand))
+						{
+							fprintf(stderr, "Error reading bulk header %d\n", readlen);
+							break;
+						}
+
+						do_bulk((struct BulkCommand *) data, readlen);
 					}
 					else
 					{
@@ -2630,6 +2695,9 @@ void parse_shell(char *buf)
 
 	if((buf) && (*buf))
 	{
+#ifdef READLINE_SHELL
+		add_history(buf);
+#endif
 		/* Remove whitespace */
 		len = strlen(buf);
 		while((len > 0) && (isspace(buf[len-1])))
