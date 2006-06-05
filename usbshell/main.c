@@ -24,7 +24,7 @@ PSP_MODULE_INFO("USBShell", PSP_MODULE_KERNEL, 1, 1);
 #define MAX_CLI 4096
 
 void ttySetUsbHandler(PspDebugPrintHandler usbHandler);
-int psplinkParseCommand(unsigned char *command, int direct_term);
+int psplinkParseCommand(unsigned char *command);
 void psplinkPrintPrompt(void);
 void psplinkExitShell(void);
 
@@ -56,7 +56,7 @@ int main_thread(SceSize args, void *argp)
 		if(cli[cli_pos] == '\n')
 		{
 			cli[cli_pos] = 0;
-			if(psplinkParseCommand(cli, 0) == 1)
+			if(psplinkParseCommand(cli) == 1)
 			{
 				psplinkExitShell();
 			}

@@ -36,7 +36,7 @@ PSP_MAIN_THREAD_NAME("NetShell");
 
 #define printf pspDebugScreenPrintf
 
-int psplinkParseCommand(char *command, int direct_term);
+int psplinkParseCommand(char *command);
 void psplinkPrintPrompt(void);
 void psplinkExitShell(void);
 void ttySetWifiHandler(PspDebugPrintHandler wifiHandler);
@@ -151,7 +151,7 @@ void start_server(const char *szIpAddr)
 					{
 						cli[pos] = 0;
 						pos = 0;
-						if(psplinkParseCommand(cli, 0) == 1)
+						if(psplinkParseCommand(cli) == 1)
 						{
 							sceNetInetClose(sock);
 							sceNetInetClose(new);

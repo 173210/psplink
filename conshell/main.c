@@ -26,7 +26,7 @@
 PSP_MODULE_INFO(MODULE_NAME, 0, 1, 1);
 PSP_MAIN_THREAD_NAME("ConShell");
 
-int psplinkParseCommand(char *command, int direct_term);
+int psplinkParseCommand(char *command);
 void psplinkPrintPrompt(void);
 void psplinkExitShell(void);
 int psplinkConsolePermit(void);
@@ -107,7 +107,7 @@ void run_conshell() {
 		}
 
 		if ((sendcommand) && psplinkConsolePermit()) {
-			if (psplinkParseCommand(cli, 0) == 1) {
+			if (psplinkParseCommand(cli) == 1) {
 				psplinkExitShell();
 			}
 		}

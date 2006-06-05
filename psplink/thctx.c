@@ -129,10 +129,10 @@ int threadFindContext(SceUID uid)
 		printf("context 0x%p, vfpu 0x%p\n", tcbCopy.context, tcbCopy.vfpu_context);
 		printf("EPC 0x%08X\n", ctxCopy.EPC);
 		exceptionPrintCPURegs((u32 *) &ctxCopy);
-		return 1;
+		return 0;
 	}
 
-	return 0;
+	return -1;
 }
 
 /* Get the thread context of a user thread, trys to infer the real address */

@@ -7,11 +7,16 @@ USE_KERNEL_LIBC = 1
 # Use only kernel libraries
 USE_KERNEL_LIBS = 1
 
+
 INCDIR = ../usbhostfs
 CFLAGS = -Os -G0 -Wall -fno-builtin-printf
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 LDFLAGS=-nodefaultlibs
+
+ifdef USB_ONLY
+CFLAGS += -DUSB_ONLY
+endif
 
 LIBDIR =
 

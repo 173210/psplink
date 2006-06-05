@@ -91,8 +91,6 @@ static SceUID g_command_thid = -1;
 static SceUID g_cli_sema = -1;
 /* Event flag to indicate the end of command parse */
 static SceUID g_command_event = -1;
-/* Indicates whether we are directly connected to a terminal (i.e. sio) */
-static int g_direct_term = 1;
 /* Indicates the name of the last module we loaded */
 static char g_lastmod[32] = "";
 /* Indicates we are in tty mode */
@@ -370,6 +368,7 @@ static int print_threadinfo(SceUID uid, int verbose)
 {
 	SceKernelThreadInfo info;
 	char status[256];
+	char cwd[512];
 	int ret;
 
 	memset(&info, 0, sizeof(info));
@@ -391,6 +390,10 @@ static int print_threadinfo(SceUID uid, int verbose)
 			printf("RunClocks: %d - IntrPrempt: %d - ThreadPrempt: %d\n", info.runClocks.low,
 					info.intrPreemptCount, info.threadPreemptCount);
 			printf("ReleaseCount: %d, StackFree: %d\n", info.releaseCount, sceKernelGetThreadStackFreeSize(uid));
+			if(sceIoGetThreadCwd(uid, cwd, sizeof(cwd)) > 0)
+			{
+				printf("Current Dir: %s\n", cwd);
+			}
 		}
 	}
 
@@ -427,26 +430,31 @@ static int thinfo_cmd(int argc, char **argv)
 	return threadmaninfo_cmd(argc, argv, "Thread", print_threadinfo, (ReferFunc) pspSdkReferThreadStatusByName);
 }
 
-static int thsusp_cmd(int argc, char **argv)
+static int thread_do_cmd(const char *name, const char *type, ReferFunc refer, int (*fn)(SceUID uid))
 {
 	SceUID uid;
 	int ret = CMD_ERROR;
 	int err;
 
-	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
+	uid = get_thread_uid(name, refer);
 
 	if(uid >= 0)
 	{
-		err = sceKernelSuspendThread(uid);
+		err = fn(uid);
 		if(err < 0)
 		{
-			printf("Cannot suspend thread 0x%08X\n", err);
+			printf("Cannot %s uid 0x%08X (error: 0x%08X)\n", type, uid, err);
 		}
 
 		ret = CMD_OK;
 	}
 
 	return ret;
+}
+
+static int thsusp_cmd(int argc, char **argv)
+{
+	return thread_do_cmd(argv[0], "suspend", (ReferFunc) pspSdkReferThreadStatusByName, sceKernelSuspendThread);
 }
 
 static int thspuser_cmd(int argc, char **argv)
@@ -458,128 +466,32 @@ static int thspuser_cmd(int argc, char **argv)
 
 static int thresm_cmd(int argc, char **argv)
 {
-	SceUID uid;
-	int ret = CMD_ERROR;
-	int err;
-
-	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
-
-	if(uid >= 0)
-	{
-		err = sceKernelResumeThread(uid);
-		if(err < 0)
-		{
-			printf("Cannot resume thread 0x%08X\n", err);
-		}
-
-		ret = CMD_OK;
-	}
-
-	return ret;
+	return thread_do_cmd(argv[0], "resume", (ReferFunc) pspSdkReferThreadStatusByName, sceKernelResumeThread);
 }
 
 static int thwake_cmd(int argc, char **argv)
 {
-	SceUID uid;
-	int ret = CMD_ERROR;
-	int err;
-
-	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
-
-	if(uid >= 0)
-	{
-		err = sceKernelWakeupThread(uid);
-		if(err < 0)
-		{
-			printf("Cannot wakeup thread 0x%08X\n", err);
-		}
-
-		ret = CMD_OK;
-	}
-
-	return ret;
+	return thread_do_cmd(argv[0], "wakeup", (ReferFunc) pspSdkReferThreadStatusByName, sceKernelWakeupThread);
 }
 
 static int thterm_cmd(int argc, char **argv)
 {
-	SceUID uid;
-	int ret = CMD_ERROR;
-	int err;
-
-	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
-
-	if(uid >= 0)
-	{
-		err = sceKernelTerminateThread(uid);
-		if(err < 0)
-		{
-			printf("Cannot terminate thread 0x%08X\n", err);
-		}
-
-		ret = CMD_OK;
-	}
-
-	return ret;
+	return thread_do_cmd(argv[0], "terminate", (ReferFunc) pspSdkReferThreadStatusByName, sceKernelTerminateThread);
 }
 
 static int thdel_cmd(int argc, char **argv)
 {
-	SceUID uid;
-	int ret = CMD_ERROR;
-	int err;
-
-	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
-
-	if(uid >= 0)
-	{
-		err = sceKernelDeleteThread(uid);
-		if(err < 0)
-		{
-			printf("Cannot delete thread 0x%08X\n", err);
-		}
-
-		ret = CMD_OK;
-	}
-
-	return ret;
+	return thread_do_cmd(argv[0], "delete", (ReferFunc) pspSdkReferThreadStatusByName, sceKernelDeleteThread);
 }
 
 static int thtdel_cmd(int argc, char **argv)
 {
-	SceUID uid;
-	int ret = CMD_ERROR;
-	int err;
-
-	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
-
-	if(uid >= 0)
-	{
-		err = sceKernelTerminateDeleteThread(uid);
-		if(err < 0)
-		{
-			printf("Cannot terminate delete thread 0x%08X\n", err);
-		}
-
-		ret = CMD_OK;
-	}
-
-	return ret;
+	return thread_do_cmd(argv[0], "terminate delete", (ReferFunc) pspSdkReferThreadStatusByName, sceKernelTerminateDeleteThread);
 }
 
 static int thctx_cmd(int argc, char **argv)
 {
-	SceUID uid;
-	int ret = CMD_ERROR;
-
-	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
-
-	if(uid >= 0)
-	{
-		threadFindContext(uid);
-		ret = CMD_OK;
-	}
-
-	return ret;
+	return thread_do_cmd(argv[0], "get context", (ReferFunc) pspSdkReferThreadStatusByName, threadFindContext);
 }
 
 static int print_eventinfo(SceUID uid, int verbose)
@@ -2262,39 +2174,7 @@ static int memdump_cmd(int argc, char **argv)
 
 	if(size_left > 0)
 	{
-		while(size_left > 0)
-		{
-			char ch;
-
-			print_memdump(addr, size_left, type);
-
-			if(g_direct_term)
-			{
-				printf("Press b to go back, space to go forward, or q to quit.\n");
-				while((ch = g_readchar()) == -1);
-
-				ch = upcase(ch);
-				if(ch == 'Q')
-				{
-					break;
-				}
-
-				if(ch == 'B')
-				{
-					addr -= MAX_MEMDUMP_SIZE;
-				}
-				else
-				{
-					addr += MAX_MEMDUMP_SIZE;
-				}
-
-				size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
-			}
-			else
-			{
-				break;
-			}
-		}
+		print_memdump(addr, size_left, type);
 	}
 	else
 	{
@@ -2708,18 +2588,12 @@ static int peekb_cmd(int argc, char **argv)
 static int fillb_cmd(int argc, char **argv)
 {
 	u32 addr;
+	u32 size;
 
-	if(memDecode(argv[0], &addr))
+	if(memDecode(argv[0], &addr) && memDecode(argv[1], &size))
 	{
 		u32 size_left;
-		u32 size;
 		u32 val;
-
-		if(strtoint(argv[1], &size) == 0)
-		{
-			printf("Invalid size %s\n", argv[1]);
-			return CMD_ERROR;
-		}
 
 		size_left = memValidate(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
 		size = size > size_left ? size_left : size;
@@ -2739,22 +2613,16 @@ static int fillb_cmd(int argc, char **argv)
 static int fillh_cmd(int argc, char **argv)
 {
 	u32 addr;
+	u32 size;
 
-	if(memDecode(argv[0], &addr))
+	if(memDecode(argv[0], &addr) && memDecode(argv[1], &size))
 	{
 		u32 size_left;
-		u32 size;
 		u32 val;
 		int i;
 		u16 *ptr;
 
 		addr &= ~1;
-
-		if(strtoint(argv[1], &size) == 0)
-		{
-			printf("Invalid size %s\n", argv[1]);
-			return CMD_ERROR;
-		}
 
 		size_left = memValidate(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_HALF);
 		size = size > size_left ? size_left : size;
@@ -2779,22 +2647,16 @@ static int fillh_cmd(int argc, char **argv)
 static int fillw_cmd(int argc, char **argv)
 {
 	u32 addr;
+	u32 size;
 
-	if(memDecode(argv[0], &addr))
+	if(memDecode(argv[0], &addr) && memDecode(argv[1], &size))
 	{
 		u32 size_left;
-		u32 size;
 		u32 val;
 		int i;
 		u32 *ptr;
 
 		addr &= ~3;
-
-		if(strtoint(argv[1], &size) == 0)
-		{
-			printf("Invalid size %s\n", argv[1]);
-			return CMD_ERROR;
-		}
 
 		size_left = memValidate(addr, MEM_ATTRIB_WRITE | MEM_ATTRIB_WORD);
 		size = size > size_left ? size_left : size;
@@ -2819,19 +2681,13 @@ static int fillw_cmd(int argc, char **argv)
 static int findstr_cmd(int argc, char **argv)
 {
 	u32 addr;
+	u32 size;
 
-	if(memDecode(argv[0], &addr))
+	if(memDecode(argv[0], &addr) && memDecode(argv[1], &size))
 	{
-		int size;
 		u32 size_left;
 		int searchlen;
 		void *curr, *found;
-
-		if(strtoint(argv[1], (u32 *) &size) == 0)
-		{
-			printf("Invalid size argument %s\n", argv[1]);
-			return CMD_ERROR;
-		}
 
 		size_left = memValidate(addr, MEM_ATTRIB_READ | MEM_ATTRIB_BYTE);
 		size = size_left > size ? size : size_left;
@@ -2858,21 +2714,15 @@ static int findstr_cmd(int argc, char **argv)
 static int findw_cmd(int argc, char **argv)
 {
 	u32 addr;
+	u32 size;
 
-	if(memDecode(argv[0], &addr))
+	if(memDecode(argv[0], &addr) && memDecode(argv[1], &size))
 	{
-		int size;
 		u32 size_left;
 		int searchlen;
 		void *curr, *found;
 		uint8_t search[128];
 		int i;
-
-		if(strtoint(argv[1], (u32 *) &size) == 0)
-		{
-			printf("Invalid size argument %s\n", argv[1]);
-			return CMD_ERROR;
-		}
 
 		searchlen = 0;
 		for(i = 2; i < argc; i++)
@@ -2913,21 +2763,15 @@ static int findw_cmd(int argc, char **argv)
 static int findh_cmd(int argc, char **argv)
 {
 	u32 addr;
+	u32 size;
 
-	if(memDecode(argv[0], &addr))
+	if(memDecode(argv[0], &addr) && memDecode(argv[1], &size))
 	{
-		int size;
 		u32 size_left;
 		int searchlen;
 		void *curr, *found;
 		uint8_t search[128];
 		int i;
-
-		if(strtoint(argv[1], (u32 *) &size) == 0)
-		{
-			printf("Invalid size argument %s\n", argv[1]);
-			return CMD_ERROR;
-		}
 
 		searchlen = 0;
 		for(i = 2; i < argc; i++)
@@ -2968,24 +2812,18 @@ static int findh_cmd(int argc, char **argv)
 static int findhex_cmd(int argc, char **argv)
 {
 	u32 addr;
+	u32 size;
 	uint8_t hex[128];
 	uint8_t *mask = NULL;
 	uint8_t mask_d[128];
 	int hexsize;
 	int masksize;
 
-	if(memDecode(argv[0], &addr))
+	if(memDecode(argv[0], &addr) && memDecode(argv[1], &size))
 	{
-		int size;
 		u32 size_left;
 		void *curr, *found;
 
-		if(strtoint(argv[1], (u32 *) &size) == 0)
-		{
-			printf("Invalid size argument %s\n", argv[1]);
-			return CMD_ERROR;
-		}
-		
 		hexsize = decode_hexstr(argv[2], hex, sizeof(hex));
 		if(hexsize == 0)
 		{
@@ -3036,19 +2874,13 @@ static int copymem_cmd(int argc, char **argv)
 {
 	u32 src;
 	u32 dest;
+	u32 size;
 
-	if((memDecode(argv[0], &src)) && (memDecode(argv[1], &dest)))
+	if((memDecode(argv[0], &src)) && (memDecode(argv[1], &dest)) && memDecode(argv[2], &size))
 	{
 		u32 size_left;
 		u32 srcsize;
 		u32 destsize;
-		u32 size;
-
-		if(strtoint(argv[2], &size) == 0)
-		{
-			printf("Invalid size %s\n", argv[1]);
-			return CMD_ERROR;
-		}
 
 		srcsize = memValidate(src, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
 		destsize = memValidate(dest, MEM_ATTRIB_WRITE | MEM_ATTRIB_BYTE);
@@ -4182,7 +4014,7 @@ static int shellParseThread(SceSize args, void *argp)
 	return 0;
 }
 
-int psplinkParseCommand(char *command, int direct_term)
+int psplinkParseCommand(char *command)
 {
 	u32 k1;
 	int ret;
@@ -4198,7 +4030,6 @@ int psplinkParseCommand(char *command, int direct_term)
 		return 1;
 	}
 
-	g_direct_term = direct_term;
 	msg.command = command;
 	msg.res = 0;
 	ret = sceKernelSendMbx(g_command_msg, &msg);
@@ -4241,7 +4072,7 @@ static int process_cli()
 	g_lastcli_pos = (g_lastcli_pos + 1) % CLI_HISTSIZE;
 	g_currcli_pos = g_lastcli_pos;
 
-	ret = psplinkParseCommand(g_cli, 0);
+	ret = psplinkParseCommand(g_cli);
 	if(ret != CMD_EXITSHELL)
 	{
 		print_prompt();
@@ -4417,7 +4248,7 @@ void shellStart(void)
 			{
 				case 10:
 				case 13: cli[pos] = 0;
-						 ret = psplinkParseCommand(cli, 0);
+						 ret = psplinkParseCommand(cli);
 						 if(ret != CMD_EXITSHELL)
 						 {
 							print_prompt();
