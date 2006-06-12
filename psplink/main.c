@@ -21,6 +21,7 @@
 #include <pspumd.h>
 #include <psputilsforkernel.h>
 #include <pspsysmem_kernel.h>
+#include <pspthreadman_kernel.h>
 #include "memoryUID.h"
 #include "psplink.h"
 #include "psplinkcnf.h"
@@ -265,6 +266,8 @@ void psplinkReset(void)
 	le.args = strlen(g_context.bootfile) + 1;
 	le.argp = (char *) g_context.bootfile;
 	le.key = NULL;
+
+	sceKernelSuspendAllUserThreads();
 
 	sceKernelLoadExec(g_context.bootfile, &le);
 }

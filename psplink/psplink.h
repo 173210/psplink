@@ -14,6 +14,8 @@
 #ifndef __PSPLINK_H
 #define __PSPLINK_H
 
+#include <stdint.h>
+
 /* Event flags */
 #define EVENT_SIO       0x01
 #define EVENT_INIT      0x10

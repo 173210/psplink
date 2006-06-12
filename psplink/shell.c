@@ -494,6 +494,29 @@ static int thctx_cmd(int argc, char **argv)
 	return thread_do_cmd(argv[0], "get context", (ReferFunc) pspSdkReferThreadStatusByName, threadFindContext);
 }
 
+static int thpri_cmd(int argc, char **argv)
+{
+	SceUID uid;
+	int ret = CMD_ERROR;
+	int err;
+	u32 pri;
+
+	uid = get_thread_uid(argv[0], (ReferFunc) pspSdkReferThreadStatusByName);
+
+	if((uid >= 0) && (strtoint(argv[1], &pri)))
+	{
+		err = sceKernelChangeThreadPriority(uid, pri);
+		if(err < 0)
+		{
+			printf("Cannot %s uid 0x%08X (error: 0x%08X)\n", "change priority", uid, err);
+		}
+
+		ret = CMD_OK;
+	}
+
+	return ret;
+}
+
 static int print_eventinfo(SceUID uid, int verbose)
 {
 	SceKernelEventFlagInfo info;
@@ -3742,6 +3765,7 @@ const struct sh_command commands[] = {
 	{ "thdel", "td", thdel_cmd, 1, "Delete a thread", "uid|@name"},
 	{ "thtdel", "tx", thtdel_cmd, 1, "Terminate and delete a thread", "uid|@name" },
 	{ "thctx",  "tt", thctx_cmd, 1, "Find and print the full thread context", "uid|@name" },
+	{ "thpri",  "tp", thpri_cmd, 2, "Change a threads current priority", "uid|@name pri" },
 	{ "evlist", "el", evlist_cmd, 0, "List the event flags in the system", "[v]" },
 	{ "evinfo", "ei", evinfo_cmd, 1, "Print info about an event flag", "uid|@name" },
 	{ "smlist", "sl", smlist_cmd, 0, "List the semaphores in the system", "[v]" },

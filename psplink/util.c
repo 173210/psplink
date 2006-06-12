@@ -861,6 +861,9 @@ SceUID refer_module_by_name(const char *name, SceKernelModuleInfo *info)
 int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info)
 {
 	int ret;
+	int k1;
+
+	k1 = psplinkSetK1(0);
 
 	memset(info, 0, sizeof(*info));
 	info->size = sizeof(*info);
@@ -875,6 +878,8 @@ int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info)
 		ret = 0;
 	}
 	sioEnableKprintf();
+
+	psplinkSetK1(k1);
 
 	return ret;
 }
