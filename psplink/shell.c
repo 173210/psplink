@@ -1911,10 +1911,20 @@ static int cp_cmd(int argc, char **argv)
 	printf("cp %s -> %s\n", fsrc, fdst);
 
 	in = sceIoOpen(fsrc, PSP_O_RDONLY, 0777);
+	if(in < 0)
+	{
+		printf("Couldn't open source file %s, 0x%08X\n", fsrc, in);
+		return CMD_ERROR;
+	}
+
 	out = sceIoOpen(fdst, PSP_O_WRONLY | PSP_O_CREAT | PSP_O_TRUNC, 0777);
 
-	if(in < 0 || out < 0)
+	if(out < 0)
+	{
+		sceIoClose(in);
+		printf("Couldn't open destination file %s, 0x%08X\n", fdst, out);
 		return CMD_ERROR;
+	}
 
 	while(1) {
 		n = sceIoRead(in, buff, 2048);
