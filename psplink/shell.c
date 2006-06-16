@@ -1894,6 +1894,7 @@ static int cp_cmd(int argc, char **argv)
 	int n;
 	char *source;
 	char *destination;
+	char *slash;
 
 	char fsrc[MAXPATHLEN];
 	char fdst[MAXPATHLEN];
@@ -1907,6 +1908,20 @@ static int cp_cmd(int argc, char **argv)
 	
 	if( !handlepath(g_context.currdir, destination, fdst, TYPE_ETHER, 0) )
 		return CMD_ERROR;
+
+	if(isdir(fdst))
+	{
+		int len;
+
+		len = strlen(fdst);
+		if((len > 0) && (fdst[len-1] != '/'))
+		{
+			strcat(fdst, "/");
+		}
+
+		slash = strrchr(fsrc, '/');
+		strcat(fdst, slash+1);
+	}
 
 	printf("cp %s -> %s\n", fsrc, fdst);
 

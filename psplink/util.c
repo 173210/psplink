@@ -211,6 +211,7 @@ int handlepath(const char *currentdir, const char *relative, char *path, int typ
 				currdir_pos++;
 				path_pos++;
 			}
+			path[path_pos] = 0;
 		}
 		else
 		{
@@ -227,12 +228,17 @@ int handlepath(const char *currentdir, const char *relative, char *path, int typ
 		len--;
 	}
 
+	if(len == 0)
+	{
+		return 0;
+	}
+
 	/* Very unsafe, but still */
 	if(type == TYPE_DIR && path[len-1] != '/') {
 		path[len] = '/';
 		path[len+1] = 0;
-	} else if(type == TYPE_FILE && path[len] == '/') {
-		path[len] = 0;
+	} else if(type == TYPE_FILE && path[len-1] == '/') {
+		path[len-1] = 0;
 	}
 
 	if(normalize_path(path) == 0)
@@ -240,11 +246,9 @@ int handlepath(const char *currentdir, const char *relative, char *path, int typ
 
 	if(valid) {
 		if(type == TYPE_DIR) {
-			if((fd = sceIoDopen(path)) < 0) {
-				/* Invalid Directory */
+			if(!isdir(path))
+			{
 				return 0;
-			} else {
-				sceIoDclose(fd);
 			}
 		} else if(type == TYPE_FILE) {
 			if((fd = sceIoOpen(path, PSP_O_RDONLY, 0777)) < 0) {
@@ -1146,3 +1150,37 @@ u32 *get_debug_register(void)
 	return (u32 *) ptr;
 }
 
+int isdir(const char *path)
+{
+	SceIoStat stat;
+	char localpath[1024];
+	int len;
+
+	strcpy(localpath, path);
+	len = strlen(localpath);
+	if(len < 2) /* Not a valid full path */
+	{
+		return 0;
+	}
+
+	if(localpath[len-1] == '/')
+	{
+		/* Absolute directory, fix for dodgy Sony drivers */
+		if((localpath[len-2] == ':') && (strchr(localpath, '/') == &localpath[len-1]))
+		{
+			return 1;
+		}
+
+		localpath[len-1] = 0;
+	}
+
+	if(sceIoGetstat(localpath, &stat) == 0)
+	{
+		if(stat.st_attr & FIO_SO_IFDIR)
+		{
+			return 1;
+		}
+	}
+
+	return 0;
+}
