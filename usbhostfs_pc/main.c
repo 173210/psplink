@@ -52,10 +52,6 @@
 #define USB_TIMEOUT 0
 #endif
 
-/* TODO: Make the response encode the errno so newlib handles it correctly
- * i.e. setting 0x8001<errno>
- */
-
 #define MAX_HOSTDRIVES 8
 
 /* Contains the paths for a single hist drive */
@@ -148,6 +144,8 @@ uint64_t swap64(uint64_t i)
 #define LE64(x) (x)
 #endif
 
+#define GETERROR(x) (0x80010000 | (x))
+
 void print_gdbdebug(int dir, const uint8_t *data, int len)
 {
 	int i;
@@ -174,6 +172,22 @@ void print_gdbdebug(int dir, const uint8_t *data, int len)
 	}
 
 	printf(")\n");
+}
+
+int is_dir(const char *path)
+{
+	struct stat s;
+	int ret = 0;
+
+	if(!stat(path, &s))
+	{
+		if(S_ISDIR(s.st_mode))
+		{
+			ret = 1;
+		}
+	}
+
+	return ret;
 }
 
 /* Define wrappers for the usb functions we use which can set euid */
@@ -517,7 +531,7 @@ int open_file(int drive, const char *path, unsigned int mode, unsigned int mask)
 	if(make_path(drive, path, fullpath, 0) < 0)
 	{
 		V_PRINTF(1, "Invalid file path %s\n", path);
-		return -1;
+		return GETERROR(ENOENT);
 	}
 
 	V_PRINTF(2, "open: %s\n", fullpath);
@@ -543,7 +557,7 @@ int open_file(int drive, const char *path, unsigned int mode, unsigned int mask)
 		else
 		{
 			fprintf(stderr, "No access mode specified\n");
-			return -1;
+			return GETERROR(EINVAL);
 		}
 	}
 
@@ -567,30 +581,38 @@ int open_file(int drive, const char *path, unsigned int mode, unsigned int mask)
 		real_mode |= O_EXCL;
 	}
 
-	fd = open(fullpath, real_mode, mask & ~0111);
-	if(fd >= 0)
+	if(!is_dir(fullpath))
 	{
-		if(fd < MAX_FILES)
+		fd = open(fullpath, real_mode, mask & ~0111);
+		if(fd >= 0)
 		{
-			open_files[fd].opened = 1;
-			open_files[fd].mode = mode;
-			open_files[fd].name = strdup(fullpath);
-			if(mode & HOSTFS_BULK_OPEN)
+			if(fd < MAX_FILES)
 			{
-				V_PRINTF(1, "Opened in bulk mode (%d)\n", fd);
-				g_bulkfd = fd;
+				open_files[fd].opened = 1;
+				open_files[fd].mode = mode;
+				open_files[fd].name = strdup(fullpath);
+				if(mode & HOSTFS_BULK_OPEN)
+				{
+					V_PRINTF(1, "Opened in bulk mode (%d)\n", fd);
+					g_bulkfd = fd;
+				}
+			}
+			else
+			{
+				close(fd);
+				fprintf(stderr, "Error filedescriptor out of range\n");
+				fd = GETERROR(EMFILE);
 			}
 		}
 		else
 		{
-			close(fd);
-			fprintf(stderr, "Error filedescriptor out of range\n");
-			fd = -1;
+			V_PRINTF(1, "Could not open file %s\n", fullpath);
+			fd = GETERROR(errno);
 		}
 	}
 	else
 	{
-		V_PRINTF(1, "Could not open file %s\n", fullpath);
+		fd = GETERROR(ENOENT);
 	}
 
 	return fd;
@@ -630,7 +652,7 @@ int fill_stat(const char *dirname, const char *name, SceIoStat *scestat)
 		if((len < 0) || (len > PATH_MAX))
 		{
 			fprintf(stderr, "Couldn't fill in directory name\n");
-			return -1;
+			return GETERROR(ENAMETOOLONG);
 		}
 	}
 	else
@@ -641,7 +663,7 @@ int fill_stat(const char *dirname, const char *name, SceIoStat *scestat)
 	if(stat(path, &st) < 0)
 	{
 		fprintf(stderr, "Couldn't stat file %s (%s)\n", path, strerror(errno));
-		return -1;
+		return GETERROR(errno);
 	}
 
 	scestat->size = LE64(st.st_size);
@@ -694,11 +716,13 @@ int dir_open(int drive, const char *dirname)
 		if(did == MAX_DIRS)
 		{
 			fprintf(stderr, "Could not find free directory handle\n");
+			ret = GETERROR(EMFILE);
 			break;
 		}
 
 		if(make_path(drive, dirname, fulldir, 1) < 0)
 		{
+			ret = GETERROR(ENOENT);
 			break;
 		}
 
@@ -711,6 +735,7 @@ int dir_open(int drive, const char *dirname)
 		if(dirnum <= 0)
 		{
 			fprintf(stderr, "Could not scan directory %s (%s)\n", fulldir, strerror(errno));
+			ret = GETERROR(errno);
 			break;
 		}
 
@@ -898,7 +923,7 @@ int fixed_write(int fd, const void *data, int len)
 			if(errno != EINTR)
 			{
 				fprintf(stderr, "Error writing to file (%s)\n", strerror(errno));
-				byteswrite = -1;
+				byteswrite = GETERROR(errno);
 				break;
 			}
 		}
@@ -991,7 +1016,7 @@ int fixed_read(int fd, void *data, int len)
 		{
 			if(errno != EINTR)
 			{
-				bytesread = -1;
+				bytesread = GETERROR(errno);
 				break;
 			}
 		}
@@ -1099,7 +1124,15 @@ int handle_close(struct usb_dev_handle *hDev, struct HostFsCloseCmd *cmd, int cm
 		V_PRINTF(2, "Close command fid: %d\n", fid);
 		if((fid > STDERR_FILENO) && (fid < MAX_FILES) && (open_files[fid].opened))
 		{
-			resp.res = LE32(close(fid));
+			if(close(fid) < 0)
+			{
+				resp.res = LE32(GETERROR(errno));
+			}
+			else
+			{
+				resp.res = LE32(0);
+			}
+
 			open_files[fid].opened = 0;
 			if(fid == g_bulkfd)
 			{
@@ -1304,7 +1337,14 @@ int handle_remove(struct usb_dev_handle *hDev, struct HostFsRemoveCmd *cmd, int 
 		V_PRINTF(2, "Remove command name %s\n", path);
 		if(make_path(LE32(cmd->fsnum), path, fullpath, 0) == 0)
 		{
-			resp.res = LE32(unlink(fullpath));
+			if(unlink(fullpath) < 0)
+			{
+				resp.res = LE32(GETERROR(errno));
+			}
+			else
+			{
+				resp.res = LE32(0);
+			}
 		}
 
 		ret = euid_usb_bulk_write(hDev, 0x2, (char *) &resp, sizeof(resp), 10000);
@@ -1352,7 +1392,14 @@ int handle_rmdir(struct usb_dev_handle *hDev, struct HostFsRmdirCmd *cmd, int cm
 		V_PRINTF(2, "Rmdir command name %s\n", path);
 		if(make_path(LE32(cmd->fsnum), path, fullpath, 0) == 0)
 		{
-			resp.res = LE32(rmdir(fullpath));
+			if(rmdir(fullpath) < 0)
+			{
+				resp.res = LE32(GETERROR(errno));
+			}
+			else
+			{
+				resp.res = LE32(0);
+			}
 		}
 
 		ret = euid_usb_bulk_write(hDev, 0x2, (char *) &resp, sizeof(resp), 10000);
@@ -1400,7 +1447,14 @@ int handle_mkdir(struct usb_dev_handle *hDev, struct HostFsMkdirCmd *cmd, int cm
 		V_PRINTF(2, "Mkdir command mode %08X, name %s\n", LE32(cmd->mode), path);
 		if(make_path(LE32(cmd->fsnum), path, fullpath, 0) == 0)
 		{
-			resp.res = LE32(mkdir(fullpath, LE32(cmd->mode)));
+			if(mkdir(fullpath, LE32(cmd->mode)) < 0)
+			{
+				resp.res = LE32(GETERROR(errno));
+			}
+			else
+			{
+				resp.res = LE32(0);
+			}
 		}
 
 		ret = euid_usb_bulk_write(hDev, 0x2, (char *) &resp, sizeof(resp), 10000);
@@ -1532,7 +1586,7 @@ int psp_chstat(const char *path, struct HostFsChstatCmd *cmd)
 		if(ret < 0)
 		{
 			V_PRINTF(2, "Could not set file mask\n");
-			return -1;
+			return GETERROR(errno);
 		}
 	}
 
@@ -1654,7 +1708,6 @@ int handle_rename(struct usb_dev_handle *hDev, struct HostFsRenameCmd *cmd, int 
 		oldpathlen = strlen(path);
 		newpathlen = strlen(path+oldpathlen+1);
 
-
 		/* If the old path is absolute and the new path is relative then rebase newpath */
 		if((*path == '/') && (*(path+oldpathlen+1) != '/'))
 		{
@@ -1677,7 +1730,14 @@ int handle_rename(struct usb_dev_handle *hDev, struct HostFsRenameCmd *cmd, int 
 
 		if(!make_path(LE32(cmd->fsnum), path, oldpath, 0) && !make_path(LE32(cmd->fsnum), destpath, newpath, 0))
 		{
-			resp.res = LE32(rename(oldpath, newpath));
+			if(rename(oldpath, newpath) < 0)
+			{
+				resp.res = LE32(GETERROR(errno));
+			}
+			else
+			{
+				resp.res = LE32(0);
+			}
 		}
 
 		ret = euid_usb_bulk_write(hDev, 0x2, (char *) &resp, sizeof(resp), 10000);

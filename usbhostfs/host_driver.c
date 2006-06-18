@@ -61,6 +61,10 @@ static int io_open(PspIoDrvFileArg *arg, char *file, int mode, SceMode mask)
 				arg->arg = (void *) (resp.res);
 				ret = 0;
 			}
+			else
+			{
+				ret = resp.res;
+			}
 
 			DEBUG_PRINTF("Returned fid %d\n", resp.res);
 		}
@@ -407,7 +411,7 @@ static SceOff io_lseek(PspIoDrvFileArg *arg, SceOff ofs, int whence)
 		{
 			if(resp.res >= 0)
 			{
-				ret = (int) resp.ofs;
+				ret = resp.ofs;
 			}
 
 			DEBUG_PRINTF("Lseek returned res %d\n", ret);
@@ -618,6 +622,10 @@ static int io_dopen(PspIoDrvFileArg *arg, const char *dir)
 			{
 				arg->arg = (void *) (resp.res);
 				ret = 0;
+			}
+			else
+			{
+				ret = resp.res;
 			}
 
 			DEBUG_PRINTF("Returned did %d\n", resp.res);
