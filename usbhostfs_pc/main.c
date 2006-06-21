@@ -97,6 +97,7 @@ char g_rootdir[PATH_MAX];
 int  g_verbose = 0;
 int  g_gdbdebug = 0;
 int  g_nocase = 0;
+int  g_msslash = 0;
 int  g_pid = HOSTFSDRIVER_PID;
 int  g_timeout = USB_TIMEOUT;
 unsigned short g_shellport = BASE_PORT;
@@ -488,6 +489,19 @@ int make_path(unsigned int drive, const char *path, char *retpath, int dir)
 		{
 			fprintf(stderr, "Path length too big (%d)\n", len);
 			break;
+		}
+
+		if(g_msslash)
+		{
+			int i;
+
+			for(i = 0; i < len; i++)
+			{
+				if(hostpath[i] == '\\')
+				{
+					hostpath[i] = '/';
+				}
+			}
 		}
 
 		if(gen_path(hostpath, dir) == 0)
@@ -2258,7 +2272,7 @@ int parse_args(int argc, char **argv)
 	{
 		int ch;
 
-		ch = getopt(argc, argv, "vhdcg:s:p:f:t:");
+		ch = getopt(argc, argv, "vhdcmg:s:p:f:t:");
 		if(ch == -1)
 		{
 			break;
@@ -2277,6 +2291,8 @@ int parse_args(int argc, char **argv)
 			case 'd': g_gdbdebug = 1;
 					  break;
 			case 'c': g_nocase = 1;
+					  break;
+			case 'm': g_msslash = 1;
 					  break;
 			case 'f': g_mapfile = optarg;
 					  break;
@@ -2335,6 +2351,7 @@ void print_help(void)
 	fprintf(stderr, "-d                : Print GDB transfers\n");
 	fprintf(stderr, "-f filename       : Load the host drive mappings from a file\n");
 	fprintf(stderr, "-c                : Enable case-insensitive filenames\n");
+	fprintf(stderr, "-m                : Convert backslashes to forward slashes\n");
 	fprintf(stderr, "-t timeout        : Specify the USB timeout (default %d)\n", USB_TIMEOUT);
 	fprintf(stderr, "-h                : Print this help\n");
 }
@@ -2502,6 +2519,34 @@ int nocase_set(void)
 	else
 	{
 		printf("nocase: %s\n", g_nocase ? "on" : "off");
+	}
+
+	return COMMAND_OK;
+}
+
+int msslash_set(void)
+{
+	char *set;
+
+	set = strtok(NULL, " \t");
+	if(set)
+	{
+		if(strcmp(set, "on") == 0)
+		{
+			g_msslash = 1;
+		}
+		else if(strcmp(set, "off") == 0)
+		{
+			g_msslash = 0;
+		}
+		else
+		{
+			printf("Error setting msslash, invalid option '%s'\n", set);
+		}
+	}
+	else
+	{
+		printf("msslash: %s\n", g_msslash ? "on" : "off");
 	}
 
 	return COMMAND_OK;
@@ -2741,6 +2786,7 @@ struct ShellCmd g_commands[] = {
 	{ "save",  "Save the list of mounts to a file (save filename)", save_drives },
 	{ "load",  "Load a list of mounts from a file (load filename)", load_drives },
 	{ "nocase", "Set case sensitivity (nocase on|off)", nocase_set },
+	{ "msslash", "Convert backslash to forward slash in filename", msslash_set },
 	{ "gdbdebug", "Set the GDB debug option (gdbdebug on|off)", gdbdebug_set },
 	{ "verbose", "Set the verbose level (verbose 0|1|2)", verbose_set },
 	{ "pwd", "Print the current directory", print_wd },

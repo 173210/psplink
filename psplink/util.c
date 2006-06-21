@@ -203,13 +203,12 @@ int handlepath(const char *currentdir, const char *relative, char *path, int typ
 			while(currentdir[currdir_pos] != 0)
 			{
 				path[path_pos] = currentdir[currdir_pos];
+				path_pos++;
 				if(currentdir[currdir_pos] == ':')
 				{
-					path[path_pos + 1] = 0;
 					break;
 				}
 				currdir_pos++;
-				path_pos++;
 			}
 			path[path_pos] = 0;
 		}
