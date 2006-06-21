@@ -35,10 +35,13 @@
  * %D - Fd
  * %T - Ft
  * %S - Fs
- * %x? - Vt (? is (s/scalar, r/row, c/column, m/matrix)
+ * %x? - Vt (? is (s/scalar, p/pair, t/triple, q/quad, m/matrix pair, n/matrix triple, o/matrix quad)
  * %y? - Vs
  * %z? - Vd
- * %v - VPU immediate
+ * %X? - Vo (? is (s, q))
+ * %Y - VFPU offset
+ * %Z - VFPU condition code
+ * %v? - VFPU immediate, ? (3, 5, 8)
  * %c - code (for break)
  * %C - code (for syscall)
  */
@@ -56,6 +59,11 @@
 #define CODE(op) ((op >> 6) & 0xFFFFF)
 #define SIZE(op) ((op >> 11) & 0x1F)
 #define POS(op)  ((op >> 6) & 0x1F)
+#define VO(op)   (((op & 3) << 5) | ((op >> 16) & 0x1F))
+#define VCC(op)  ((op >> 18) & 7)
+#define VD(op)   (op & 0x7F)
+#define VS(op)   ((op >> 8) & 0x7F)
+#define VT(op)   ((op >> 16) & 0x7F)
 
 struct Instruction
 {
@@ -230,286 +238,285 @@ struct Instruction inst[] =
 	{"trunc.w.s",0x4600000D, 0xFFFF003F,"%D, %S"},
 	
 	/* VPU instructions */
-	{ "bvf",	 0x49000000, 0xFFE30000, "" },
-	{ "bvfl",	 0x49020000, 0xFFE30000, "" },
-	{ "bvt",	 0x49010000, 0xFFE30000, "" },
-	{ "bvtl",	 0x49030000, 0xFFE30000, "" },
-	{ "lv.s",	 0xC8000000, 0xFC000000, "" },
-	{ "lv.q",	 0xD8000000, 0xFC000002, "" },
-	{ "sv.s",	 0xE8000000, 0xFC000000, "" },
-	{ "sv.q",	 0xF8000000, 0xFC000002, "" },
-	{ "sv.q",	 0xF8000000, 0xFC000000, "" },
-	{ "vwb.q",	 0xF8000002, 0xFC000002, "" },
-	{ "lvl.q",	 0xD4000000, 0xFC000002, "" },
-	{ "lvr.q",	 0xD4000002, 0xFC000002, "" },
-	{ "svl.q",	 0xF4000000, 0xFC000002, "" },
-	{ "svr.q",	 0xF4000002, 0xFC000002, "" },
-	{ "mtv",	 0x48E00000, 0xFFE0FF80, "" },
+	{ "bvf",	 0x49000000, 0xFFE30000, "%Z, %O" },
+	{ "bvfl",	 0x49020000, 0xFFE30000, "%Z, %O" },
+	{ "bvt",	 0x49010000, 0xFFE30000, "%Z, %O" },
+	{ "bvtl",	 0x49030000, 0xFFE30000, "%Z, %O" },
+	{ "lv.q",	 0xD8000000, 0xFC000002, "%Xq, %Y" },
+	{ "lv.s",	 0xC8000000, 0xFC000000, "%Xs, %Y" },
+	{ "lvl.q",	 0xD4000000, 0xFC000002, "%Xq, %Y" },
+	{ "lvr.q",	 0xD4000002, 0xFC000002, "%Xq, %Y" },
 	{ "mfv",	 0x48600000, 0xFFE0FF80, "" },
-	{ "mtvc",	 0x48E00000, 0xFFE0FF00, "" },
 	{ "mfvc",	 0x48600000, 0xFFE0FF00, "" },
-	{ "vmtvc",	 0xD0510000, 0xFFFF8000, "" },
-	{ "vmfvc",	 0xD0500000, 0xFFFF0080, "" },
-	{ "vadd.q",	 0x60008080, 0xFF808080, "" },
-	{ "vsub.q",	 0x60808080, 0xFF808080, "" },
-	{ "vdiv.q",	 0x63808080, 0xFF808080, "" },
-	{ "vmul.q",	 0x64008080, 0xFF808080, "" },
-	{ "vdot.q",	 0x64808080, 0xFF808080, "" },
-	{ "vscl.q",	 0x65008080, 0xFF808080, "" },
-	{ "vhdp.q",	 0x66008080, 0xFF808080, "" },
+	{ "mtv",	 0x48E00000, 0xFFE0FF80, "" },
+	{ "mtvc",	 0x48E00000, 0xFFE0FF00, "" },
+	{ "sv.q",	 0xF8000000, 0xFC000002, "%Xq, %Y" },
+	{ "sv.s",	 0xE8000000, 0xFC000000, "%Xs, %Y" },
+	{ "svl.q",	 0xF4000000, 0xFC000002, "%Xq, %Y" },
+	{ "svr.q",	 0xF4000002, 0xFC000002, "%Xq, %Y" },
+	{ "vabs.p",	 0xD0010080, 0xFFFF8080, "%zp, %yp" },
+	{ "vabs.q",	 0xD0018080, 0xFFFF8080, "%zq, %yq" },
+	{ "vabs.s",	 0xD0010000, 0xFFFF8080, "%zs, %ys" },
+	{ "vabs.t",	 0xD0018000, 0xFFFF8080, "%zt, %yt" },
+	{ "vadd.p",	 0x60000080, 0xFF808080, "%zp, %yp, %xp" },
+	{ "vadd.q",	 0x60008080, 0xFF808080, "%zq, %yq, %xq" },
+	{ "vadd.s",	 0x60000000, 0xFF808080, "%zs, %yz, %xs" },
+	{ "vadd.t",	 0x60008000, 0xFF808080, "%zt, %yt, %xt" },
+	{ "vasin.p", 0xD0170080, 0xFFFF8080, "%zp, %yp" },
+	{ "vasin.q", 0xD0178080, 0xFFFF8080, "%zq, %yq" },
+	{ "vasin.s", 0xD0170000, 0xFFFF8080, "%zs, %ys" },
+	{ "vasin.t", 0xD0178000, 0xFFFF8080, "%zt, %yt" },
+	{ "vavg.p",	 0xD0470080, 0xFFFF8080, "%zp, %yp" },
+	{ "vavg.q",	 0xD0478080, 0xFFFF8080, "%zq, %yq" },
+	{ "vavg.t",	 0xD0478000, 0xFFFF8080, "%zt, %yt" },
+	{ "vbfy1.p", 0xD0420080, 0xFFFF8080, "%zp, %yp" },
+	{ "vbfy1.q", 0xD0428080, 0xFFFF8080, "%zq, %yq" },
+	{ "vbfy2.q", 0xD0438080, 0xFFFF8080, "%zq, %yq" },
+	{ "vcmovf.p", 0xD2A80080, 0xFFF88080, "" },
+	{ "vcmovf.q",0xD2A88080, 0xFFF88080, "" },
+	{ "vcmovf.s", 0xD2A80000, 0xFFF88080, "" },
+	{ "vcmovf.t",0xD2A88000, 0xFFF88080, "" },
+	{ "vcmovt.p", 0xD2A00080, 0xFFF88080, "" },
+	{ "vcmovt.q",0xD2A08080, 0xFFF88080, "" },
+	{ "vcmovt.s", 0xD2A00000, 0xFFF88080, "" },
+	{ "vcmovt.t",0xD2A08000, 0xFFF88080, "" },
+	{ "vcmp.p",	 0x6C000080, 0xFF8080F0, "" },
+	{ "vcmp.p",	 0x6C000080, 0xFFFF80F0, "" },
+	{ "vcmp.p",	 0x6C000080, 0xFFFFFFF0, "" },
 	{ "vcmp.q",	 0x6C008080, 0xFF8080F0, "" },
 	{ "vcmp.q",	 0x6C008080, 0xFFFF80F0, "" },
 	{ "vcmp.q",	 0x6C008080, 0xFFFFFFF0, "" },
-	{ "vmin.q",	 0x6D008080, 0xFF808080, "" },
-	{ "vmax.q",	 0x6D808080, 0xFF808080, "" },
-	{ "vsgn.q",	 0xD04A8080, 0xFFFF8080, "" },
-	{ "vcst.q",	 0xD0608080, 0xFFE0FF80, "" },
-	{ "vscmp.q", 0x6E808080, 0xFF808080, "" },
-	{ "vsge.q",	 0x6F008080, 0xFF808080, "" },
-	{ "vslt.q",	 0x6F808080, 0xFF808080, "" },
-	{ "vi2uc.q", 0xD03C8080, 0xFFFF8080, "" },
-	{ "vi2c.q",	 0xD03D8080, 0xFFFF8080, "" },
-	{ "vi2us.q", 0xD03E8080, 0xFFFF8080, "" },
-	{ "vi2s.q",	 0xD03F8080, 0xFFFF8080, "" },
-	{ "vmov.q",	 0xD0008080, 0xFFFF8080, "" },
-	{ "vabs.q",	 0xD0018080, 0xFFFF8080, "" },
-	{ "vneg.q",	 0xD0028080, 0xFFFF8080, "" },
-	{ "vidt.q",	 0xD0038080, 0xFFFFFF80, "" },
-	{ "vsat0.q", 0xD0048080, 0xFFFF8080, "" },
-	{ "vsat1.q", 0xD0058080, 0xFFFF8080, "" },
-	{ "vzero.q", 0xD0068080, 0xFFFFFF80, "" },
-	{ "vone.q",	 0xD0078080, 0xFFFFFF80, "" },
-	{ "vrcp.q",	 0xD0108080, 0xFFFF8080, "" },
-	{ "vrsq.q",	 0xD0118080, 0xFFFF8080, "" },
-	{ "vsin.q",	 0xD0128080, 0xFFFF8080, "" },
-	{ "vcos.q",	 0xD0138080, 0xFFFF8080, "" },
+	{ "vcmp.s",	 0x6C000000, 0xFF8080F0, "" },
+	{ "vcmp.s",	 0x6C000000, 0xFFFF80F0, "" },
+	{ "vcmp.s",	 0x6C000000, 0xFFFFFFF0, "" },
+	{ "vcmp.t",	 0x6C008000, 0xFF8080F0, "" },
+	{ "vcmp.t",	 0x6C008000, 0xFFFF80F0, "" },
+	{ "vcmp.t",	 0x6C008000, 0xFFFFFFF0, "" },
+	{ "vcos.p",	 0xD0130080, 0xFFFF8080, "%zp, %yp" },
+	{ "vcos.q",	 0xD0138080, 0xFFFF8080, "%zq, %yq" },
+	{ "vcos.s",	 0xD0130000, 0xFFFF8080, "%zs, %ys" },
+	{ "vcos.t",	 0xD0138000, 0xFFFF8080, "%zt, %yt" },
+	{ "vcrs.t",	 0x66808000, 0xFF808080, "%zt, %yt, %xt" },
+	{ "vcrsp.t", 0xF2808000, 0xFF808080, "%zt, %yt, %xt" },
+	{ "vcst.p",	 0xD0600080, 0xFFE0FF80, "%zp, %yp, %xp" },
+	{ "vcst.q",	 0xD0608080, 0xFFE0FF80, "%zq, %yq, %xq" },
+	{ "vcst.s",	 0xD0600000, 0xFFE0FF80, "%zs, %ys, %xs" },
+	{ "vcst.t",	 0xD0608000, 0xFFE0FF80, "%zt, %yt, %xt" },
+	{ "vdet.p",	 0x67000080, 0xFF808080, "%zs, %yp, %xp" },
+	{ "vdiv.p",	 0x63800080, 0xFF808080, "%zp, %yp, %xp" },
+	{ "vdiv.q",	 0x63808080, 0xFF808080, "%zq, %yq, %xq" },
+	{ "vdiv.s",	 0x63800000, 0xFF808080, "%zs, %yz, %xs" },
+	{ "vdiv.t",	 0x63808000, 0xFF808080, "%zt, %yt, %xt" },
+	{ "vdot.p",	 0x64800080, 0xFF808080, "%zs, %yp, %xp" },
+	{ "vdot.q",	 0x64808080, 0xFF808080, "%zs, %yq, %xq" },
+	{ "vdot.t",	 0x64808000, 0xFF808080, "%zs, %yt, %xt" },
+	{ "vexp2.p", 0xD0140080, 0xFFFF8080, "" },
 	{ "vexp2.q", 0xD0148080, 0xFFFF8080, "" },
-	{ "vlog2.q", 0xD0158080, 0xFFFF8080, "" },
-	{ "vsqrt.q", 0xD0168080, 0xFFFF8080, "" },
-	{ "vasin.q", 0xD0178080, 0xFFFF8080, "" },
-	{ "vnrcp.q", 0xD0188080, 0xFFFF8080, "" },
-	{ "vnsin.q", 0xD01A8080, 0xFFFF8080, "" },
-	{ "vrexp2.q",0xD01C8080, 0xFFFF8080, "" },
-	{ "vrndi.q", 0xD0218080, 0xFFFFFF80, "" },
-	{ "vrndf1.q",0xD0228080, 0xFFFFFF80, "" },
-	{ "vrndf2.q",0xD0238080, 0xFFFFFF80, "" },
+	{ "vexp2.s", 0xD0140000, 0xFFFF8080, "" },
+	{ "vexp2.t", 0xD0148000, 0xFFFF8080, "" },
+	{ "vf2h.p",	 0xD0320080, 0xFFFF8080, "" },
 	{ "vf2h.q",	 0xD0328080, 0xFFFF8080, "" },
+	{ "vf2id.p", 0xD2600080, 0xFFE08080, "" },
+	{ "vf2id.q", 0xD2608080, 0xFFE08080, "" },
+	{ "vf2id.s", 0xD2600000, 0xFFE08080, "" },
+	{ "vf2id.t", 0xD2608000, 0xFFE08080, "" },
+	{ "vf2in.p", 0xD2000080, 0xFFE08080, "" },
+	{ "vf2in.q", 0xD2008080, 0xFFE08080, "" },
+	{ "vf2in.s", 0xD2000000, 0xFFE08080, "" },
+	{ "vf2in.t", 0xD2008000, 0xFFE08080, "" },
+	{ "vf2iu.p", 0xD2400080, 0xFFE08080, "" },
+	{ "vf2iu.q", 0xD2408080, 0xFFE08080, "" },
+	{ "vf2iu.s", 0xD2400000, 0xFFE08080, "" },
+	{ "vf2iu.t", 0xD2408000, 0xFFE08080, "" },
+	{ "vf2iz.p", 0xD2200080, 0xFFE08080, "" },
+	{ "vf2iz.q", 0xD2208080, 0xFFE08080, "" },
+	{ "vf2iz.s", 0xD2200000, 0xFFE08080, "" },
+	{ "vf2iz.t", 0xD2208000, 0xFFE08080, "" },
+	{ "vfad.p",	 0xD0460080, 0xFFFF8080, "" },
+	{ "vfad.q",	 0xD0468080, 0xFFFF8080, "" },
+	{ "vfad.t",	 0xD0468000, 0xFFFF8080, "" },
+	{ "vfim.s",	 0xDF800000, 0xFF800000, "" },
+	{ "vflush",	 0xFFFF040D, 0xFFFFFFFF, "" },
+	{ "vh2f.p",	 0xD0330080, 0xFFFF8080, "" },
+	{ "vh2f.s",	 0xD0330000, 0xFFFF8080, "" },
+	{ "vhdp.p",	 0x66000080, 0xFF808080, "" },
+	{ "vhdp.q",	 0x66008080, 0xFF808080, "" },
+	{ "vhdp.t",	 0x66008000, 0xFF808080, "" },
+	{ "vhtfm2.p", 0xF0800000, 0xFF808080, "" },
+	{ "vhtfm3.t",0xF1000080, 0xFF808080, "" },
+	{ "vhtfm4.q",0xF1808000, 0xFF808080, "" },
+	{ "vi2c.q",	 0xD03D8080, 0xFFFF8080, "" },
+	{ "vi2f.p",	 0xD2800080, 0xFFE08080, "" },
+	{ "vi2f.q",	 0xD2808080, 0xFFE08080, "" },
+	{ "vi2f.s",	 0xD2800000, 0xFFE08080, "" },
+	{ "vi2f.t",	 0xD2808000, 0xFFE08080, "" },
+	{ "vi2s.p",	 0xD03F0080, 0xFFFF8080, "" },
+	{ "vi2s.q",	 0xD03F8080, 0xFFFF8080, "" },
+	{ "vi2uc.q", 0xD03C8080, 0xFFFF8080, "" },
+	{ "vi2us.p", 0xD03E0080, 0xFFFF8080, "" },
+	{ "vi2us.q", 0xD03E8080, 0xFFFF8080, "" },
+	{ "vidt.p",	 0xD0030080, 0xFFFFFF80, "" },
+	{ "vidt.q",	 0xD0038080, 0xFFFFFF80, "" },
+	{ "viim.s",	 0xDF000000, 0xFF800000, "" },
+	{ "vlgb.s",	 0xD0370000, 0xFFFF8080, "" },
+	{ "vlog2.p", 0xD0150080, 0xFFFF8080, "" },
+	{ "vlog2.q", 0xD0158080, 0xFFFF8080, "" },
+	{ "vlog2.s", 0xD0150000, 0xFFFF8080, "" },
+	{ "vlog2.t", 0xD0158000, 0xFFFF8080, "" },
+	{ "vmax.p",	 0x6D800080, 0xFF808080, "" },
+	{ "vmax.q",	 0x6D808080, 0xFF808080, "" },
+	{ "vmax.s",	 0x6D800000, 0xFF808080, "" },
+	{ "vmax.t",	 0x6D808000, 0xFF808080, "" },
+	{ "vmfvc",	 0xD0500000, 0xFFFF0080, "" },
+	{ "vmidt.p", 0xF3830080, 0xFFFFFF80, "" },
+	{ "vmidt.q", 0xF3838080, 0xFFFFFF80, "" },
+	{ "vmidt.t", 0xF3838000, 0xFFFFFF80, "" },
+	{ "vmin.p",	 0x6D000080, 0xFF808080, "" },
+	{ "vmin.q",	 0x6D008080, 0xFF808080, "" },
+	{ "vmin.s",	 0x6D000000, 0xFF808080, "" },
+	{ "vmin.t",	 0x6D008000, 0xFF808080, "" },
+	{ "vmmov.p", 0xF3800080, 0xFFFF8080, "" },
+	{ "vmmov.q", 0xF3808080, 0xFFFF8080, "" },
+	{ "vmmov.t", 0xF3808000, 0xFFFF8080, "" },
+	{ "vmmul.p", 0xF0000080, 0xFF808080, "" },
+	{ "vmmul.q", 0xF0008080, 0xFF808080, "" },
+	{ "vmmul.t", 0xF0008000, 0xFF808080, "" },
+	{ "vmone.p", 0xF3870080, 0xFFFFFF80, "" },
+	{ "vmone.q", 0xF3878080, 0xFFFFFF80, "" },
+	{ "vmone.t", 0xF3878000, 0xFFFFFF80, "" },
+	{ "vmov.p",	 0xD0000080, 0xFFFF8080, "" },
+	{ "vmov.q",	 0xD0008080, 0xFFFF8080, "" },
+	{ "vmov.s",	 0xD0000000, 0xFFFF8080, "" },
+	{ "vmov.t",	 0xD0008000, 0xFFFF8080, "" },
+	{ "vmscl.p", 0xF2000080, 0xFF808080, "" },
+	{ "vmscl.q", 0xF2008080, 0xFF808080, "" },
+	{ "vmscl.t", 0xF2008000, 0xFF808080, "" },
+	{ "vmtvc",	 0xD0510000, 0xFFFF8000, "" },
+	{ "vmul.p",	 0x64000080, 0xFF808080, "" },
+	{ "vmul.q",	 0x64008080, 0xFF808080, "" },
+	{ "vmul.s",	 0x64000000, 0xFF808080, "" },
+	{ "vmul.t",	 0x64008000, 0xFF808080, "" },
+	{ "vmzero.p", 0xF3860080, 0xFFFFFF80, "" },
+	{ "vmzero.q",0xF3868080, 0xFFFFFF80, "" },
+	{ "vmzero.t",0xF3868000, 0xFFFFFF80, "" },
+	{ "vneg.p",	 0xD0020080, 0xFFFF8080, "" },
+	{ "vneg.q",	 0xD0028080, 0xFFFF8080, "" },
+	{ "vneg.s",	 0xD0020000, 0xFFFF8080, "" },
+	{ "vneg.t",	 0xD0028000, 0xFFFF8080, "" },
+	{ "vnop",	 0xFFFF0000, 0xFFFFFFFF, "" },
+	{ "vnrcp.p", 0xD0180080, 0xFFFF8080, "" },
+	{ "vnrcp.q", 0xD0188080, 0xFFFF8080, "" },
+	{ "vnrcp.s", 0xD0180000, 0xFFFF8080, "" },
+	{ "vnrcp.t", 0xD0188000, 0xFFFF8080, "" },
+	{ "vnsin.p", 0xD01A0080, 0xFFFF8080, "" },
+	{ "vnsin.q", 0xD01A8080, 0xFFFF8080, "" },
+	{ "vnsin.s", 0xD01A0000, 0xFFFF8080, "" },
+	{ "vnsin.t", 0xD01A8000, 0xFFFF8080, "" },
+	{ "vocp.p",	 0xD0440080, 0xFFFF8080, "" },
+	{ "vocp.q",	 0xD0448080, 0xFFFF8080, "" },
+	{ "vocp.s",	 0xD0440000, 0xFFFF8080, "" },
+	{ "vocp.t",	 0xD0448000, 0xFFFF8080, "" },
+	{ "vone.p",	 0xD0070080, 0xFFFFFF80, "" },
+	{ "vone.q",	 0xD0078080, 0xFFFFFF80, "" },
+	{ "vone.s",	 0xD0070000, 0xFFFFFF80, "" },
+	{ "vone.t",	 0xD0078000, 0xFFFFFF80, "" },
+	{ "vpfxd",	 0xDE000000, 0xFF000000, "" },
+	{ "vpfxs",	 0xDC000000, 0xFF000000, "" },
+	{ "vpfxt",	 0xDD000000, 0xFF000000, "" },
+	{ "vqmul.q", 0xF2808080, 0xFF808080, "" },
+	{ "vrcp.p",	 0xD0100080, 0xFFFF8080, "" },
+	{ "vrcp.q",	 0xD0108080, 0xFFFF8080, "" },
+	{ "vrcp.s",	 0xD0100000, 0xFFFF8080, "" },
+	{ "vrcp.t",	 0xD0108000, 0xFFFF8080, "" },
+	{ "vrexp2.p",0xD01C0080, 0xFFFF8080, "" },
+	{ "vrexp2.q",0xD01C8080, 0xFFFF8080, "" },
+	{ "vrexp2.s", 0xD01C0000, 0xFFFF8080, "" },
+	{ "vrexp2.t",0xD01C8000, 0xFFFF8080, "" },
+	{ "vrndf1.p", 0xD0220080, 0xFFFFFF80, "" },
+	{ "vrndf1.q",0xD0228080, 0xFFFFFF80, "" },
+	{ "vrndf1.s", 0xD0220000, 0xFFFFFF80, "" },
+	{ "vrndf1.t",0xD0228000, 0xFFFFFF80, "" },
+	{ "vrndf2.p", 0xD0230080, 0xFFFFFF80, "" },
+	{ "vrndf2.q",0xD0238080, 0xFFFFFF80, "" },
+	{ "vrndf2.s", 0xD0230000, 0xFFFFFF80, "" },
+	{ "vrndf2.t",0xD0238000, 0xFFFFFF80, "" },
+	{ "vrndi.p", 0xD0210080, 0xFFFFFF80, "" },
+	{ "vrndi.q", 0xD0218080, 0xFFFFFF80, "" },
+	{ "vrndi.s", 0xD0210000, 0xFFFFFF80, "" },
+	{ "vrndi.t", 0xD0218000, 0xFFFFFF80, "" },
+	{ "vrnds.s", 0xD0200000, 0xFFFF80FF, "" },
+	{ "vrot.p",	 0xF3A00080, 0xFFE08080, "" },
+	{ "vrot.q",	 0xF3A08080, 0xFFE08080, "" },
+	{ "vrot.t",	 0xF3A08000, 0xFFE08080, "" },
+	{ "vrsq.p",	 0xD0110080, 0xFFFF8080, "" },
+	{ "vrsq.q",	 0xD0118080, 0xFFFF8080, "" },
+	{ "vrsq.s",	 0xD0110000, 0xFFFF8080, "" },
+	{ "vrsq.t",	 0xD0118000, 0xFFFF8080, "" },
+	{ "vs2i.p",	 0xD03B0080, 0xFFFF8080, "" },
+	{ "vs2i.s",	 0xD03B0000, 0xFFFF8080, "" },
+	{ "vsat0.p", 0xD0040080, 0xFFFF8080, "" },
+	{ "vsat0.q", 0xD0048080, 0xFFFF8080, "" },
+	{ "vsat0.s", 0xD0040000, 0xFFFF8080, "" },
+	{ "vsat0.t", 0xD0048000, 0xFFFF8080, "" },
+	{ "vsat1.p", 0xD0050080, 0xFFFF8080, "" },
+	{ "vsat1.q", 0xD0058080, 0xFFFF8080, "" },
+	{ "vsat1.s", 0xD0050000, 0xFFFF8080, "" },
+	{ "vsat1.t", 0xD0058000, 0xFFFF8080, "" },
+	{ "vsbn.s",	 0x61000000, 0xFF808080, "" },
+	{ "vsbz.s",	 0xD0360000, 0xFFFF8080, "" },
+	{ "vscl.p",	 0x65000080, 0xFF808080, "" },
+	{ "vscl.q",	 0x65008080, 0xFF808080, "" },
+	{ "vscl.t",	 0x65008000, 0xFF808080, "" },
+	{ "vscmp.p", 0x6E800080, 0xFF808080, "" },
+	{ "vscmp.q", 0x6E808080, 0xFF808080, "" },
+	{ "vscmp.s", 0x6E800000, 0xFF808080, "" },
+	{ "vscmp.t", 0x6E808000, 0xFF808080, "" },
+	{ "vsge.p",	 0x6F000080, 0xFF808080, "" },
+	{ "vsge.q",	 0x6F008080, 0xFF808080, "" },
+	{ "vsge.s",	 0x6F000000, 0xFF808080, "" },
+	{ "vsge.t",	 0x6F008000, 0xFF808080, "" },
+	{ "vsgn.p",	 0xD04A0080, 0xFFFF8080, "" },
+	{ "vsgn.q",	 0xD04A8080, 0xFFFF8080, "" },
+	{ "vsgn.s",	 0xD04A0000, 0xFFFF8080, "" },
+	{ "vsgn.t",	 0xD04A8000, 0xFFFF8080, "" },
+	{ "vsin.p",	 0xD0120080, 0xFFFF8080, "" },
+	{ "vsin.q",	 0xD0128080, 0xFFFF8080, "" },
+	{ "vsin.s",	 0xD0120000, 0xFFFF8080, "" },
+	{ "vsin.t",	 0xD0128000, 0xFFFF8080, "" },
+	{ "vslt.p",	 0x6F800080, 0xFF808080, "" },
+	{ "vslt.q",	 0x6F808080, 0xFF808080, "" },
+	{ "vslt.s",	 0x6F800000, 0xFF808080, "" },
+	{ "vslt.t",	 0x6F808000, 0xFF808080, "" },
+	{ "vsocp.p", 0xD0450080, 0xFFFF8080, "" },
+	{ "vsocp.s", 0xD0450000, 0xFFFF8080, "" },
+	{ "vsqrt.p", 0xD0160080, 0xFFFF8080, "" },
+	{ "vsqrt.q", 0xD0168080, 0xFFFF8080, "" },
+	{ "vsqrt.s", 0xD0160000, 0xFFFF8080, "" },
+	{ "vsqrt.t", 0xD0168000, 0xFFFF8080, "" },
 	{ "vsrt1.q", 0xD0408080, 0xFFFF8080, "" },
 	{ "vsrt2.q", 0xD0418080, 0xFFFF8080, "" },
 	{ "vsrt3.q", 0xD0488080, 0xFFFF8080, "" },
 	{ "vsrt4.q", 0xD0498080, 0xFFFF8080, "" },
-	{ "vbfy1.q", 0xD0428080, 0xFFFF8080, "" },
-	{ "vbfy2.q", 0xD0438080, 0xFFFF8080, "" },
-	{ "vocp.q",	 0xD0448080, 0xFFFF8080, "" },
-	{ "vfad.q",	 0xD0468080, 0xFFFF8080, "" },
-	{ "vavg.q",	 0xD0478080, 0xFFFF8080, "" },
-	{ "vf2in.q", 0xD2008080, 0xFFE08080, "" },
-	{ "vf2iz.q", 0xD2208080, 0xFFE08080, "" },
-	{ "vf2iu.q", 0xD2408080, 0xFFE08080, "" },
-	{ "vf2id.q", 0xD2608080, 0xFFE08080, "" },
-	{ "vi2f.q",	 0xD2808080, 0xFFE08080, "" },
-	{ "vcmovt.q",0xD2A08080, 0xFFF88080, "" },
-	{ "vcmovf.q",0xD2A88080, 0xFFF88080, "" },
-	{ "vmmul.q", 0xF0008080, 0xFF808080, "" },
-	{ "vtfm4.q", 0xF1808080, 0xFF808080, "" },
-	{ "vhtfm4.q",0xF1808000, 0xFF808080, "" },
-	{ "vmscl.q", 0xF2008080, 0xFF808080, "" },
-	{ "vqmul.q", 0xF2808080, 0xFF808080, "" },
-	{ "vmmov.q", 0xF3808080, 0xFFFF8080, "" },
-	{ "vmidt.q", 0xF3838080, 0xFFFFFF80, "" },
-	{ "vmzero.q",0xF3868080, 0xFFFFFF80, "" },
-	{ "vmone.q", 0xF3878080, 0xFFFFFF80, "" },
-	{ "vrot.q",	 0xF3A08080, 0xFFE08080, "" },
+	{ "vsub.p",	 0x60800080, 0xFF808080, "" },
+	{ "vsub.q",	 0x60808080, 0xFF808080, "" },
+	{ "vsub.s",	 0x60800000, 0xFF808080, "" },
+	{ "vsub.t",	 0x60808000, 0xFF808080, "" },
+	{ "vsync",	 0xFFFF0000, 0xFFFF0000, "" },
+	{ "vsync",	 0xFFFF0320, 0xFFFFFFFF, "" },
 	{ "vt4444.q",0xD0598080, 0xFFFF8080, "" },
 	{ "vt5551.q",0xD05A8080, 0xFFFF8080, "" },
 	{ "vt5650.q",0xD05B8080, 0xFFFF8080, "" },
-	{ "vadd.t",	 0x60008000, 0xFF808080, "" },
-	{ "vsub.t",	 0x60808000, 0xFF808080, "" },
-	{ "vdiv.t",	 0x63808000, 0xFF808080, "" },
-	{ "vmul.t",	 0x64008000, 0xFF808080, "" },
-	{ "vdot.t",	 0x64808000, 0xFF808080, "" },
-	{ "vscl.t",	 0x65008000, 0xFF808080, "" },
-	{ "vhdp.t",	 0x66008000, 0xFF808080, "" },
-	{ "vcrs.t",	 0x66808000, 0xFF808080, "" },
-	{ "vcmp.t",	 0x6C008000, 0xFF8080F0, "" },
-	{ "vcmp.t",	 0x6C008000, 0xFFFF80F0, "" },
-	{ "vcmp.t",	 0x6C008000, 0xFFFFFFF0, "" },
-	{ "vmin.t",	 0x6D008000, 0xFF808080, "" },
-	{ "vmax.t",	 0x6D808000, 0xFF808080, "" },
-	{ "vsgn.t",	 0xD04A8000, 0xFFFF8080, "" },
-	{ "vcst.t",	 0xD0608000, 0xFFE0FF80, "" },
-	{ "vscmp.t", 0x6E808000, 0xFF808080, "" },
-	{ "vsge.t",	 0x6F008000, 0xFF808080, "" },
-	{ "vslt.t",	 0x6F808000, 0xFF808080, "" },
-	{ "vmov.t",	 0xD0008000, 0xFFFF8080, "" },
-	{ "vabs.t",	 0xD0018000, 0xFFFF8080, "" },
-	{ "vneg.t",	 0xD0028000, 0xFFFF8080, "" },
-	{ "vsat0.t", 0xD0048000, 0xFFFF8080, "" },
-	{ "vsat1.t", 0xD0058000, 0xFFFF8080, "" },
-	{ "vzero.t", 0xD0068000, 0xFFFFFF80, "" },
-	{ "vone.t",	 0xD0078000, 0xFFFFFF80, "" },
-	{ "vrcp.t",	 0xD0108000, 0xFFFF8080, "" },
-	{ "vrsq.t",	 0xD0118000, 0xFFFF8080, "" },
-	{ "vsin.t",	 0xD0128000, 0xFFFF8080, "" },
-	{ "vcos.t",	 0xD0138000, 0xFFFF8080, "" },
-	{ "vexp2.t", 0xD0148000, 0xFFFF8080, "" },
-	{ "vlog2.t", 0xD0158000, 0xFFFF8080, "" },
-	{ "vsqrt.t", 0xD0168000, 0xFFFF8080, "" },
-	{ "vasin.t", 0xD0178000, 0xFFFF8080, "" },
-	{ "vnrcp.t", 0xD0188000, 0xFFFF8080, "" },
-	{ "vnsin.t", 0xD01A8000, 0xFFFF8080, "" },
-	{ "vrexp2.t",0xD01C8000, 0xFFFF8080, "" },
-	{ "vrndi.t", 0xD0218000, 0xFFFFFF80, "" },
-	{ "vrndf1.t",0xD0228000, 0xFFFFFF80, "" },
-	{ "vrndf2.t",0xD0238000, 0xFFFFFF80, "" },
-	{ "vocp.t",	 0xD0448000, 0xFFFF8080, "" },
-	{ "vfad.t",	 0xD0468000, 0xFFFF8080, "" },
-	{ "vavg.t",	 0xD0478000, 0xFFFF8080, "" },
-	{ "vf2in.t", 0xD2008000, 0xFFE08080, "" },
-	{ "vf2iz.t", 0xD2208000, 0xFFE08080, "" },
-	{ "vf2iu.t", 0xD2408000, 0xFFE08080, "" },
-	{ "vf2id.t", 0xD2608000, 0xFFE08080, "" },
-	{ "vi2f.t",	 0xD2808000, 0xFFE08080, "" },
-	{ "vcmovt.t",0xD2A08000, 0xFFF88080, "" },
-	{ "vcmovf.t",0xD2A88000, 0xFFF88080, "" },
-	{ "vmmul.t", 0xF0008000, 0xFF808080, "" },
-	{ "vtfm3.t", 0xF1008000, 0xFF808080, "" },
-	{ "vhtfm3.t",0xF1000080, 0xFF808080, "" },
-	{ "vmscl.t", 0xF2008000, 0xFF808080, "" },
-	{ "vmmov.t", 0xF3808000, 0xFFFF8080, "" },
-	{ "vmidt.t", 0xF3838000, 0xFFFFFF80, "" },
-	{ "vmzero.t",0xF3868000, 0xFFFFFF80, "" },
-	{ "vmone.t", 0xF3878000, 0xFFFFFF80, "" },
-	{ "vrot.t",	 0xF3A08000, 0xFFE08080, "" },
-	{ "vcrsp.t", 0xF2808000, 0xFF808080, "" },
-	{ "vadd.p",	 0x60000080, 0xFF808080, "" },
-	{ "vsub.p",	 0x60800080, 0xFF808080, "" },
-	{ "vdiv.p",	 0x63800080, 0xFF808080, "" },
-	{ "vmul.p",	 0x64000080, 0xFF808080, "" },
-	{ "vdot.p",	 0x64800080, 0xFF808080, "" },
-	{ "vscl.p",	 0x65000080, 0xFF808080, "" },
-	{ "vhdp.p",	 0x66000080, 0xFF808080, "" },
-	{ "vdet.p",	 0x67000080, 0xFF808080, "" },
-	{ "vcmp.p",	 0x6C000080, 0xFF8080F0, "" },
-	{ "vcmp.p",	 0x6C000080, 0xFFFF80F0, "" },
-	{ "vcmp.p",	 0x6C000080, 0xFFFFFFF0, "" },
-	{ "vmin.p",	 0x6D000080, 0xFF808080, "" },
-	{ "vmax.p",	 0x6D800080, 0xFF808080, "" },
-	{ "vsgn.p",	 0xD04A0080, 0xFFFF8080, "" },
-	{ "vcst.p",	 0xD0600080, 0xFFE0FF80, "" },
-	{ "vscmp.p", 0x6E800080, 0xFF808080, "" },
-	{ "vsge.p",	 0x6F000080, 0xFF808080, "" },
-	{ "vslt.p",	 0x6F800080, 0xFF808080, "" },
-	{ "vus2i.p", 0xD03A0080, 0xFFFF8080, "" },
-	{ "vs2i.p",	 0xD03B0080, 0xFFFF8080, "" },
-	{ "vi2us.p", 0xD03E0080, 0xFFFF8080, "" },
-	{ "vi2s.p",	 0xD03F0080, 0xFFFF8080, "" },
-	{ "vmov.p",	 0xD0000080, 0xFFFF8080, "" },
-	{ "vabs.p",	 0xD0010080, 0xFFFF8080, "" },
-	{ "vneg.p",	 0xD0020080, 0xFFFF8080, "" },
-	{ "vidt.p",	 0xD0030080, 0xFFFFFF80, "" },
-	{ "vsat0.p", 0xD0040080, 0xFFFF8080, "" },
-	{ "vsat1.p", 0xD0050080, 0xFFFF8080, "" },
-	{ "vzero.p", 0xD0060080, 0xFFFFFF80, "" },
-	{ "vone.p",	 0xD0070080, 0xFFFFFF80, "" },
-	{ "vrcp.p",	 0xD0100080, 0xFFFF8080, "" },
-	{ "vrsq.p",	 0xD0110080, 0xFFFF8080, "" },
-	{ "vsin.p",	 0xD0120080, 0xFFFF8080, "" },
-	{ "vcos.p",	 0xD0130080, 0xFFFF8080, "" },
-	{ "vexp2.p", 0xD0140080, 0xFFFF8080, "" },
-	{ "vlog2.p", 0xD0150080, 0xFFFF8080, "" },
-	{ "vsqrt.p", 0xD0160080, 0xFFFF8080, "" },
-	{ "vasin.p", 0xD0170080, 0xFFFF8080, "" },
-	{ "vnrcp.p", 0xD0180080, 0xFFFF8080, "" },
-	{ "vnsin.p", 0xD01A0080, 0xFFFF8080, "" },
-	{ "vrexp2.p",0xD01C0080, 0xFFFF8080, "" },
-	{ "vrndi.p", 0xD0210080, 0xFFFFFF80, "" },
-	{ "vrndf1.p", 0xD0220080, 0xFFFFFF80, "" },
-	{ "vrndf2.p", 0xD0230080, 0xFFFFFF80, "" },
-	{ "vf2h.p",	 0xD0320080, 0xFFFF8080, "" },
-	{ "vh2f.p",	 0xD0330080, 0xFFFF8080, "" },
-	{ "vbfy1.p", 0xD0420080, 0xFFFF8080, "" },
-	{ "vocp.p",	 0xD0440080, 0xFFFF8080, "" },
-	{ "vsocp.p", 0xD0450080, 0xFFFF8080, "" },
-	{ "vfad.p",	 0xD0460080, 0xFFFF8080, "" },
-	{ "vavg.p",	 0xD0470080, 0xFFFF8080, "" },
-	{ "vf2in.p", 0xD2000080, 0xFFE08080, "" },
-	{ "vf2iz.p", 0xD2200080, 0xFFE08080, "" },
-	{ "vf2iu.p", 0xD2400080, 0xFFE08080, "" },
-	{ "vf2id.p", 0xD2600080, 0xFFE08080, "" },
-	{ "vi2f.p",	 0xD2800080, 0xFFE08080, "" },
-	{ "vcmovt.p", 0xD2A00080, 0xFFF88080, "" },
-	{ "vcmovf.p", 0xD2A80080, 0xFFF88080, "" },
-	{ "vmmul.p", 0xF0000080, 0xFF808080, "" },
 	{ "vtfm2.p", 0xF0800080, 0xFF808080, "" },
-	{ "vhtfm2.p", 0xF0800000, 0xFF808080, "" },
-	{ "vmscl.p", 0xF2000080, 0xFF808080, "" },
-	{ "vmmov.p", 0xF3800080, 0xFFFF8080, "" },
-	{ "vmidt.p", 0xF3830080, 0xFFFFFF80, "" },
-	{ "vmzero.p", 0xF3860080, 0xFFFFFF80, "" },
-	{ "vmone.p", 0xF3870080, 0xFFFFFF80, "" },
-	{ "vrot.p",	 0xF3A00080, 0xFFE08080, "" },
-	{ "vadd.s",	 0x60000000, 0xFF808080, "" },
-	{ "vsub.s",	 0x60800000, 0xFF808080, "" },
-	{ "vdiv.s",	 0x63800000, 0xFF808080, "" },
-	{ "vmul.s",	 0x64000000, 0xFF808080, "" },
-	{ "vcmp.s",	 0x6C000000, 0xFF8080F0, "" },
-	{ "vcmp.s",	 0x6C000000, 0xFFFF80F0, "" },
-	{ "vcmp.s",	 0x6C000000, 0xFFFFFFF0, "" },
-	{ "vmin.s",	 0x6D000000, 0xFF808080, "" },
-	{ "vmax.s",	 0x6D800000, 0xFF808080, "" },
-	{ "vsgn.s",	 0xD04A0000, 0xFFFF8080, "" },
-	{ "vcst.s",	 0xD0600000, 0xFFE0FF80, "" },
-	{ "vscmp.s", 0x6E800000, 0xFF808080, "" },
-	{ "vsge.s",	 0x6F000000, 0xFF808080, "" },
-	{ "vslt.s",	 0x6F800000, 0xFF808080, "" },
+	{ "vtfm3.t", 0xF1008000, 0xFF808080, "" },
+	{ "vtfm4.q", 0xF1808080, 0xFF808080, "" },
+	{ "vus2i.p", 0xD03A0080, 0xFFFF8080, "" },
 	{ "vus2i.s", 0xD03A0000, 0xFFFF8080, "" },
-	{ "vs2i.s",	 0xD03B0000, 0xFFFF8080, "" },
-	{ "vmov.s",	 0xD0000000, 0xFFFF8080, "" },
-	{ "vabs.s",	 0xD0010000, 0xFFFF8080, "" },
-	{ "vneg.s",	 0xD0020000, 0xFFFF8080, "" },
-	{ "vsat0.s", 0xD0040000, 0xFFFF8080, "" },
-	{ "vsat1.s", 0xD0050000, 0xFFFF8080, "" },
-	{ "vzero.s", 0xD0060000, 0xFFFFFF80, "" },
-	{ "vone.s",	 0xD0070000, 0xFFFFFF80, "" },
-	{ "vrcp.s",	 0xD0100000, 0xFFFF8080, "" },
-	{ "vrsq.s",	 0xD0110000, 0xFFFF8080, "" },
-	{ "vsin.s",	 0xD0120000, 0xFFFF8080, "" },
-	{ "vcos.s",	 0xD0130000, 0xFFFF8080, "" },
-	{ "vexp2.s", 0xD0140000, 0xFFFF8080, "" },
-	{ "vlog2.s", 0xD0150000, 0xFFFF8080, "" },
-	{ "vsqrt.s", 0xD0160000, 0xFFFF8080, "" },
-	{ "vasin.s", 0xD0170000, 0xFFFF8080, "" },
-	{ "vnrcp.s", 0xD0180000, 0xFFFF8080, "" },
-	{ "vnsin.s", 0xD01A0000, 0xFFFF8080, "" },
-	{ "vrexp2.s", 0xD01C0000, 0xFFFF8080, "" },
-	{ "vrnds.s", 0xD0200000, 0xFFFF80FF, "" },
-	{ "vrndi.s", 0xD0210000, 0xFFFFFF80, "" },
-	{ "vrndf1.s", 0xD0220000, 0xFFFFFF80, "" },
-	{ "vrndf2.s", 0xD0230000, 0xFFFFFF80, "" },
-	{ "vh2f.s",	 0xD0330000, 0xFFFF8080, "" },
-	{ "vsbz.s",	 0xD0360000, 0xFFFF8080, "" },
-	{ "vsbn.s",	 0x61000000, 0xFF808080, "" },
-	{ "vlgb.s",	 0xD0370000, 0xFFFF8080, "" },
-	{ "vocp.s",	 0xD0440000, 0xFFFF8080, "" },
-	{ "vsocp.s", 0xD0450000, 0xFFFF8080, "" },
-	{ "vf2in.s", 0xD2000000, 0xFFE08080, "" },
-	{ "vf2iz.s", 0xD2200000, 0xFFE08080, "" },
-	{ "vf2iu.s", 0xD2400000, 0xFFE08080, "" },
-	{ "vf2id.s", 0xD2600000, 0xFFE08080, "" },
-	{ "vi2f.s",	 0xD2800000, 0xFFE08080, "" },
-	{ "vcmovt.s", 0xD2A00000, 0xFFF88080, "" },
-	{ "vcmovf.s", 0xD2A80000, 0xFFF88080, "" },
+	{ "vwb.q",	 0xF8000002, 0xFC000002, "" },
 	{ "vwbn.s",	 0xD3000000, 0xFF008080, "" },
-	{ "vpfxs",	 0xDC000000, 0xFF000000, "" },
-	{ "vpfxt",	 0xDD000000, 0xFF000000, "" },
-	{ "vpfxd",	 0xDE000000, 0xFF000000, "" },
-	{ "viim.s",	 0xDF000000, 0xFF800000, "" },
-	{ "vfim.s",	 0xDF800000, 0xFF800000, "" },
-	{ "vnop",	 0xFFFF0000, 0xFFFFFFFF, "" },
-	{ "vflush",	 0xFFFF040D, 0xFFFFFFFF, "" },
-	{ "vsync",	 0xFFFF0320, 0xFFFFFFFF, "" },
-	{ "vsync",	 0xFFFF0000, 0xFFFF0000, "" },
+	{ "vzero.p", 0xD0060080, 0xFFFFFF80, "" },
+	{ "vzero.q", 0xD0068080, 0xFFFFFF80, "" },
+	{ "vzero.s", 0xD0060000, 0xFFFFFF80, "" },
+	{ "vzero.t", 0xD0068000, 0xFFFFFF80, "" },
 	};
 
 static const char *regs[32] =
@@ -534,7 +541,8 @@ static const char *dr_regs[16] =
 	"IBA", "IBAM", NULL, NULL, "DBA", "DBAM", "DBD", "DBDM"
 };
 
-/* Add a register state block so we can convert lui/addiu to li */
+
+/* TODO: Add a register state block so we can convert lui/addiu to li */
 
 static int g_hexints = 0;
 static int g_mregs = 0;
@@ -815,6 +823,113 @@ static char *print_debugreg(int reg, char *output)
 	return output + len;
 }
 
+static char *print_vfpusingle(int reg, char *output)
+{
+	int len;
+
+	len = sprintf(output, "S%d%d%d", (reg >> 2) & 7, reg & 3, (reg >> 5) & 3);
+
+	return output + len;
+}
+
+static char *print_vfpu_reg(int reg, int offset, char one, char two, char *output)
+{
+	int len;
+
+	if((reg >> 5) & 1)
+	{
+		len = sprintf(output, "%c%d%d%d", two, (reg >> 2) & 7, offset, reg & 3);
+	}
+	else
+	{
+		len = sprintf(output, "%c%d%d%d", one, (reg >> 2) & 7, reg & 3, offset);
+	}
+
+	return output + len;
+}
+
+static char *print_vfpuquad(int reg, char *output)
+{
+	return print_vfpu_reg(reg, 0, 'C', 'R', output);
+}
+
+static char *print_vfpupair(int reg, char *output)
+{
+	if((reg >> 6) & 1)
+	{
+		return print_vfpu_reg(reg, 2, 'C', 'R', output);
+	}
+	else
+	{
+		return print_vfpu_reg(reg, 0, 'C', 'R', output);
+	}
+}
+
+static char *print_vfputriple(int reg, char *output)
+{
+	if((reg >> 6) & 1)
+	{
+		return print_vfpu_reg(reg, 1, 'C', 'R', output);
+	}
+	else
+	{
+		return print_vfpu_reg(reg, 0, 'C', 'R', output);
+	}
+}
+
+static char *print_vfpumpair(int reg, char *output)
+{
+	if((reg >> 6) & 1)
+	{
+		return print_vfpu_reg(reg, 2, 'M', 'E', output);
+	}
+	else
+	{
+		return print_vfpu_reg(reg, 0, 'M', 'E', output);
+	}
+}
+
+static char *print_vfpumtriple(int reg, char *output)
+{
+	if((reg >> 6) & 1)
+	{
+		return print_vfpu_reg(reg, 1, 'M', 'E', output);
+	}
+	else
+	{
+		return print_vfpu_reg(reg, 0, 'M', 'E', output);
+	}
+}
+
+static char *print_vfpumatrix(int reg, char *output)
+{
+	return print_vfpu_reg(reg, 0, 'M', 'E', output);
+}
+
+static char *print_vfpureg(int reg, char type, char *output)
+{
+	switch(type)
+	{
+		case 's': return print_vfpusingle(reg, output);
+				  break;
+		case 'q': return print_vfpuquad(reg, output);
+				  break;
+		case 'p': return print_vfpupair(reg, output);
+				  break;
+		case 't': return print_vfputriple(reg, output);
+				  break;
+		case 'm': return print_vfpumpair(reg, output);
+				  break;
+		case 'n': return print_vfpumtriple(reg, output);
+				  break;
+		case 'o': return print_vfpumatrix(reg, output);
+				  break;
+		default: break;
+	};
+
+	return output;
+}
+
 static void decode_args(unsigned int opcode, unsigned int PC, const char *fmt, char *output, unsigned int *realregs)
 {
 	int i = 0;
@@ -867,13 +982,19 @@ static void decode_args(unsigned int opcode, unsigned int PC, const char *fmt, c
 						  break;
 				case 'n': output = print_int(RD(opcode) + 1, output);
 						  break;
-				case 'x': break;
-				case 'y': break;
-				case 'z': break;
+				case 'x': if(fmt[i+1]) { output = print_vfpureg(VT(opcode), fmt[i+1], output); i++; }break;
+				case 'y': if(fmt[i+1]) { output = print_vfpureg(VS(opcode), fmt[i+1], output); i++; }break;
+				case 'z': if(fmt[i+1]) { output = print_vfpureg(VD(opcode), fmt[i+1], output); i++; }break;
 				case 'v': break;
+				case 'X': if(fmt[i+1]) { output = print_vfpureg(VO(opcode), fmt[i+1], output); i++; }
+						  break;
+				case 'Z': output = print_imm(VCC(opcode), output);
+						  break;
 				case 'c': output = print_hex(CODE(opcode), output);
 						  break;
 				case 'C': output = print_syscall(CODE(opcode), output);
+						  break;
+				case 'Y': output = print_ofs(IMM(opcode) & ~3, RS(opcode), output, realregs);
 						  break;
 				case 0: goto end;
 				default: break;

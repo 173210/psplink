@@ -36,6 +36,10 @@ struct mem_entry
 
 static struct mem_entry g_memareas[] = 
 {
+	{ 0x00010000, (16 * 1024), MEM_ATTRIB_ALL, "Scratchpad", 0 },
+	{ 0x40010000, (16 * 1024), MEM_ATTRIB_ALL, "Scratchpad (uncached)", 0 },
+	{ 0x04000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM", 0 },
+	{ 0x44000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM (uncached)", 0 },
 	{ 0x08800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "User memory", 0 },
 	{ 0x48800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "User memory (uncached)", 0 },
 	{ 0x88000000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (low)", 0 },
@@ -45,10 +49,6 @@ static struct mem_entry g_memareas[] =
 	{ 0xC8400000, (4 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (mid v1.0 only uncached)", 1 },
 	{ 0x88800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (high)", 0 },
 	{ 0xA8800000, (24 * 1024 * 1024), MEM_ATTRIB_ALL, "Kernel memory (high uncached)", 0 },
-	{ 0x04000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM", 0 },
-	{ 0x44000000, (2 * 1024 * 1024), MEM_ATTRIB_ALL, "VRAM (uncached)", 0 },
-	{ 0x00010000, (16 * 1024), MEM_ATTRIB_ALL, "Scratchpad", 0 },
-	{ 0x40010000, (16 * 1024), MEM_ATTRIB_ALL, "Scratchpad (uncached)", 0 },
 	{ 0xBFC00000, (1 * 1024 * 1024), MEM_ATTRIB_ALL, "Internal RAM", 0 },
 	{ 0, 0, 0, NULL }
 };

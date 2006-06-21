@@ -826,12 +826,9 @@ int decode_hexstr(const char *str, unsigned char *data, int max)
 	return hexlen / 2;
 }
 
-SceUID refer_module_by_addr(unsigned int addr, SceKernelModuleInfo *info)
+static SceUID module_refer(SceModule *pMod, SceKernelModuleInfo *info)
 {
-	SceModule *pMod;
 	SceUID uid = -1;
-
-	pMod = sceKernelFindModuleByAddress(addr);
 	if(pMod)
 	{
 		uid = pMod->modid;
@@ -840,26 +837,17 @@ SceUID refer_module_by_addr(unsigned int addr, SceKernelModuleInfo *info)
 			uid = -1;
 		}
 	}
-
 	return uid;
+}
+
+SceUID refer_module_by_addr(unsigned int addr, SceKernelModuleInfo *info)
+{
+	return module_refer(sceKernelFindModuleByAddress(addr), info);
 }
 
 SceUID refer_module_by_name(const char *name, SceKernelModuleInfo *info)
 {
-	SceModule *pMod;
-	SceUID uid = -1;
-
-	pMod = sceKernelFindModuleByName(name);
-	if(pMod)
-	{
-		uid = pMod->modid;
-		if((info) && (psplinkReferModule(pMod->modid, info) == 0))
-		{
-			uid = -1;
-		}
-	}
-
-	return uid;
+	return module_refer(sceKernelFindModuleByName(name), info);
 }
 
 int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info)
@@ -899,8 +887,6 @@ static int is_nan(float val)
 	p = (void *) &val;
 	conv = *((unsigned int *) p);
 	sign = (conv >> 31) & 1;
-
-	//printf("conv %08X\n", conv);
 
 	exp = (conv >> 23) & 0xff;
 	mantissa = conv & 0x7fffff;

@@ -224,15 +224,7 @@ static SceUID get_module_uid(const char *name)
 
 	if(name[0] == '@')
 	{
-		SceModule *pMod;
-
-		pMod = sceKernelFindModuleByName(&name[1]);
-		if(pMod == NULL)
-		{
-			printf("ERROR: Invalid name %s\n", name);
-			return CMD_ERROR;
-		}
-		uid = pMod->modid;
+		uid = refer_module_by_name(&name[1], NULL);
 	}
 	else
 	{
@@ -2991,7 +2983,6 @@ static int memprot_cmd(int argc, char **argv)
 	}
 	else
 	{
-		printf("Must specify on or off for memory protection\n");
 		return CMD_ERROR;
 	}
 
@@ -3638,6 +3629,13 @@ static int power_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int poweroff_cmd(int argc, char **argv)
+{
+	scePowerRequestStandby();
+
+	return CMD_OK;
+}
+
 static int clock_cmd(int argc, char **argv)
 {
 	u32 val1, val2, val3;
@@ -3731,10 +3729,6 @@ static int debugreg_cmd(int argc, char **argv)
 		{
 			printf("Debug Register: 0x%08X\n", *debug);
 		}
-	}
-	else
-	{
-		printf("Internal Error: Could not get debug register\n");
 	}
 
 	return CMD_OK;
@@ -3916,6 +3910,7 @@ const struct sh_command commands[] = {
 	{ "confset", NULL, confset_cmd, 1, "Set a configuration value", "name [value]"},
 	{ "confdel", NULL, confdel_cmd, 1, "Delete a configuration value", "name"},
 	{ "power", NULL, power_cmd, 0, "Print power information", ""},
+	{ "poweroff", NULL, poweroff_cmd, 0, "Power off the PSP", ""},
 	{ "clock", NULL, clock_cmd, 3, "Set the clock frequencies", "cpu ram bus" },
 	{ "tty", NULL, tty_cmd, 0, "Enter TTY mode. All input goes to stdin", ""},
 	{ "tonid", NULL, tonid_cmd, 1, "Calculate the NID from a name", "name" },
