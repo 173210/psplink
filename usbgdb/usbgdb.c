@@ -19,10 +19,9 @@
 #include <unistd.h>
 #include <gdb-common.h>
 #include <usbhostfs.h>
+#include <usbasync.h>
 
-int usb_read_async_data(unsigned int chan, unsigned char *data, int len);
-int usb_write_async_data(unsigned int chan, const void *data, int size);
-void usb_async_flush(unsigned int chan);
+struct AsyncEndpoint g_endp;
 
 int isInit(void)
 {
@@ -31,7 +30,7 @@ int isInit(void)
 
 int putDebugChar(unsigned char ch)
 {
-	return usb_write_async_data(WRITE_GDB, &ch, 1);
+	return usbAsyncWrite(ASYNC_GDB, &ch, 1);
 }
 
 int getDebugChar(unsigned char *ch)
@@ -42,7 +41,7 @@ int getDebugChar(unsigned char *ch)
 
 	do
 	{
-		ret = usb_read_async_data(READ_GDB, ch, 1);
+		ret = usbAsyncRead(ASYNC_GDB, ch, 1);
 	}
 	while(ret < 1);
 
@@ -51,14 +50,16 @@ int getDebugChar(unsigned char *ch)
 
 int writeDebugData(void *data, int len)
 {
-	return usb_write_async_data(WRITE_GDB, data, len);
+	return usbAsyncWrite(ASYNC_GDB, data, len);
 }
 
 void start_server(void)
 {
+	usbAsyncRegister(ASYNC_GDB, &g_endp);
 	GdbMain();
 }
 
 void stop_server(void)
 {
+	usbAsyncUnregister(ASYNC_GDB);
 }

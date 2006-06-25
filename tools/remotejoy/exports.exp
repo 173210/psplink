@@ -9,14 +9,4 @@ PSP_EXPORT_FUNC(module_stop)
 PSP_EXPORT_VAR(module_info)
 PSP_EXPORT_END
 
-PSP_EXPORT_START(USBHostFS, 0, 0x4001)
-PSP_EXPORT_FUNC(usbAsyncRegister)
-PSP_EXPORT_FUNC(usbAsyncUnregister)
-PSP_EXPORT_FUNC(usbAsyncRead)
-PSP_EXPORT_FUNC(usbAsyncWrite)
-PSP_EXPORT_FUNC(usbAsyncFlush)
-PSP_EXPORT_FUNC(usbWaitForConnect)
-PSP_EXPORT_FUNC(usbWriteBulkData)
-PSP_EXPORT_END
-
 PSP_END_EXPORTS

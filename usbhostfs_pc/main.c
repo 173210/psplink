@@ -83,10 +83,9 @@ struct FileHandle open_files[MAX_FILES];
 struct DirHandle  open_dirs[MAX_DIRS];
 
 static usb_dev_handle *g_hDev = NULL;
-static int g_shellserv = -1;
-static int g_shellsock = -1;
-static int g_gdbserv = -1;
-static int g_gdbsock = -1;
+
+static int g_servsocks[MAX_ASYNC_CHANNELS];
+static int g_clientsocks[MAX_ASYNC_CHANNELS];
 static const char *g_mapfile = NULL;
 static int g_bulkfd = -1;
 
@@ -100,8 +99,8 @@ int  g_nocase = 0;
 int  g_msslash = 0;
 int  g_pid = HOSTFSDRIVER_PID;
 int  g_timeout = USB_TIMEOUT;
-unsigned short g_shellport = BASE_PORT;
-unsigned short g_gdbport = BASE_PORT+1;
+int  g_globalbind = 0;
+unsigned short g_baseport = BASE_PORT;
 
 #define V_PRINTF(level, fmt, ...) { if(g_verbose >= level) { fprintf(stderr, fmt, ## __VA_ARGS__); } }
 
@@ -2093,29 +2092,15 @@ void do_async(struct AsyncCommand *cmd, int readlen)
 	if(readlen > sizeof(struct AsyncCommand))
 	{
 		data = (uint8_t *) cmd + sizeof(struct AsyncCommand);
-		switch(LE32(cmd->channel))
+		unsigned int chan = LE32(cmd->channel);
+		if((chan < MAX_ASYNC_CHANNELS) && (g_clientsocks[chan] >= 0))
 		{
-			case WRITE_STDOUT: 
-			case WRITE_STDERR:
-			case WRITE_SHELL:
-					if(g_shellsock >= 0)
-					{
-						write(g_shellsock, data, readlen - sizeof(struct AsyncCommand));
-					}
-					break;
-			case WRITE_GDB: if(g_gdbdebug)
-					{
-						print_gdbdebug(0, data, readlen - sizeof(struct AsyncCommand));
-					}
-
-					if(g_gdbsock >= 0)
-					{
-						write(g_gdbsock, data, readlen - sizeof(struct AsyncCommand));
-					}
-					break;
-			default: /* Do nothing */
-					break;
-		};
+			write(g_clientsocks[chan], data, readlen - sizeof(struct AsyncCommand));
+			if((chan == ASYNC_GDB) && (g_gdbdebug))
+			{
+				print_gdbdebug(0, data, readlen - sizeof(struct AsyncCommand));
+			}
+		}
 	}
 }
 
@@ -2272,7 +2257,7 @@ int parse_args(int argc, char **argv)
 	{
 		int ch;
 
-		ch = getopt(argc, argv, "vhdcmg:s:p:f:t:");
+		ch = getopt(argc, argv, "vghdcmb:p:f:t:");
 		if(ch == -1)
 		{
 			break;
@@ -2282,9 +2267,9 @@ int parse_args(int argc, char **argv)
 		{
 			case 'v': g_verbose++;
 					  break;
-			case 'g': g_gdbport = atoi(optarg);
+			case 's': g_baseport = atoi(optarg);
 					  break;
-			case 's': g_shellport = atoi(optarg);
+			case 'g': g_globalbind = 1;
 					  break;
 			case 'p': g_pid = strtoul(optarg, NULL, 0);
 					  break;
@@ -2345,8 +2330,8 @@ void print_help(void)
 	fprintf(stderr, "Options:\n");
 	fprintf(stderr, "-v                : Set verbose mode\n");
 	fprintf(stderr, "-vv               : More verbose\n");
-	fprintf(stderr, "-s port           : Specify local shell port (default %d)\n", BASE_PORT);
-	fprintf(stderr, "-g port           : Specify local GDB port (default %d)\n", BASE_PORT+1);
+	fprintf(stderr, "-b port           : Specify the base async port (default %d)\n", BASE_PORT);
+	fprintf(stderr, "-g                : Specify global bind for the sockets, as opposed to just localhost\n");
 	fprintf(stderr, "-p pid            : Specify the product ID of the PSP device\n");
 	fprintf(stderr, "-d                : Print GDB transfers\n");
 	fprintf(stderr, "-f filename       : Load the host drive mappings from a file\n");
@@ -2358,28 +2343,21 @@ void print_help(void)
 
 void shutdown_socket(void)
 {
-	if(g_shellsock >= 0)
-	{
-		close(g_shellsock);
-		g_shellsock = -1;
-	}
+	int i;
 
-	if(g_shellserv >= 0)
+	for(i = 0; i < MAX_ASYNC_CHANNELS; i++)
 	{
-		close(g_shellserv);
-		g_shellserv = -1;
-	}
+		if(g_clientsocks[i] >= 0)
+		{
+			close(g_clientsocks[i]);
+			g_clientsocks[i] = -1;
+		}
 
-	if(g_gdbsock >= 0)
-	{
-		close(g_gdbsock);
-		g_gdbsock = -1;
-	}
-
-	if(g_gdbserv >= 0)
-	{
-		close(g_gdbserv);
-		g_gdbserv = -1;
+		if(g_servsocks[i] >= 0)
+		{
+			close(g_servsocks[i]);
+			g_servsocks[i] = -1;
+		}
 	}
 }
 
@@ -2421,7 +2399,15 @@ int make_socket(unsigned short port)
 
 	name.sin_family = AF_INET;
 	name.sin_port = htons(port);
-	name.sin_addr.s_addr = htonl(INADDR_ANY);
+	if(g_globalbind)
+	{
+		name.sin_addr.s_addr = htonl(INADDR_ANY);
+	}
+	else
+	{
+		name.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+	}
+
 	if(bind(sock, (struct sockaddr *) &name, sizeof(name)) < 0)
 	{
 		perror("bind");
@@ -2869,15 +2855,15 @@ int init_readline(void)
 
 void *async_thread(void *arg)
 {
-	char shell[512];
-	char gdb[512];
-	char *shdata, *gdbdata;
+	char buf[512];
+	char *data;
 	struct AsyncCommand *cmd;
 	fd_set read_set, read_save;
 	struct sockaddr_in client;
 	size_t size;
 	int max_fd = 0;
 	int flag = 1;
+	int i;
 
 #ifdef READLINE_SHELL
 	init_readline();
@@ -2887,34 +2873,21 @@ void *async_thread(void *arg)
 	FD_SET(STDIN_FILENO, &read_save);
 	max_fd = STDIN_FILENO;
 
-	if(g_shellserv >= 0)
+	for(i = 0; i < MAX_ASYNC_CHANNELS; i++)
 	{
-		FD_SET(g_shellserv, &read_save);
-		if(g_shellserv > max_fd)
+		if(g_servsocks[i] >= 0)
 		{
-			max_fd = g_shellserv;
+			FD_SET(g_servsocks[i], &read_save);
+			if(g_servsocks[i] > max_fd)
+			{
+				max_fd = g_servsocks[i];
+			}
 		}
 	}
 
-	if(g_gdbserv >= 0)
-	{
-		FD_SET(g_gdbserv, &read_save);
-		if(g_gdbserv > max_fd)
-		{
-			max_fd = g_gdbserv;
-		}
-	}
-
-	cmd = (struct AsyncCommand *) shell;
+	cmd = (struct AsyncCommand *) buf;
 	cmd->magic = LE32(ASYNC_MAGIC);
-	cmd->channel = LE32(READ_SHELL);
-
-	cmd = (struct AsyncCommand *) gdb;
-	cmd->magic = LE32(ASYNC_MAGIC);
-	cmd->channel = LE32(READ_GDB);
-
-	shdata = shell + sizeof(struct AsyncCommand);
-	gdbdata = gdb + sizeof(struct AsyncCommand);
+	data = buf + sizeof(struct AsyncCommand);
 
 	while(1)
 	{
@@ -2935,103 +2908,62 @@ void *async_thread(void *arg)
 #endif
 			}
 
-			if(g_shellserv >= 0)
+			for(i = 0; i < MAX_ASYNC_CHANNELS; i++)
 			{
-				if(FD_ISSET(g_shellserv, &read_set))
+				if(g_servsocks[i] >= 0)
 				{
-					if(g_shellsock >= 0)
+					if(FD_ISSET(g_servsocks[i], &read_set))
 					{
-						FD_CLR(g_shellsock, &read_save);
-						close(g_shellsock);
-					}
-					size = sizeof(client);
-					g_shellsock = accept(g_shellserv, (struct sockaddr *) &client, &size);
-					if(g_shellsock >= 0)
-					{
-						printf("Accepting shell connection from %s\n", inet_ntoa(client.sin_addr));
-						FD_SET(g_shellsock, &read_save);
-						setsockopt(g_shellsock, SOL_TCP, TCP_NODELAY, &flag, sizeof(int));
-						if(g_shellsock > max_fd)
+						if(g_clientsocks[i] >= 0)
 						{
-							max_fd = g_shellsock;
+							FD_CLR(g_clientsocks[i], &read_save);
+							close(g_clientsocks[i]);
+						}
+						size = sizeof(client);
+						g_clientsocks[i] = accept(g_servsocks[i], (struct sockaddr *) &client, &size);
+						if(g_clientsocks[i] >= 0)
+						{
+							printf("Accepting async connection (%d) from %s\n", i, inet_ntoa(client.sin_addr));
+							FD_SET(g_clientsocks[i], &read_save);
+							setsockopt(g_clientsocks[i], SOL_TCP, TCP_NODELAY, &flag, sizeof(int));
+							if(g_clientsocks[i] > max_fd)
+							{
+								max_fd = g_clientsocks[i];
+							}
 						}
 					}
 				}
 			}
 
-			if(g_gdbserv >= 0)
+			for(i = 0; i < MAX_ASYNC_CHANNELS; i++)
 			{
-				if(FD_ISSET(g_gdbserv, &read_set))
+				if(g_clientsocks[i] >= 0)
 				{
-					if(g_gdbsock >= 0)
+					if(FD_ISSET(g_clientsocks[i], &read_set))
 					{
-						FD_CLR(g_gdbsock, &read_save);
-						close(g_gdbsock);
-					}
-					size = sizeof(client);
-					g_gdbsock = accept(g_gdbserv, (struct sockaddr *) &client, &size);
-					if(g_gdbsock >= 0)
-					{
-						printf("Accepting gdb connection from %s\n", inet_ntoa(client.sin_addr));
-						FD_SET(g_gdbsock, &read_save);
-						setsockopt(g_gdbsock, SOL_TCP, TCP_NODELAY, &flag, sizeof(int));
-						if(g_gdbsock > max_fd)
+						int readbytes;
+
+						readbytes = read(g_clientsocks[i], data, sizeof(buf) - sizeof(struct AsyncCommand));
+						if(readbytes > 0)
 						{
-							max_fd = g_gdbsock;
+							if((i == ASYNC_GDB) && (g_gdbdebug))
+							{
+								print_gdbdebug(1, (uint8_t *) data, readbytes);
+							}
+
+							if(g_hDev)
+							{
+								cmd->channel = LE32(i);
+								euid_usb_bulk_write(g_hDev, 0x3, buf, readbytes+sizeof(struct AsyncCommand), 10000);
+							}
 						}
-					}
-				}
-			}
-
-			if(g_shellsock >= 0)
-			{
-				if(FD_ISSET(g_shellsock, &read_set))
-				{
-					int readbytes;
-
-					readbytes = read(g_shellsock, shdata, sizeof(shell) - sizeof(struct AsyncCommand));
-					if(readbytes > 0)
-					{
-						if(g_hDev)
+						else
 						{
-							euid_usb_bulk_write(g_hDev, 0x3, shell, readbytes+sizeof(struct AsyncCommand), 10000);
+							FD_CLR(g_clientsocks[i], &read_save);
+							close(g_clientsocks[i]);
+							g_clientsocks[i] = -1;
+							printf("Closing async connection (%d)\n", i);
 						}
-					}
-					else
-					{
-						FD_CLR(g_shellsock, &read_save);
-						close(g_shellsock);
-						g_shellsock = -1;
-						printf("Closing shell connection\n");
-					}
-				}
-			}
-
-			if(g_gdbsock >= 0)
-			{
-				if(FD_ISSET(g_gdbsock, &read_set))
-				{
-					int readbytes;
-
-					readbytes = read(g_gdbsock, gdbdata, sizeof(gdb) - sizeof(struct AsyncCommand));
-					if(readbytes > 0)
-					{
-						if(g_gdbdebug)
-						{
-							print_gdbdebug(1, (uint8_t *) gdbdata, readbytes);
-						}
-
-						if(g_hDev)
-						{
-							euid_usb_bulk_write(g_hDev, 0x3, gdb, readbytes+sizeof(struct AsyncCommand), 10000);
-						}
-					}
-					else
-					{
-						FD_CLR(g_gdbsock, &read_save);
-						close(g_gdbsock);
-						g_gdbsock = -1;
-						printf("Closing gdb connection\n");
 					}
 				}
 			}
@@ -3043,6 +2975,8 @@ void *async_thread(void *arg)
 
 int main(int argc, char **argv)
 {
+	int i;
+
 	printf("USBHostFS (c) TyRaNiD 2k6\n");
 #ifndef __CYGWIN__
 	if(geteuid() != 0)
@@ -3063,9 +2997,11 @@ int main(int argc, char **argv)
 			load_mapfile(g_mapfile);
 		}
 
-		/* Create sockets */
-		g_shellserv = make_socket(g_shellport);
-		g_gdbserv = make_socket(g_gdbport);
+		for(i = 0; i < MAX_ASYNC_CHANNELS; i++)
+		{
+			g_servsocks[i] = make_socket(g_baseport + i);
+			g_clientsocks[i] = -1;
+		}
 
 		pthread_create(&thid, NULL, async_thread, NULL);
 		start_hostfs();

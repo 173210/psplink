@@ -20,6 +20,7 @@
 #include <pspusb.h>
 #include <pspusbbus.h>
 #include "usbhostfs.h"
+#include "usbasync.h"
 
 int psplinkSetK1(int k1);
 
@@ -42,14 +43,6 @@ enum UsbTransEvents
 	USB_TRANSEVENT_BULKIN_DONE = 2,
 };
 
-struct AsyncEndpoint
-{
-	unsigned char buffer[MAX_ASYNC_BUFFER];
-	int read_pos;
-	int write_pos;
-	int size;
-};
-
 /* Main USB thread id */
 static SceUID g_thid = -1;
 /* Main USB event flag */
@@ -69,7 +62,7 @@ static struct UsbdDeviceReq g_async_req;
 /* Indicates we have a connection to the PC */
 static int g_connected = 0;
 /* Buffers for async data */
-static struct AsyncEndpoint g_async_chan[MAX_ASYNC_READ_CHANNELS];
+static struct AsyncEndpoint *g_async_chan[MAX_ASYNC_CHANNELS];
 
 /* HI-Speed device descriptor */
 struct DeviceDescriptor devdesc_hi = 
@@ -643,33 +636,108 @@ void fill_async(void *async_data, int len)
 		len -= sizeof(struct AsyncCommand);
 		data = async_data + sizeof(struct AsyncCommand);
 		cmd = (struct AsyncCommand *) async_data;
+
 		DEBUG_PRINTF("magic %08X, channel %d\n", cmd->magic, cmd->channel);
-		if((cmd->magic == ASYNC_MAGIC) && (cmd->channel >= 0) && (cmd->channel < MAX_ASYNC_READ_CHANNELS))
+		intc = pspSdkDisableInterrupts();
+		if((cmd->magic == ASYNC_MAGIC) && (cmd->channel >= 0) && (cmd->channel < MAX_ASYNC_CHANNELS) && (g_async_chan[cmd->channel]))
 		{
-			intc = pspSdkDisableInterrupts();
-			sizeleft = len < (MAX_ASYNC_BUFFER - g_async_chan[cmd->channel].size) ? len 
-						: (MAX_ASYNC_BUFFER - g_async_chan[cmd->channel].size);
+			struct AsyncEndpoint *pEndp = g_async_chan[cmd->channel];
+			sizeleft = len < (MAX_ASYNC_BUFFER - pEndp->size) ? len 
+						: (MAX_ASYNC_BUFFER - pEndp->size);
 			while(sizeleft > 0)
 			{
-				g_async_chan[cmd->channel].buffer[g_async_chan[cmd->channel].write_pos++] = *data++;
-				g_async_chan[cmd->channel].write_pos %= MAX_ASYNC_BUFFER;
-				g_async_chan[cmd->channel].size++;
+				pEndp->buffer[pEndp->write_pos++] = *data++;
+				pEndp->write_pos %= MAX_ASYNC_BUFFER;
+				pEndp->size++;
 				sizeleft--;
 			}
 			sceKernelSetEventFlag(g_asyncevent, (1 << cmd->channel));
 			DEBUG_PRINTF("Async chan %d - read_pos %d - write_pos %d - size %d\n", cmd->channel, 
-					g_async_chan[cmd->channel].read_pos, g_async_chan[cmd->channel].write_pos,
-					g_async_chan[cmd->channel].size);
-			pspSdkEnableInterrupts(intc);
+					pEndp->read_pos, pEndp->write_pos,
+					pEndp->size);
 		}
 		else
 		{
 			MODPRINTF("Error in command header\n");
 		}
+		pspSdkEnableInterrupts(intc);
 	}
 }
 
-int usb_read_async_data(unsigned int chan, unsigned char *data, int len)
+int usbAsyncRegister(unsigned int chan, struct AsyncEndpoint *endp)
+{
+	int intc;
+	int ret = -1;
+
+	intc = pspSdkDisableInterrupts();
+	do
+	{
+		if(endp == NULL)
+		{
+			break;
+		}
+
+		if(chan == ASYNC_ALLOC_CHAN)
+		{
+			int i;
+
+			for(i = ASYNC_USER; i < MAX_ASYNC_CHANNELS; i++)
+			{
+				if(g_async_chan[i] == NULL)
+				{
+					chan = i;
+					break;
+				}
+			}
+
+			if(i == MAX_ASYNC_CHANNELS)
+			{
+				break;
+			}
+		}
+		else
+		{
+			if((chan >= MAX_ASYNC_CHANNELS) || (g_async_chan[chan] != NULL))
+			{
+				break;
+			}
+		}
+
+		g_async_chan[chan] = endp;
+		usbAsyncFlush(chan);
+
+		ret = chan;
+	}
+	while(0);
+	pspSdkEnableInterrupts(intc);
+
+	return ret;
+}
+
+int usbAsyncUnregister(unsigned int chan)
+{
+	int intc;
+	int ret = -1;
+
+	intc = pspSdkDisableInterrupts();
+	do
+	{
+		if((chan >= MAX_ASYNC_CHANNELS) || (g_async_chan[chan] == NULL))
+		{
+			break;
+		}
+
+		g_async_chan[chan] = NULL;
+
+		ret = 0;
+	}
+	while(0);
+	pspSdkEnableInterrupts(intc);
+
+	return ret;
+}
+
+int usbAsyncRead(unsigned int chan, unsigned char *data, int len)
 {
 	int ret;
 	int intc;
@@ -678,7 +746,7 @@ int usb_read_async_data(unsigned int chan, unsigned char *data, int len)
 
 	k1 = psplinkSetK1(0);
 
-	if(chan >= MAX_ASYNC_READ_CHANNELS)
+	if((chan >= MAX_ASYNC_CHANNELS) || (g_async_chan[chan] == NULL))
 	{
 		return -1;
 	}
@@ -690,15 +758,15 @@ int usb_read_async_data(unsigned int chan, unsigned char *data, int len)
 	}
 
 	intc = pspSdkDisableInterrupts();
-	len = len < g_async_chan[chan].size ? len : g_async_chan[chan].size;
+	len = len < g_async_chan[chan]->size ? len : g_async_chan[chan]->size;
 	for(i = 0; i < len; i++)
 	{
-		data[i] = g_async_chan[chan].buffer[g_async_chan[chan].read_pos++];
-		g_async_chan[chan].read_pos %= MAX_ASYNC_BUFFER;
-		g_async_chan[chan].size--;
+		data[i] = g_async_chan[chan]->buffer[g_async_chan[chan]->read_pos++];
+		g_async_chan[chan]->read_pos %= MAX_ASYNC_BUFFER;
+		g_async_chan[chan]->size--;
 	}
 
-	if(g_async_chan[chan].size != 0)
+	if(g_async_chan[chan]->size != 0)
 	{
 		sceKernelSetEventFlag(g_asyncevent, 1 << chan);
 	}
@@ -709,23 +777,24 @@ int usb_read_async_data(unsigned int chan, unsigned char *data, int len)
 	return len;
 }
 
-void usb_async_flush(unsigned int chan)
+void usbAsyncFlush(unsigned int chan)
 {
 	int intc;
 
-	if(chan >= MAX_ASYNC_READ_CHANNELS)
+	if((chan >= MAX_ASYNC_CHANNELS) || (g_async_chan[chan] == NULL))
 	{
 		return;
 	}
 
 	intc = pspSdkDisableInterrupts();
-	g_async_chan[chan].size = 0;
-	g_async_chan[chan].read_pos = 0;
-	g_async_chan[chan].write_pos = 0;
+	g_async_chan[chan]->size = 0;
+	g_async_chan[chan]->read_pos = 0;
+	g_async_chan[chan]->write_pos = 0;
+	sceKernelClearEventFlag(g_asyncevent, ~(1 << chan));
 	pspSdkEnableInterrupts(intc);
 }
 
-int usb_write_async_data(unsigned int chan, const void *data, int len)
+int usbAsyncWrite(unsigned int chan, const void *data, int len)
 {
 	int ret = -1;
 	char buffer[512];
@@ -740,12 +809,6 @@ int usb_write_async_data(unsigned int chan, const void *data, int len)
 		if(!usb_connected())
 		{
 			DEBUG_PRINTF("Error PC side not connected\n");
-			break;
-		}
-
-		if(chan >= MAX_ASYNC_WRITE_CHANNELS)
-		{
-			MODPRINTF("Invalid async write channel %d\n", chan);
 			break;
 		}
 
@@ -778,7 +841,7 @@ int usb_write_async_data(unsigned int chan, const void *data, int len)
 	return ret;
 }
 
-int usb_write_bulk_data(const void *data, int len)
+int usbWriteBulkData(const void *data, int len)
 {
 	int ret = -1;
 	int err;
@@ -845,7 +908,7 @@ int usb_write_bulk_data(const void *data, int len)
 	return ret;
 }
 
-int usb_wait_for_connect(void)
+int usbWaitForConnect(void)
 {
 	int ret;
 
@@ -1078,6 +1141,7 @@ int module_start(SceSize args, void *argp)
 	int ret;
 
 	ret = sceUsbbdRegister(&g_driver);
+	memset(g_async_chan, 0, sizeof(g_async_chan));
 	DEBUG_PRINTF("sceUsbbdRegister %08X\n", ret);
 	DEBUG_PRINTF("g_driver 0x%p\n", &g_driver);
 	MODPRINTF("USB HostFS Driver (c) TyRaNiD 2k6\n");

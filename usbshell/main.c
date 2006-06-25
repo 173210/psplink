@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <usbhostfs.h>
+#include <usbasync.h>
 
 PSP_MODULE_INFO("USBShell", PSP_MODULE_KERNEL, 1, 1);
 
@@ -28,9 +29,11 @@ int psplinkParseCommand(unsigned char *command);
 void psplinkPrintPrompt(void);
 void psplinkExitShell(void);
 
+struct AsyncEndpoint g_endp;
+
 int usbPrint(const char *data, int size)
 {
-	usb_write_async_data(WRITE_STDOUT, data, size);
+	usbAsyncWrite(ASYNC_SHELL, data, size);
 
 	return size;
 }
@@ -40,14 +43,14 @@ int main_thread(SceSize args, void *argp)
 	unsigned char cli[MAX_CLI];
 	int cli_pos = 0;
 
-	usb_async_flush(READ_SHELL);
+	usbAsyncRegister(ASYNC_SHELL, &g_endp);
 	ttySetUsbHandler(usbPrint);
-	usb_wait_for_connect();
+	usbWaitForConnect();
 	psplinkPrintPrompt();
 
 	while(1)
 	{
-		if(usb_read_async_data(READ_SHELL, &cli[cli_pos], 1) < 1)
+		if(usbAsyncRead(ASYNC_SHELL, &cli[cli_pos], 1) < 1)
 		{
 			sceKernelDelayThread(250000);
 			continue;
