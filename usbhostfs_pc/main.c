@@ -10,6 +10,7 @@
  * $HeadURL$
  * $Id$
  */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -32,6 +33,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
 #ifdef READLINE_SHELL
 #include <readline/readline.h>
@@ -53,6 +55,10 @@
 #endif
 
 #define MAX_HOSTDRIVES 8
+
+#ifndef SOL_TCP
+#define SOL_TCP getprotobyname("TCP")->p_proto
+#endif
 
 /* Contains the paths for a single hist drive */
 struct HostDrive

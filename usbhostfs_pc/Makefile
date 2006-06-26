@@ -1,7 +1,7 @@
 OUTPUT=usbhostfs_pc
 OBJS=main.o
 LIBS=-lusb -lpthread
-CFLAGS=-Wall -ggdb -I../usbhostfs -DPC_SIDE -I. -O2
+CFLAGS=-Wall -ggdb -I../usbhostfs -DPC_SIDE -D_FILE_OFFSET_BITS=64 -I. -O2
 LDFLAGS=-L.
 
 ifdef BUILD_BIGENDIAN
