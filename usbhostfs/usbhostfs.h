@@ -34,6 +34,22 @@
 
 #define HOSTFS_BULK_OPEN      (1 << 24)
 
+#define DEVCTL_GET_INFO       0x02425818
+
+struct DevctlGetInfo
+{
+	/* Total number of blocks */
+	unsigned int btotal;
+	/* Total number of free blocks */
+	unsigned int bfree;
+	/* Unknown */
+	unsigned int unk;
+	/* Sector size */
+	unsigned int ssize;
+	/* Number of sectors per block */
+	unsigned int sects;
+};
+
 enum USB_ASYNC_CHANNELS
 {
 	ASYNC_SHELL    = 0,

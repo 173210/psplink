@@ -35,6 +35,12 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+#ifdef __CYGWIN__
+#include <sys/vfs.h>
+#else
+#include <sys/statvfs.h>
+#endif
+
 #ifdef READLINE_SHELL
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -1870,6 +1876,65 @@ int handle_ioctl(struct usb_dev_handle *hDev, struct HostFsIoctlCmd *cmd, int cm
 	return ret;
 }
 
+int get_drive_info(struct DevctlGetInfo *info, unsigned int drive)
+{
+	int ret = -1;
+
+	if(drive >= MAX_HOSTDRIVES)
+	{
+		fprintf(stderr, "Host drive number is too large (%d)\n", drive);
+		return -1;
+	}
+
+	if(pthread_mutex_lock(&g_drivemtx))
+	{
+		fprintf(stderr, "Could not lock mutex (%s)\n", strerror(errno));
+		return -1;
+	}
+
+	do
+	{
+#ifdef __CYGWIN__
+		struct statfs st;
+
+		if(statfs(g_drives[drive].rootdir, &st) < 0)
+		{
+			fprintf(stderr, "Could not stat %s (%s)\n", g_drives[drive].rootdir, strerror(errno));
+			break;
+		}
+
+		info->btotal = st.f_blocks;
+		info->bfree = st.f_bfree;
+		info->unk = st.f_blocks;
+		info->ssize = 512;
+		info->sects = st.f_bsize / 512;
+
+		memset(info, 0, sizeof(struct DevctlGetInfo));
+#else
+		struct statvfs st;
+
+		if(statvfs(g_drives[drive].rootdir, &st) < 0)
+		{
+			fprintf(stderr, "Could not stat %s (%s)\n", g_drives[drive].rootdir, strerror(errno));
+			break;
+		}
+
+		info->btotal = st.f_blocks;
+		info->bfree = st.f_bfree;
+		info->unk = st.f_blocks;
+		info->ssize = 512;
+		info->sects = st.f_frsize / 512;
+#endif
+
+		ret = 0;
+	}
+	while(0);
+
+	pthread_mutex_unlock(&g_drivemtx);
+
+	return ret;
+}
+
 int handle_devctl(struct usb_dev_handle *hDev, struct HostFsDevctlCmd *cmd, int cmdlen)
 {
 	static char inbuf[64*1024];
@@ -1877,6 +1942,7 @@ int handle_devctl(struct usb_dev_handle *hDev, struct HostFsDevctlCmd *cmd, int 
 	int inlen;
 	struct HostFsDevctlResp resp;
 	int  ret = -1;
+	unsigned int cmdno;
 
 	memset(&resp, 0, sizeof(resp));
 	resp.cmd.magic = LE32(HOSTFS_MAGIC);
@@ -1904,7 +1970,19 @@ int handle_devctl(struct usb_dev_handle *hDev, struct HostFsDevctlCmd *cmd, int 
 			}
 		}
 
-		V_PRINTF(2, "Devctl command cmdno %d, inlen %d\n", LE32(cmd->cmdno), inlen);
+		cmdno = LE32(cmd->cmdno);
+		V_PRINTF(2, "Devctl command cmdno %d, inlen %d\n", cmdno, inlen);
+
+		switch(cmdno)
+		{
+			case DEVCTL_GET_INFO: resp.res = LE32(get_drive_info((struct DevctlGetInfo *) outbuf, LE32(cmd->fsnum)));
+								  if(LE32(resp.res) == 0)
+								  {
+									  resp.cmd.extralen = LE32(sizeof(struct DevctlGetInfo));
+								  }
+								  break;
+			default: break;
+		};
 
 		ret = euid_usb_bulk_write(hDev, 0x2, (char *) &resp, sizeof(resp), 10000);
 		if(ret < 0)

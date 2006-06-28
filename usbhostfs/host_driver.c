@@ -939,7 +939,22 @@ static int io_devctl(PspIoDrvFileArg *arg, const char *name, unsigned int cmdno,
 		return -1;
 	}
 
-	/* TODO: Handle any local devctls (if there are any) */
+	/* Handle the get info devctl */
+	if(cmdno == DEVCTL_GET_INFO)
+	{
+		void **p = (void **) indata;
+		if((p) && (*p))
+		{
+			outdata = *p;
+			outlen = sizeof(struct DevctlGetInfo);
+			indata = NULL;
+			inlen = 0;
+		}
+		else
+		{
+			return -1;
+		}
+	}
 
 	/* Ensure our lengths are zeroed */
 	if(indata == NULL)
