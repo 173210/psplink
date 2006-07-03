@@ -22,6 +22,7 @@
 #include <psputilsforkernel.h>
 #include <pspsysmem_kernel.h>
 #include <pspthreadman_kernel.h>
+#include <usbhostfs.h>
 #include "memoryUID.h"
 #include "psplink.h"
 #include "psplinkcnf.h"
@@ -327,6 +328,16 @@ void initialise(SceSize args, void *argp)
 	configLoad(g_context.bootpath, &ctx);
 	disasmSetSymResolver(symbolFindNameByAddressEx);
 	g_context.usbgdb = ctx.usbgdb;
+
+	if(ctx.pid)
+	{
+		g_context.pid = ctx.pid;
+	}
+	else
+	{
+		g_context.pid = HOSTFSDRIVER_PID;
+	}
+
 	ttyInit();
 	if(ctx.usbhost)
 	{

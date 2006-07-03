@@ -22,6 +22,7 @@
 #include <pspumd.h>
 #include <psputilsforkernel.h>
 #include <pspsysmem_kernel.h>
+#include <usbhostfs.h>
 #include "memoryUID.h"
 #include "psplink.h"
 #include "psplinkcnf.h"
@@ -249,6 +250,11 @@ static void config_kprintf(struct ConfigContext *ctx, const char *szVal, unsigne
 	ctx->kprintf = iVal;
 }
 
+static void config_pid(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	ctx->pid = iVal;
+}
+
 struct psplink_config config_names[] = {
 	{ "usbmass", 1, config_usbmass },
 	{ "usbhost", 1, config_usbhost },
@@ -260,6 +266,7 @@ struct psplink_config config_names[] = {
 	{ "wifishell", 1, config_wifishell },
 	{ "sioshell", 1, config_sioshell },
 	{ "pcterm", 1, config_pcterm },
+	{ "pid", 1, config_pid },
 #ifndef USB_ONLY
 	{ "conshell", 1, config_conshell },
 	{ "consinterfere", 1, config_consinterfere },
@@ -311,7 +318,7 @@ void configLoad(const char *bootpath, struct ConfigContext *ctx)
 					{
 						char *endp;
 
-						iVal = strtoul(val, &endp, 10);
+						iVal = strtoul(val, &endp, 0);
 						if(*endp != 0)
 						{
 							printf("Error, line %d value should be a number\n", cnf.line); 

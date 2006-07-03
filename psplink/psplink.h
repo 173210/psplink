@@ -106,6 +106,7 @@ struct GlobalContext
 	int gdb;
 	int usbshell;
 	int usbgdb;
+	int pid;
 };
 
 #endif

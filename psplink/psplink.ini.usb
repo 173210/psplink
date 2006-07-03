@@ -6,6 +6,10 @@ usbmass=0
 # usbhost=[0 1] Enable USB host file system. Set to 1 to enable automatically
 usbhost=1
 
+# pid=num Set the product ID for hostfs allows you to use multiple PSPs at one time
+# Must specify the PID using the -p option of usbhostfs_pc
+# pid=0x1C9
+
 # pluser=[0 1] Enable the PSPLink user module
 pluser=1
 

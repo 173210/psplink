@@ -2351,7 +2351,7 @@ int parse_args(int argc, char **argv)
 		{
 			case 'v': g_verbose++;
 					  break;
-			case 's': g_baseport = atoi(optarg);
+			case 'b': g_baseport = atoi(optarg);
 					  break;
 			case 'g': g_globalbind = 1;
 					  break;

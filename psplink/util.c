@@ -519,7 +519,7 @@ int init_usbhost(const char *bootpath)
 			break;
 		}
 
-		retVal = sceUsbActivate(HOSTFSDRIVER_PID);
+		retVal = sceUsbActivate(g_context.pid);
 
 		if(retVal == 0)
 		{
@@ -540,7 +540,7 @@ int stop_usbhost(void)
 		return 0;
 	}
 
-	retVal = sceUsbDeactivate(HOSTFSDRIVER_PID);
+	retVal = sceUsbDeactivate(g_context.pid);
 	if (retVal != 0) {
 	    Kprintf("Error calling sceUsbDeactivate (0x%08X)\n", retVal);
     }

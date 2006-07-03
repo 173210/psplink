@@ -30,6 +30,7 @@ struct ConfigContext
 	int  sioshell;
 	int  conshell;
 	int  consinterfere;
+	int  pid;
 	char conscrosscmd[64];    /* custom 0 */
 	char conssquarecmd[64];   /* custom 1 */
 	char constrianglecmd[64]; /* custom 2 */
