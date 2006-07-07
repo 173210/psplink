@@ -152,14 +152,25 @@ void cli_handler(char *buf)
 		}
 		else if(rl_line_buffer[0] == '!')
 		{
-			system(&rl_line_buffer[1]);
+			if(strncmp(&rl_line_buffer[1], "cd ", 3) == 0)
+			{
+				chdir(&rl_line_buffer[4]);
+			}
+			else
+			{
+				system(&rl_line_buffer[1]);
+			}
 			return;
 		}
 
-		/* Remove the handler and prompt */
-		rl_callback_handler_remove();
-		rl_callback_handler_install("", cli_handler);
-		g_context.promptwait = 1;
+		/* Indicates a parameter to pass to the hostfs interpreter */
+		if(rl_line_buffer[0] != '@')
+		{
+			/* Remove the handler and prompt */
+			rl_callback_handler_remove();
+			rl_callback_handler_install("", cli_handler);
+			g_context.promptwait = 1;
+		}
 
 		execute_line(buf);
 	}
@@ -221,7 +232,6 @@ int cli_skip()
 
 int init_readline(void)
 {
-	rl_bind_key('\t', rl_insert);
 	rl_bind_key_in_map(META('r'), cli_reset, emacs_standard_keymap);
 	rl_bind_key_in_map(META('s'), cli_step, emacs_standard_keymap);
 	rl_bind_key_in_map(META('k'), cli_skip, emacs_standard_keymap);

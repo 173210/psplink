@@ -112,6 +112,7 @@ int  g_msslash = 0;
 int  g_pid = HOSTFSDRIVER_PID;
 int  g_timeout = USB_TIMEOUT;
 int  g_globalbind = 0;
+int  g_daemon = 0;
 unsigned short g_baseport = BASE_PORT;
 
 #define V_PRINTF(level, fmt, ...) { if(g_verbose >= level) { fprintf(stderr, fmt, ## __VA_ARGS__); } }
@@ -2341,7 +2342,7 @@ int parse_args(int argc, char **argv)
 	{
 		int ch;
 
-		ch = getopt(argc, argv, "vghdcmb:p:f:t:");
+		ch = getopt(argc, argv, "vghndcmb:p:f:t:");
 		if(ch == -1)
 		{
 			break;
@@ -2366,6 +2367,8 @@ int parse_args(int argc, char **argv)
 			case 'f': g_mapfile = optarg;
 					  break;
 			case 't': g_timeout = atoi(optarg);
+					  break;
+			case 'n': g_daemon = 1;
 					  break;
 			case 'h': return 0;
 			default:  printf("Unknown option\n");
@@ -2422,6 +2425,7 @@ void print_help(void)
 	fprintf(stderr, "-c                : Enable case-insensitive filenames\n");
 	fprintf(stderr, "-m                : Convert backslashes to forward slashes\n");
 	fprintf(stderr, "-t timeout        : Specify the USB timeout (default %d)\n", USB_TIMEOUT);
+	fprintf(stderr, "-n                : Daemon mode, the shell is accessed through pcterm\n");
 	fprintf(stderr, "-h                : Print this help\n");
 }
 
@@ -2839,7 +2843,7 @@ int ch_dir(void)
 	}
 	else
 	{
-		perror("chdir:");
+		printf("chdir: %s", strerror(errno));
 	}
 
 	return COMMAND_OK;
@@ -2944,18 +2948,22 @@ void *async_thread(void *arg)
 	struct AsyncCommand *cmd;
 	fd_set read_set, read_save;
 	struct sockaddr_in client;
-	size_t size;
+	socklen_t size;
 	int max_fd = 0;
 	int flag = 1;
 	int i;
 
+	FD_ZERO(&read_save);
+
+	if(!g_daemon)
+	{
 #ifdef READLINE_SHELL
-	init_readline();
+		init_readline();
 #endif
 
-	FD_ZERO(&read_save);
-	FD_SET(STDIN_FILENO, &read_save);
-	max_fd = STDIN_FILENO;
+		FD_SET(STDIN_FILENO, &read_save);
+		max_fd = STDIN_FILENO;
+	}
 
 	for(i = 0; i < MAX_ASYNC_CHANNELS; i++)
 	{
@@ -2978,18 +2986,21 @@ void *async_thread(void *arg)
 		read_set = read_save;
 		if(select(max_fd+1, &read_set, NULL, NULL, NULL) > 0)
 		{
-			if(FD_ISSET(STDIN_FILENO, &read_set))
+			if(!g_daemon)
 			{
-#ifdef READLINE_SHELL
-				rl_callback_read_char();
-#else
-				char buffer[4096];
-
-				if(fgets(buffer, sizeof(buffer), stdin))
+				if(FD_ISSET(STDIN_FILENO, &read_set))
 				{
-					parse_shell(buffer);
-				}
+#ifdef READLINE_SHELL
+					rl_callback_read_char();
+#else
+					char buffer[4096];
+
+					if(fgets(buffer, sizeof(buffer), stdin))
+					{
+						parse_shell(buffer);
+					}
 #endif
+				}
 			}
 
 			for(i = 0; i < MAX_ASYNC_CHANNELS; i++)
@@ -3009,6 +3020,11 @@ void *async_thread(void *arg)
 						{
 							printf("Accepting async connection (%d) from %s\n", i, inet_ntoa(client.sin_addr));
 							FD_SET(g_clientsocks[i], &read_save);
+							if((g_daemon) && (i == ASYNC_SHELL))
+							{
+								/* Duplicate to stdout for the local shell */
+								dup2(g_clientsocks[i], 1);
+							}
 							setsockopt(g_clientsocks[i], SOL_TCP, TCP_NODELAY, &flag, sizeof(int));
 							if(g_clientsocks[i] > max_fd)
 							{
@@ -3035,6 +3051,25 @@ void *async_thread(void *arg)
 								print_gdbdebug(1, (uint8_t *) data, readbytes);
 							}
 
+							if(g_daemon)
+							{
+								if((i == ASYNC_SHELL) && (data[0] == '@'))
+								{
+									/* We assume locally it should be able to load everything in one go */
+									if(readbytes < (sizeof(buf)-sizeof(struct AsyncCommand)))
+									{
+										data[readbytes] = 0;
+									}
+									else
+									{
+										data[sizeof(buf)-sizeof(struct AsyncCommand)-1] = 0;
+									}
+
+									parse_shell(&data[1]);
+									continue;
+								}
+							}
+
 							if(g_hDev)
 							{
 								cmd->channel = LE32(i);
@@ -3044,6 +3079,10 @@ void *async_thread(void *arg)
 						else
 						{
 							FD_CLR(g_clientsocks[i], &read_save);
+							if((g_daemon) && (i == ASYNC_SHELL))
+							{
+								dup2(2, 1);
+							}
 							close(g_clientsocks[i]);
 							g_clientsocks[i] = -1;
 							printf("Closing async connection (%d)\n", i);
@@ -3069,12 +3108,37 @@ int main(int argc, char **argv)
 		return 1;
 	}
 #endif
-	signal(SIGINT, signal_handler);
-	signal(SIGTERM, signal_handler);
 	if(parse_args(argc, argv))
 	{
 		pthread_t thid;
 		usb_init();
+
+		signal(SIGINT, signal_handler);
+		signal(SIGTERM, signal_handler);
+
+		if(g_daemon)
+		{
+			pid_t pid = fork();
+
+			if(pid > 0)
+			{
+				/* Parent, just exit */
+				return 0;
+			}
+			else if(pid < 0)
+			{
+				/* Error, print and exit */
+				perror("fork:");
+				return 1;
+			}
+
+			/* Child, dup stdio to /dev/null and set process group */
+			int fd = open("/dev/null", O_RDWR);
+			dup2(fd, 0);
+			dup2(fd, 1);
+			dup2(fd, 2);
+			setsid();
+		}
 
 		if(g_mapfile)
 		{
