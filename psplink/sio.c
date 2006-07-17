@@ -142,14 +142,19 @@ void sioInstallKprintf(void)
 	g_enablekprintf = 1;
 }
 
-void sioEnableKprintf(void)
+PspDebugPutChar sioDisableKprintf(void)
 {
-	g_enablekprintf = 1;
+	PspDebugPutChar kp;
+
+	kp = sceKernelGetDebugPutchar();
+	sceKernelRegisterDebugPutchar(NULL);
+
+	return kp;
 }
 
-void sioDisableKprintf(void)
+void sioEnableKprintf(PspDebugPutChar kp)
 {
-	g_enablekprintf = 0;
+	sceKernelRegisterDebugPutchar(kp);
 }
 
 static int intr_handler(void *arg)

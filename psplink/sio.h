@@ -18,7 +18,7 @@ void sioInit(int baudrate, int kponly);
 int sioReadChar(void);
 int sioReadCharWithTimeout(void);
 int sioPutText(const char *data, int len);
-void sioEnableKprintf(void);
-void sioDisableKprintf(void);
+PspDebugPutChar sioDisableKprintf(void);
+void sioEnableKprintf(PspDebugPutChar kp);
 
 #endif

@@ -930,9 +930,10 @@ static int cop0_cmd(int argc, char **argv)
 static int print_modinfo(SceUID uid, int verbose)
 {
 	SceKernelModuleInfo info;
+	PspDebugPutChar kp;
 	int ret;
 
-	sioDisableKprintf();
+	kp = sioDisableKprintf();
 	memset(&info, 0, sizeof(info));
 	info.size = sizeof(info);
 
@@ -954,7 +955,8 @@ static int print_modinfo(SceUID uid, int verbose)
 			}
 		}
 	}
-	sioEnableKprintf();
+	sioEnableKprintf(kp);
+
 
 	return ret;
 }

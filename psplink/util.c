@@ -853,12 +853,14 @@ int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info)
 {
 	int ret;
 	int k1;
+	PspDebugPutChar kp;
 
 	k1 = psplinkSetK1(0);
 
 	memset(info, 0, sizeof(*info));
 	info->size = sizeof(*info);
-	sioDisableKprintf();
+
+	kp = sioDisableKprintf();
 	ret = g_QueryModuleInfo(uid, info);
 	if(ret == 0)
 	{
@@ -868,7 +870,7 @@ int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info)
 	{
 		ret = 0;
 	}
-	sioEnableKprintf();
+	sioEnableKprintf(kp);
 
 	psplinkSetK1(k1);
 

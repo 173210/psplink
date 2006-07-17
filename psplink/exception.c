@@ -208,15 +208,17 @@ void exceptionPrint(int ex)
 		pMod = sceKernelFindModuleByAddress(addr);
 		if(pMod)
 		{
+			PspDebugPutChar kp;
+
 			printf("Module ID - 0x%08X\n", pMod->modid);
 			memset(&mod, 0, sizeof(mod));
 			mod.size = sizeof(mod);
-			sioDisableKprintf();
+			kp = sioDisableKprintf();
 			if(!g_QueryModuleInfo(pMod->modid, &mod))
 			{
 				printf("Mod Name  - %s\n", mod.name);
 			}
-			sioEnableKprintf();
+			sioEnableKprintf(kp);
 		}
 
 		printf("EPC       - 0x%08X\n", ctx->regs.epc);
