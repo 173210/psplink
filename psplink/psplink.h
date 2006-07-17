@@ -61,10 +61,15 @@ void copy_consconfig(const struct ConfigContext *cctx, struct GlobalContext *gct
 #define SAVED_MAGIC 0xBAA1A11C
 #define SAVED_ADDR  0x883F0000
 
+#define REBOOT_MODE_GAME    0
+#define REBOOT_MODE_VSH     1
+#define REBOOT_MODE_UPDATER 2
+
 struct SavedContext
 {
 	uint32_t magic;
 	char currdir[MAXPATHLEN];
+	int rebootkey;
 };
 
 struct GlobalContext
@@ -107,6 +112,7 @@ struct GlobalContext
 	int usbshell;
 	int usbgdb;
 	int pid;
+	int rebootkey;
 };
 
 #endif

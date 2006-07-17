@@ -1541,6 +1541,22 @@ static int calc_cmd(int argc, char **argv)
 
 static int reset_cmd(int argc, char **argv)
 {
+	if(argc > 0)
+	{
+		if(strcmp(argv[0], "game") == 0)
+		{
+			g_context.rebootkey = REBOOT_MODE_GAME;
+		}
+		else if(strcmp(argv[0], "vsh") == 0)
+		{
+			g_context.rebootkey = REBOOT_MODE_VSH;
+		}
+		else if(strcmp(argv[0], "updater") == 0)
+		{
+			g_context.rebootkey = REBOOT_MODE_VSH;
+		}
+	}
+
 	psplinkReset();
 
 	return CMD_OK;
@@ -3901,7 +3917,7 @@ const struct sh_command commands[] = {
 	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "file"},
 	{ "run",  NULL, run_cmd, 1, "Run a shell script", "file [args]"},
 	{ "calc", NULL, calc_cmd, 1, "Do a simple address calculation", "addr [d|o|x]"},
-	{ "reset", "r", reset_cmd, 0, "Reset", ""},
+	{ "reset", "r", reset_cmd, 0, "Reset", "[key]"},
 	{ "wifi", NULL, wifi_cmd, 0, "Enable WIFI with a specified AP config", "[ap]"},
 	{ "wifishell", NULL, wifishell_cmd, 0, "Enable WIFI Shell with a specified AP config", "[ap]"},
 	{ "ver", "v", version_cmd, 0, "Print version of psplink", ""},

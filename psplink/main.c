@@ -254,9 +254,11 @@ void psplinkReset(void)
 {
 	struct SceKernelLoadExecParam le;
 	struct SavedContext *save = (struct SavedContext *) SAVED_ADDR;
+	const char *rebootkey = NULL;
 
 	save->magic = SAVED_MAGIC;
 	strcpy(save->currdir, g_context.currdir);
+	save->rebootkey = g_context.rebootkey;
 
 	debugDisableHW();
 	psplinkSetK1(0);
@@ -266,7 +268,19 @@ void psplinkReset(void)
 	le.size = sizeof(le);
 	le.args = strlen(g_context.bootfile) + 1;
 	le.argp = (char *) g_context.bootfile;
-	le.key = NULL;
+	switch(g_context.rebootkey)
+	{
+		case REBOOT_MODE_GAME: rebootkey = "game";
+							   break;
+		case REBOOT_MODE_VSH : rebootkey = "vsh";
+							   break;
+		case REBOOT_MODE_UPDATER : rebootkey = "updater";
+								   break;
+		default: rebootkey = NULL;
+				 break;
+
+	};
+	le.key = rebootkey;
 
 	sceKernelSuspendAllUserThreads();
 
@@ -353,6 +367,7 @@ void initialise(SceSize args, void *argp)
 	{
 		init_dir = save->currdir;
 		save->magic = 0;
+		g_context.rebootkey = save->rebootkey;
 	}
 
 	if(shellInit(ctx.cliprompt, ctx.path, init_dir) < 0)
