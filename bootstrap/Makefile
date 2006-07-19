@@ -14,7 +14,7 @@ LDFLAGS = -mno-crt0 -nostartfiles -Tbootlink
 LIBS = 
 
 EXTRA_TARGETS = EBOOT.PBP
-PSP_EBOOT_TITLE = PSPLink 1.0 
+PSP_EBOOT_TITLE = PSPLink 1.1 
 PSP_EBOOT_ICON = psplink.png
 
 PSPSDK=$(shell psp-config --pspsdk-path)

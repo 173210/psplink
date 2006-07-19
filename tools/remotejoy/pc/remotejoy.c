@@ -31,7 +31,7 @@
 #define DEFAULT_IP   "localhost"
 
 #define MAX_AXES_NUM 32767
-#define DIGITAL_TOL   200
+#define DIGITAL_TOL   10000
 
 #if defined BUILD_BIGENDIAN || defined _BIG_ENDIAN
 uint16_t swap16(uint16_t i)
@@ -524,13 +524,18 @@ void make_mapfile(void)
 			break;
 		}
 
-		fprintf(fp, "tol:100\n");
+		fprintf(fp, "tol:%d\n", DIGITAL_TOL);
 
 		printf("Move the stick you want for digital input (can use an analogue stick)\n");
-		if(!read_event(joy, JS_EVENT_AXIS, &joydata))
+		do
 		{
-			break;
+			if(!read_event(joy, JS_EVENT_AXIS, &joydata))
+			{
+				break;
+			}
 		}
+		while(abs(joydata.value) < DIGITAL_TOL);
+
 		fprintf(fp, "digital:%d\n", joydata.number / 2);
 		for(i = 0; i < 8; i++)
 		{
@@ -560,6 +565,11 @@ void make_mapfile(void)
 
 			if(joydata.type == JS_EVENT_AXIS)
 			{
+				if(abs(joydata.value) < DIGITAL_TOL)
+				{
+					continue;
+				}
+
 				fprintf(fp, "analog:%d\n", joydata.number / 2);
 				break;
 			}
