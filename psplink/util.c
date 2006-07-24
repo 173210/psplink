@@ -849,6 +849,18 @@ SceUID refer_module_by_name(const char *name, SceKernelModuleInfo *info)
 	return module_refer(sceKernelFindModuleByName(name), info);
 }
 
+SceUID psplinkReferModuleByName(const char *name, SceKernelModuleInfo *info)
+{
+	int k1;
+	SceUID uid;
+
+	k1 = psplinkSetK1(0);
+	uid = refer_module_by_name(name, info);
+	psplinkSetK1(k1);
+
+	return uid;
+}
+
 int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info)
 {
 	int ret;

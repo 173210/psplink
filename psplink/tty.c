@@ -26,7 +26,7 @@
 #include "apihook.h"
 #include "util.h"
 #include "libs.h"
-#include "stdio.h"
+#include "pspstdio.h"
 
 #define STDIN_BUFSIZE 4096
 

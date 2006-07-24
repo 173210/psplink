@@ -8,7 +8,7 @@ USE_KERNEL_LIBS = 1
 
 INCDIR = 
 #CFLAGS = -O2 -G0 -Wall -fno-builtin-printf -DDEBUG
-CFLAGS = -Os -G0 -Wall -fno-builtin-printf -I../../usbhostfs -I../../psplink
+CFLAGS = -Os -G0 -Wall -fno-builtin-printf
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 

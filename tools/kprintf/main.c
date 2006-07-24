@@ -17,8 +17,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <usbasync.h>
-#include <apihook.h>
 
 PSP_MODULE_INFO("UsbKprintf", PSP_MODULE_KERNEL, 1, 1);
 

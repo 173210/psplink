@@ -26,7 +26,6 @@
 #include "util.h"
 
 static SceUID g_eventflag = -1;
-static int g_enablekprintf = 0;
 
 /* Define some important parameters, not really sure on names. Probably doesn't matter */
 #define PSP_UART4_FIFO 0xBE500000
@@ -124,7 +123,7 @@ void _EnablePutchar(void)
 
 static void PutCharDebug(unsigned short *data, unsigned int type)
 {
-	if(((type & 0xFF00) == 0) && (g_enablekprintf))
+	if((type & 0xFF00) == 0)
 	{
 		if(type == '\n')
 		{
@@ -139,7 +138,6 @@ void sioInstallKprintf(void)
 {
 	_EnablePutchar();
 	sceKernelRegisterDebugPutchar(PutCharDebug);
-	g_enablekprintf = 1;
 }
 
 PspDebugPutChar sioDisableKprintf(void)
@@ -161,6 +159,7 @@ static int intr_handler(void *arg)
 {
 	u32 stat;
 
+	/* Read out the interrupt state and clear it */
 	stat = _lw(0xBE500040);
 	_sw(stat, 0xBE500044);
 
@@ -215,7 +214,7 @@ void sioInit(int baud, int kponly)
 		g_eventflag = sceKernelCreateEventFlag("SioShellEvent", 0, 0, 0);
 		sceKernelRegisterIntrHandler(PSP_HPREMOTE_INT, 1, intr_handler, NULL, NULL);
 		sceKernelEnableIntr(PSP_HPREMOTE_INT);
-		/* Delay thread for a but */
+		/* Delay thread for a bit */
 		sceKernelDelayThread(2000000);
 	}
 	sioSetBaud(baud);

@@ -16,6 +16,7 @@
 
 #include <pspkernel.h>
 #include <pspdebug.h>
+#include <pspstdio.h>
 
 static int g_initialised = 0;
 static PspDebugInputHandler g_stdin_handler = NULL;
@@ -24,6 +25,8 @@ static PspDebugPrintHandler g_stderr_handler = NULL;
 static SceUID g_in_sema = 0;
 /* Probably stdout and stderr should not be guarded by the same mutex */
 static SceUID g_out_sema = 0;
+
+extern int sceKernelStdin(void);
 
 #define STDIN_FILENO  0
 #define STDOUT_FILENO 1

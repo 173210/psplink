@@ -59,6 +59,7 @@ int decode_hexstr(const char *str, unsigned char *data, int max);
 SceUID refer_module_by_addr(unsigned int addr, SceKernelModuleInfo *info);
 SceUID refer_module_by_name(const char *name, SceKernelModuleInfo *info);
 int psplinkReferModule(SceUID uid, SceKernelModuleInfo *info);
+SceUID psplinkReferModuleByName(const char *name, SceKernelModuleInfo *info);
 int isdir(const char *path);
 
 #define DEBUG_REG_KPRINTF_ENABLE  0x00001000
