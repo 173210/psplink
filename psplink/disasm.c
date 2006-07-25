@@ -174,7 +174,7 @@ struct Instruction inst[] =
 	{ "sb",			0xA0000000, 0xFC000000,	"%t, %o"},
 	{ "sh",			0xA4000000, 0xFC000000,	"%t, %o"},
 	{ "sllv",		0x00000004, 0xFC0007FF,	"%d, %t, %s"},
-	{ "sll",		0x00000000, 0xFFE0003F,	"%d, %d, %a"},
+	{ "sll",		0x00000000, 0xFFE0003F,	"%d, %t, %a"},
 	{ "slt",		0x0000002A, 0xFC0007FF,	"%d, %s, %t"},
 	{ "slti",		0x28000000, 0xFC000000,	"%t, %s, %i"},
 	{ "sltiu",		0x2C000000, 0xFC000000,	"%t, %s, %i"},
@@ -191,7 +191,7 @@ struct Instruction inst[] =
 	{ "sync",		0x0000000F, 0xFFFFFFFF,	""},
 	{ "syscall",	0x0000000C, 0xFC00003F,	"%C"},
 	{ "xor",		0x00000026, 0xFC0007FF,	"%d, %s, %t"},
-	{ "xori",		0x38000000, 0xFC000000,	"%t, %s, %x"},
+	{ "xori",		0x38000000, 0xFC000000,	"%t, %s, %I"},
 	{ "wsbh",		0x7C0000A0, 0xFFE007FF,	"%d, %t"},
 	{ "wsbw",		0x7C0000E0, 0xFFE007FF, "%d, %t"}, 
 
