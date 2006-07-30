@@ -37,6 +37,9 @@ usbshell=1
 # usbgdb=[0 1] Specify whether to use USB gdb or wifi gdb
 usbgdb=1
 
+# startsh=path Specify a script to run at startup
+# startsh=ms0:/scripts/start.sh
+
 # conshell=[0 1] Specify whether to start up the console shell
 conshell=0
 

@@ -24,6 +24,7 @@ struct ConfigContext
 	int  enableuser;
 	char cliprompt[128];
 	char path[128];
+	char startsh[128];
 	int  resetonexit;
 	int  wifi;
 	int  wifishell;

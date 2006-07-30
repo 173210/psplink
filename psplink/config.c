@@ -96,6 +96,12 @@ static void config_prompt(struct ConfigContext *ctx, const char *szVal, unsigned
 	ctx->cliprompt[sizeof(ctx->cliprompt)-1] = 0;
 }
 
+static void config_startsh(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
+{
+	strncpy(ctx->startsh, szVal, sizeof(ctx->startsh)-1);
+	ctx->startsh[sizeof(ctx->startsh)-1] = 0;
+}
+
 static void config_path(struct ConfigContext *ctx, const char *szVal, unsigned int iVal)
 {
 	strncpy(ctx->path, szVal, sizeof(ctx->path)-1);
@@ -267,6 +273,7 @@ struct psplink_config config_names[] = {
 	{ "sioshell", 1, config_sioshell },
 	{ "pcterm", 1, config_pcterm },
 	{ "pid", 1, config_pid },
+	{ "startsh", 0, config_startsh },
 #ifndef USB_ONLY
 	{ "conshell", 1, config_conshell },
 	{ "consinterfere", 1, config_consinterfere },

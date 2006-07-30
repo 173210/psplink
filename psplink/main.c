@@ -370,7 +370,7 @@ void initialise(SceSize args, void *argp)
 		g_context.rebootkey = save->rebootkey;
 	}
 
-	if(shellInit(ctx.cliprompt, ctx.path, init_dir) < 0)
+	if(shellInit(ctx.cliprompt, ctx.path, init_dir, ctx.startsh) < 0)
 	{
 		sceKernelExitGame();
 	}

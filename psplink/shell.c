@@ -891,6 +891,25 @@ static int thmonoff_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int sysstat_cmd(int argc, char **argv)
+{
+	SceKernelSystemStatus stat;
+
+	memset(&stat, 0, sizeof(stat));
+	stat.size = sizeof(stat);
+
+	if(!sceKernelReferSystemStatus(&stat))
+	{
+		printf("System Status: 0x%08X\n", stat.status);
+		printf("Idle Clocks:   %08X%08X\n", stat.idleClocks.hi, stat.idleClocks.low);
+		printf("Resume Count:  %d\n", stat.comesOutOfIdleCount);
+		printf("Thread Switch: %d\n", stat.threadSwitchCount);
+		printf("VFPU Switch:   %d\n", stat.vfpuSwitchCount);
+	}
+
+	return CMD_OK;
+}
+
 static int uidlist_cmd(int argc, char **argv)
 {
 	const char *name = NULL;
@@ -3823,6 +3842,7 @@ const struct sh_command commands[] = {
 	{ "thevinfo","tei", thevinfo_cmd, 1, "Print info about a thread event handler", "uid|@name" },
 	{ "thmon", "tm", thmon_cmd, 1, "Monitor thread events", "u|k|a [csed]" },
 	{ "thmonoff", NULL, thmonoff_cmd, 0, "Disable the thread monitor", "" },
+	{ "sysstat", NULL, sysstat_cmd, 0, "Print the system status", "" },
 	
 	{ "module", NULL, NULL, 0, "Commands to handle modules", NULL },
 	{ "modlist","ml", modlist_cmd, 0, "List the currently loaded modules", "[v]" },
@@ -4058,6 +4078,12 @@ static int shellParseThread(SceSize args, void *argp)
 	int error;
 	void *data;
 	CommandMsg *msg;
+
+	if((args > 0) && (argp))
+	{
+		/* Run startup script */
+		scriptRun(argp, 0, NULL, NULL, 0);
+	}
 
 	while(1)
 	{
@@ -4470,7 +4496,7 @@ static int custom_cmd(int argc, char **argv)
 	return retval;
 }
 
-int shellInit(const char *cliprompt, const char *path, const char *init_dir)
+int shellInit(const char *cliprompt, const char *path, const char *init_dir, const char *startsh)
 {
 	int ret;
 
@@ -4511,7 +4537,15 @@ int shellInit(const char *cliprompt, const char *path, const char *init_dir)
 		return -1;
 	}
 
-	ret = sceKernelStartThread(g_command_thid, 0, NULL);
+	if(strlen(startsh) > 0)
+	{
+		ret = sceKernelStartThread(g_command_thid, strlen(startsh)+1, (void*) startsh);
+	}
+	else
+	{
+		ret = sceKernelStartThread(g_command_thid, 0, NULL);
+	}
+
 	if(ret < 0)
 	{
 		printf("Error, couldn't start command thread 0x%08X\n", ret);

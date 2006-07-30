@@ -70,7 +70,7 @@ static int process_arguments(char *line, int argc, char **argv, const char *last
 				}
 				num[numsize] = 0;
 				val = atoi(num);
-				if(val < argc)
+				if((argv) && (val < argc))
 				{
 					char *str;
 					str = argv[val];
@@ -86,9 +86,12 @@ static int process_arguments(char *line, int argc, char **argv, const char *last
 
 				inptr++;
 				str = lastmod;
-				while((*str) && (outptr < (MAX_BUFFER-1)))
+				if(str)
 				{
-					tmpbuf[outptr++] = *str++;
+					while((*str) && (outptr < (MAX_BUFFER-1)))
+					{
+						tmpbuf[outptr++] = *str++;
+					}
 				}
 			}
 			else
