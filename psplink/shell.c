@@ -923,6 +923,41 @@ static int uidlist_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int uidinfo_cmd(int argc, char **argv)
+{
+	uidList *entry;
+	const char *parent = NULL;
+
+	if(argc > 1)
+	{
+		parent = argv[1];
+	}
+
+	if(argv[0][0] == '@')
+	{
+		entry = findObjectByNameWithParent(&argv[0][1], parent);
+	}
+	else
+	{
+		SceUID uid;
+
+		uid = strtoul(argv[0], NULL, 0);
+		entry = findObjectByUIDWithParent(uid, parent);
+	}
+
+	if(entry)
+	{
+		printUIDEntry(entry);
+		if(entry->realParent)
+		{
+			printf("Parent:\n");
+			printUIDEntry(entry->realParent);
+		}
+	}
+
+	return CMD_OK;
+}
+
 static int cop0_cmd(int argc, char **argv)
 {
 	u32 regs[64];
@@ -3933,6 +3968,7 @@ const struct sh_command commands[] = {
 	{ "usbhoff", "uhf", usbhostoff_cmd, 0, "Disable USB hostfs device", ""},
 	{ "usbstat", "us", usbstat_cmd, 0, "Display the status of the USB connection", ""},
     { "uidlist","ul", uidlist_cmd, 0, "List the system UIDS", "[root]"},
+	{ "uidinfo", "ui", uidinfo_cmd, 1, "Print info about a UID", "uid|@name [parent]" },
 	{ "cop0", "c0", cop0_cmd, 0, "Print the cop0 registers", ""},
 	{ "exit", "quit", exit_cmd, 0, "Exit the shell", ""},
 	{ "set", NULL, set_cmd, 0, "Set a shell variable", "[var=value]"},

@@ -16,35 +16,7 @@
 #include <string.h>
 #include "memoryUID.h"
 
-u32 findUIDByName(const char *name)
-{
-    uidList *entry;
-    uidList *end;
-    if(sceKernelDevkitVersion() == 0x01050001)
-    	entry = (uidList *) UIDLIST_START_1_5;
-    else
-    	entry = (uidList *) UIDLIST_START_1_0;
-    entry = entry->parent;
-    end = entry;
-    entry = entry->nextEntry;
-
-    do {
-        if (strcmp(entry->name, name) == 0)
-            return entry->UID;
-        if (entry->nextChild != entry) {
-            do {
-                entry = entry->nextChild;
-                if (strcmp(entry->name, name) == 0)
-                    return entry->UID;
-            } while (entry->nextChild != entry->unknown);
-            entry = entry->nextChild;
-        }
-        entry = entry->nextEntry;
-    } while (entry->nextEntry != end);  //Stop at 'Basic' entry like Sysmem does, just not in the same way ;)
-    return 0;
-}
-
-uidList* findObjectByUID(SceUID uid)
+uidList* findUIDObject(SceUID uid, const char *name, const char *parent)
 {
     uidList *entry;
     uidList *end;
@@ -61,15 +33,59 @@ uidList* findObjectByUID(SceUID uid)
             return entry;
         if (entry->nextChild != entry) {
             do {
+				uidList *ret = NULL;
                 entry = entry->nextChild;
-				if(entry->UID == uid)
-					return entry;
-            } while (entry->nextChild != entry->unknown);
+				if(name)
+				{
+					if (strcmp(entry->name, name) == 0)
+						ret = entry;
+				}
+				else
+				{
+					if(entry->UID == uid)
+						ret = entry;
+				}
+
+				if(ret)
+				{
+					if(parent && ret->realParent)
+					{
+						if(strcmp(parent, ret->realParent->name) == 0)
+						{
+							return ret;
+						}
+					}
+					else
+					{
+						return ret;
+					}
+				}
+
+            } while (entry->nextChild != entry->realParent);
             entry = entry->nextChild;
         }
         entry = entry->nextEntry;
     } while (entry->nextEntry != end);  //Stop at 'Basic' entry like Sysmem does, just not in the same way ;)
     return 0;
+}
+
+SceUID findUIDByName(const char *name)
+{
+	uidList *entry = findUIDObject(0, name, NULL);
+	if(entry)
+	{
+		return entry->UID;
+	}
+
+	return -1;
+}
+
+void printUIDEntry(uidList *entry)
+{
+	if(entry)
+	{
+		printf("(Name): %31s, (UID): 0x%08X, (entry): 0x%p (attr): 0x%X \n", entry->name, entry->UID, entry, entry->attribute);
+	}
 }
 
 void printUIDList(const char *name)
@@ -107,9 +123,10 @@ void printUIDList(const char *name)
 				entry = entry->nextChild;
 				if(cmp == 0)
 				{
-					printf("  --  (Name): %31s, (UID): 0x%08X, (entry): 0x%p (attr): 0x%X \n", entry->name, entry->UID, entry, entry->attribute);
+					//printf("(Name): %31s, (UID): 0x%08X, (entry): 0x%p (attr): 0x%X \n", entry->name, entry->UID, entry, entry->attribute);
+					printUIDEntry(entry);
 				}
-			} while (entry->nextChild != entry->unknown);
+			} while (entry->nextChild != entry->realParent);
 			entry = entry->nextChild;
 		}
 

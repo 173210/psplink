@@ -19,17 +19,24 @@
 struct _uidList {
     struct _uidList *parent;
     struct _uidList *nextChild;
-    struct _uidList *unknown;   //(0x8)
-    u32 UID;
-    char *name;
-    short unknown2;
+    struct _uidList *realParent;   //(0x8)
+    u32 UID;					//(0xC)
+    char *name;					//(0x10)
+	unsigned char unk;
+	unsigned char size;			// Size in words
     short attribute;
     struct _uidList *nextEntry;
-};
+} __attribute__((packed));
 typedef struct _uidList uidList;
 
-uidList* findObjectByUID(SceUID uid);
-u32 findUIDByName(const char *name);
+uidList* findUIDObject(SceUID uid, const char *name, const char *parent);
+SceUID findUIDByName(const char *name);
 void printUIDList(const char *name);
+void printUIDEntry(uidList *entry);
+
+#define findObjectByUID(uid) findUIDObject(uid, NULL, NULL)
+#define findObjectByName(name) findUIDObject(0, name, NULL)
+#define findObjectByUIDWithParent(uid, parent) findUIDObject(uid, NULL, parent)
+#define findObjectByNameWithParent(name, parent) findUIDObject(0, name, parent)
 
 #endif
