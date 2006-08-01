@@ -145,6 +145,7 @@ struct Args
 	const char *mapfile;
 	const char *buildmap;
 	int verbose;
+	int daemon;
 };
 
 struct GlobalContext
@@ -203,7 +204,7 @@ int parse_args(int argc, char **argv, struct Args *args)
 		int ch;
 		int error = 0;
 
-		ch = getopt(argc, argv, "vp:i:m:b:");
+		ch = getopt(argc, argv, "vdp:i:m:b:");
 
 		if(ch < 0)
 		{
@@ -219,6 +220,8 @@ int parse_args(int argc, char **argv, struct Args *args)
 			case 'm': args->mapfile = optarg;
 					  break;
 			case 'b': args->buildmap = optarg;
+					  break;
+			case 'd': args->daemon = 1;
 					  break;
 			case 'v': args->verbose = 1;
 					  break;
@@ -875,6 +878,30 @@ int main(int argc, char **argv)
 		}
 		else
 		{
+			if(g_context.args.daemon)
+			{
+				pid_t pid = fork();
+
+				if(pid > 0)
+				{
+					/* Parent, just exit */
+					return 0;
+				}
+				else if(pid < 0)
+				{
+					/* Error, print and exit */
+					perror("fork:");
+					return 1;
+				}
+
+				/* Child, dup stdio to /dev/null and set process group */
+				int fd = open("/dev/null", O_RDWR);
+				dup2(fd, 0);
+				dup2(fd, 1);
+				dup2(fd, 2);
+				setsid();
+			}
+
 			setup_signals();
 			mainloop();
 		}
