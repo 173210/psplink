@@ -3899,7 +3899,7 @@ const struct sh_command commands[] = {
 	{ "apihook", NULL, apihook_cmd, 4, "Hook a user mode API call", "uid|@name library nid|@name ret [param]" },
 	{ "apihooks", NULL, apihooks_cmd, 4, "Hook a user mode API call with sleep", "uid|@name library nid|@name ret [param]" },
 	{ "apihp", NULL, apihp_cmd, 0, "Print the user mode API hooks", "" },
-	{ "apihd", NULL, apihd_cmd, 1, "Delete an user mode API hook", "" },
+	{ "apihd", NULL, apihd_cmd, 1, "Delete an user mode API hook", "id" },
 	
 	{ "memory", NULL, NULL, 0, "Commands to manipulate memory", NULL },
 	{ "meminfo", "mf", meminfo_cmd, 0, "Print free memory info", "[partitionid]" },

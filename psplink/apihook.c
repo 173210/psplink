@@ -260,10 +260,14 @@ void apiHookGenericDelete(int id)
 
 	intc = pspSdkDisableInterrupts();
 	/* Restore original function */
-	*g_apihooks[id].syscall = (u32) g_apihooks[id].func;
-	g_apihooks[id].func = NULL;
-	sceKernelDcacheWritebackInvalidateRange(g_apihooks[id].syscall, sizeof(void *));
-	sceKernelIcacheInvalidateRange(g_apihooks[id].syscall, sizeof(void *));
+	if(g_apihooks[id].func)
+	{
+		*g_apihooks[id].syscall = (u32) g_apihooks[id].func;
+		g_apihooks[id].func = NULL;
+		sceKernelDcacheWritebackInvalidateRange(g_apihooks[id].syscall, sizeof(void *));
+		sceKernelIcacheInvalidateRange(g_apihooks[id].syscall, sizeof(void *));
+	}
+
 	pspSdkEnableInterrupts(intc);
 }
 

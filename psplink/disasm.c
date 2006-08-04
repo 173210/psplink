@@ -44,6 +44,7 @@
  * %v? - VFPU immediate, ? (3, 5, 8)
  * %c - code (for break)
  * %C - code (for syscall)
+ * %? - Indicates vmmul special exception
  */
 
 #define RT(op) ((op >> 16) & 0x1F)
@@ -376,10 +377,10 @@ struct Instruction inst[] =
 	{ "vmin.s",	 0x6D000000, 0xFF808080, "%zs, %ys, %xs" },
 	{ "vmin.t",	 0x6D008000, 0xFF808080, "%zt, %yt, %xt" },
 	{ "vmmov.p", 0xF3800080, 0xFFFF8080, "" },
-	{ "vmmov.q", 0xF3808080, 0xFFFF8080, "" },
+	{ "vmmov.q", 0xF3808080, 0xFFFF8080, "%zo, %yo" },
 	{ "vmmov.t", 0xF3808000, 0xFFFF8080, "" },
 	{ "vmmul.p", 0xF0000080, 0xFF808080, "" },
-	{ "vmmul.q", 0xF0008080, 0xFF808080, "" },
+	{ "vmmul.q", 0xF0008080, 0xFF808080, "%?%zo, %yo, %xo" },
 	{ "vmmul.t", 0xF0008000, 0xFF808080, "" },
 	{ "vmone.p", 0xF3870080, 0xFFFFFF80, "%zp" },
 	{ "vmone.q", 0xF3878080, 0xFFFFFF80, "%zq" },
@@ -933,6 +934,7 @@ static char *print_vfpureg(int reg, char type, char *output)
 static void decode_args(unsigned int opcode, unsigned int PC, const char *fmt, char *output, unsigned int *realregs)
 {
 	int i = 0;
+	int vmmul = 0;
 
 	while(fmt[i])
 	{
@@ -983,7 +985,12 @@ static void decode_args(unsigned int opcode, unsigned int PC, const char *fmt, c
 				case 'n': output = print_int(RD(opcode) + 1, output);
 						  break;
 				case 'x': if(fmt[i+1]) { output = print_vfpureg(VT(opcode), fmt[i+1], output); i++; }break;
-				case 'y': if(fmt[i+1]) { output = print_vfpureg(VS(opcode), fmt[i+1], output); i++; }break;
+				case 'y': if(fmt[i+1]) { 
+							  int reg = VS(opcode);
+							  if(vmmul) { if(reg & 0x20) { reg &= 0x5F; } else { reg |= 0x20; } }
+							  output = print_vfpureg(reg, fmt[i+1], output); i++; 
+							  }
+							  break;
 				case 'z': if(fmt[i+1]) { output = print_vfpureg(VD(opcode), fmt[i+1], output); i++; }break;
 				case 'v': break;
 				case 'X': if(fmt[i+1]) { output = print_vfpureg(VO(opcode), fmt[i+1], output); i++; }
@@ -995,6 +1002,8 @@ static void decode_args(unsigned int opcode, unsigned int PC, const char *fmt, c
 				case 'C': output = print_syscall(CODE(opcode), output);
 						  break;
 				case 'Y': output = print_ofs(IMM(opcode) & ~3, RS(opcode), output, realregs);
+						  break;
+				case '?': vmmul = 1;
 						  break;
 				case 0: goto end;
 				default: break;

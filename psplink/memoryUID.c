@@ -84,7 +84,7 @@ void printUIDEntry(uidList *entry)
 {
 	if(entry)
 	{
-		printf("(Name): %31s, (UID): 0x%08X, (entry): 0x%p (attr): 0x%X \n", entry->name, entry->UID, entry, entry->attribute);
+		printf("(UID): 0x%08X, (entry): 0x%p, (size): %d, (attr): 0x%X, (Name): %s\n", entry->UID, entry, entry->size << 2, entry->attribute, entry->name);
 	}
 }
 
@@ -100,7 +100,7 @@ void printUIDList(const char *name)
     entry = entry->parent;
     end = entry;
     entry = entry->nextEntry;
-    printf("************ MY UID LIST START ************\n");
+    //printf("************ MY UID LIST START ************\n");
     do {
 		if(name)
 		{
@@ -132,6 +132,6 @@ void printUIDList(const char *name)
 
 		entry = entry->nextEntry;
     } while (entry->nextEntry != end);  //Stop at 'Basic' entry like Sysmem does but not in the same way ;)
-    printf("************ MY UID LIST END ************\n");
+    //printf("************ MY UID LIST END ************\n");
 }
 
