@@ -156,9 +156,11 @@ static void step_generic(PsplinkRegBlock *regs, int skip)
 													 cond = 0;
 												 }
 												 break;
+												 /*
 								 case SYSCALL_OPCODE:
 												 targetpc = regs->r[31];
 												 break;
+												 */
 							 };
 						 }
 						 break;
@@ -476,6 +478,31 @@ int debugSetEnv(struct DebugEnv *env)
 	}
 
 	return 1;
+}
+
+void debugSetHWBreak(unsigned int addr, unsigned int mask)
+{
+	struct DebugEnv *pEnv;
+	pEnv = debug_get_env();
+	if(pEnv == NULL)
+	{
+		return;
+	}
+
+	if(addr)
+	{
+		pEnv->IBC = 0x12;
+		pEnv->IBA = addr;
+		pEnv->IBAM = mask;
+	}
+	else
+	{
+		pEnv->IBC = 0x10;
+		pEnv->IBA = 0;
+		pEnv->IBAM = 0;
+	}
+	
+	debug_set_env();
 }
 
 void debugSetHWRegs(int argc, char **argv)

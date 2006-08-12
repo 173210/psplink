@@ -42,5 +42,6 @@ int debugHWEnabled(void);
 int debugGetEnv(struct DebugEnv *env);
 int debugSetEnv(struct DebugEnv *env);
 void debugSetHWRegs(int argc, char **argv);
+void debugSetHWBreak(unsigned int addr, unsigned int mask);
 
 #endif

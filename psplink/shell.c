@@ -3464,6 +3464,23 @@ static int hwregs_cmd(int argc, char **argv)
 	return CMD_OK;
 }
 
+static int hwbp_cmd(int argc, char **argv)
+{
+	u32 addr;
+	u32 mask = 0;
+
+	if(memDecode(argv[0], &addr))
+	{
+		debugSetHWBreak(addr, mask);
+	}
+	else
+	{
+		return CMD_ERROR;
+	}
+
+	return CMD_OK;
+}
+
 static int bpset_cmd(int argc, char **argv)
 {
 	u32 addr;
@@ -3951,6 +3968,7 @@ const struct sh_command commands[] = {
 	{ "setreg", "str", setreg_cmd, 2, "Set the value of an exception register", "$reg value"},
 	{ "hwena",  NULL, hwena_cmd, 0, "Enable or disable the HW debugger", "[on|off]" },
 	{ "hwregs", NULL, hwregs_cmd, 0, "Print or change the current HW breakpoint setup (v1.5 only)", "[reg=val]..." },
+	{ "hwbp", NULL, hwbp_cmd, 1, "Set a hardware instruction breakpoint", "addr [mask]" },
 	{ "bpset", "bp", bpset_cmd, 1, "Set a break point", "addr"},
 	{ "bpprint", "bt", bpprint_cmd, 0, "Print the current breakpoints", ""},
 	{ "step", "s", step_cmd, 0, "Step the next instruction", ""},
@@ -4030,6 +4048,8 @@ int shellParse(char *command)
 	char *argv[16];
 	char outbuf[MAX_BUFFER];
 	char *ext;
+
+	scePowerTick(0);
 
 	if(g_ttymode)
 	{
