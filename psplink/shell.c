@@ -1609,7 +1609,7 @@ static int reset_cmd(int argc, char **argv)
 		}
 		else if(strcmp(argv[0], "updater") == 0)
 		{
-			g_context.rebootkey = REBOOT_MODE_VSH;
+			g_context.rebootkey = REBOOT_MODE_UPDATER;
 		}
 	}
 
