@@ -59,6 +59,10 @@ static struct SceLibraryEntryTable *_libsFindLibrary(SceUID uid, const char *lib
 			{
 				return entry;
 			}
+			else if(!entry->libname && !library)
+			{
+				return entry;
+			}
 
 			i += (entry->len * 4);
 		}

@@ -16,6 +16,7 @@
 #include <psputilsforkernel.h>
 #include <pspmoduleexport.h>
 #include <psploadcore.h>
+#include <pspthreadman_kernel.h>
 #include <pspsdk.h>
 #include <stdio.h>
 #include <string.h>
@@ -156,7 +157,7 @@ void *_apiHookHandle(int id, u32 *args)
 		char str[128];
 		int strleft;
 
-		printf("Function %s called from thread 0x%08X\n", g_apihooks[id].name, sceKernelGetThreadId());
+		printf("Function %s called from thread 0x%08X (RA:0x%08X)\n", g_apihooks[id].name, sceKernelGetThreadId(), sceKernelGetSyscallRA());
 		for(i = 0; i < APIHOOK_MAXPARAM; i++)
 		{
 			if(g_apihooks[id].param[i])
