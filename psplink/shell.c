@@ -23,6 +23,7 @@
 #include <psputilsforkernel.h>
 #include <pspsysmem_kernel.h>
 #include <pspdisplay.h>
+#include <pspdisplay_kernel.h>
 #include <pspthreadman_kernel.h>
 #include <psppower.h>
 #include <stdint.h>
@@ -3091,10 +3092,24 @@ static int scrshot_cmd(int argc, char **argv)
 	int frame_width;
 	int pixel_format;
 	int sync = 1;
+	int pri = 2;
+	u32 p;
+
+	if(argc > 1)
+	{
+		pri = strtol(argv[1], NULL, 10);
+	}
 
 	if(!handlepath(g_context.currdir, argv[0], path, TYPE_FILE, 0))
 	{
 		printf("Error invalid path\n");
+		return CMD_ERROR;
+	}
+
+
+	if((sceDisplayGetFrameBufferInternal(pri, &frame_addr, &frame_width, &pixel_format, &sync) < 0) || (frame_addr == NULL))
+	{
+		printf("Invalid frame address\n");
 		return CMD_ERROR;
 	}
 
@@ -3106,18 +3121,20 @@ static int scrshot_cmd(int argc, char **argv)
 	}
 	 
 	block_addr = sceKernelGetBlockHeadAddr(block_id);
-
-	sceDisplayGetFrameBuf(&frame_addr, &frame_width, &pixel_format, &sync);
+	//sceDisplayGetFrameBuf(&frame_addr, &frame_width, &pixel_format, &sync);
 	printf("frame_addr %p, frame_width %d, pixel_format %d output %s\n", frame_addr, frame_width, pixel_format, path);
 
-	if(frame_addr != NULL)
+	p = (u32) frame_addr;
+	if(p & 0x80000000)
 	{
-		bitmapWrite((void *) ((u32) frame_addr | 0x40000000), block_addr, pixel_format, path);
+		p |= 0xA0000000;
 	}
 	else
 	{
-		printf("Invalid frame address\n");
+		p |= 0x40000000;
 	}
+
+	bitmapWrite((void *) p, block_addr, pixel_format, path);
 
 	sceKernelFreePartitionMemory(block_id);
 
@@ -3990,7 +4007,7 @@ const struct sh_command commands[] = {
 	{ "cop0", "c0", cop0_cmd, 0, "Print the cop0 registers", ""},
 	{ "exit", "quit", exit_cmd, 0, "Exit the shell", ""},
 	{ "set", NULL, set_cmd, 0, "Set a shell variable", "[var=value]"},
-	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "file"},
+	{ "scrshot", "ss", scrshot_cmd, 1, "Take a screen shot", "file [pri]"},
 	{ "run",  NULL, run_cmd, 1, "Run a shell script", "file [args]"},
 	{ "calc", NULL, calc_cmd, 1, "Do a simple address calculation", "addr [d|o|x]"},
 	{ "reset", "r", reset_cmd, 0, "Reset", "[key]"},
