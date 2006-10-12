@@ -35,6 +35,7 @@ struct BreakPoint
 
 static struct BreakPoint g_bps[MAX_BPS];
 static struct BreakPoint g_stepbp[2];
+extern const char *regName[32];
 
 /* Define some opcode stuff for the stepping function */
 #define BEQ_OPCODE		0x4
@@ -349,6 +350,7 @@ int debugHandleException(PsplinkRegBlock *pRegs)
 	unsigned int address;
 	struct BreakPoint *pBp;
 	int ret = 0;
+	unsigned int regmask;
 
 	address = pRegs->epc;
 
@@ -376,7 +378,18 @@ int debugHandleException(PsplinkRegBlock *pRegs)
 
 		sceKernelDcacheWritebackInvalidateAll();
 		sceKernelIcacheInvalidateAll();
-		printf("%s\n", disasmInstruction(_lw(address), address, &pRegs->r[0]));
+		printf("%s\n", disasmInstruction(_lw(address), address, &pRegs->r[0], &regmask));
+		if(regmask)
+		{
+			int i;
+			for(i = 1; i < 32; i++)
+			{
+				if(regmask & (1 << i))
+				{
+					printf("$%s = 0x%08X\n", regName[i], pRegs->r[i]);
+				}
+			}
+		}
 
 		ret = 1;
 	}

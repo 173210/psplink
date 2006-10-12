@@ -24,6 +24,7 @@
 
 struct PsplinkContext *g_currex = NULL;
 struct PsplinkContext *g_list = NULL;
+extern struct GlobalContext g_context;
 
 #define MAT_NUM(x) ((x) / 16)
 #define COL_NUM(x) (((x) / 4) & 3)
@@ -32,7 +33,7 @@ struct PsplinkContext *g_list = NULL;
 #define FPU_EXCEPTION 15
 
 /* Mnemonic register names */
-static const char regName[32][5] =
+const char *regName[32] =
 {
     "zr", "at", "v0", "v1", "a0", "a1", "a2", "a3",
     "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7", 
@@ -426,9 +427,31 @@ void exceptionVfpuPrint(int ex, int mode)
 	}
 }
 
+int exceptionCheckParseThread(struct PsplinkContext *ctx)
+{
+	SceKernelThreadInfo thread;
+
+	memset(&thread, 0, sizeof(thread));
+	thread.size = sizeof(thread);
+	if(!sceKernelReferThreadStatus(ctx->thid, &thread))
+	{
+		if(strcmp(thread.name, "PspLinkParse") == 0)
+		{
+			/* Setup context to return to longjmp and handle the exception */
+			ctx->regs.epc = (unsigned int) longjmp;
+			ctx->regs.r[4] = (unsigned int) g_context.parseenv;
+			ctx->regs.r[5] = 1;
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 void psplinkHandleException(struct PsplinkContext *ctx)
 {
 	u32 k1;
+	int intex;
 
 	k1 = psplinkSetK1(0);
 
@@ -439,10 +462,17 @@ void psplinkHandleException(struct PsplinkContext *ctx)
 	{
 		exceptionPrint(-1);
 	}
+
 	psplinkSetK1(k1);
 
-	/* Sleep thread */
-	sceKernelSleepThread();
+	intex = exceptionCheckParseThread(ctx);
+
+	/* If not our parse thread exceptioning */
+	if(!intex)
+	{
+		/* Sleep thread */
+		sceKernelSleepThread();
+	}
 }
 
 void exceptionResume(void)

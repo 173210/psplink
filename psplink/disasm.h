@@ -13,12 +13,13 @@
 #ifndef __DISASM_H__
 #define __DISASM_H__
 
-#define DISASM_OPT_MAX       5
+#define DISASM_OPT_MAX       6
 #define DISASM_OPT_HEXINTS   'x'
 #define DISASM_OPT_MREGS     'r'
 #define DISASM_OPT_SYMADDR   's'
 #define DISASM_OPT_MACRO     'm'
 #define DISASM_OPT_PRINTREAL 'p'
+#define DISASM_OPT_PRINTREGS 'g'
 
 /* Enable hexadecimal integers for immediates */
 void disasmSetHexInts(int hexints);
@@ -31,7 +32,8 @@ void disasmSetMacro(int macro);
 void disasmSetPrintReal(int printreal);
 void disasmSetOpts(const char *opts, int set);
 const char *disasmGetOpts(void);
-const char *disasmInstruction(unsigned int opcode, unsigned int PC, unsigned int *realregs);
+void disasmPrintOpts(void);
+const char *disasmInstruction(unsigned int opcode, unsigned int PC, unsigned int *realregs, unsigned int *regmask);
 
 /* Symbol resolver function type */
 typedef int (*SymResolve)(unsigned int addr, char *output, int size);

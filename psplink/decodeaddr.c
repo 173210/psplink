@@ -420,6 +420,8 @@ static int parse_line(char *line, unsigned int *val)
 		else if(*line == '?') /* Symbol name */
 		{
 			char *endp;
+			int getsize = 0;
+			unsigned int size;
 			line++;
 
 			endp = strchr(line, '?');
@@ -430,11 +432,23 @@ static int parse_line(char *line, unsigned int *val)
 			}
 
 			*endp = 0;
-			temp = symbolFindByName(line);
+
+			/* ` indicates we want to get the size not the address */
+			/* Of course we cant then start with a `, oh well ;P */
+			if(line[0] == '`')
+			{
+				line++;
+				getsize = 1;
+			}
+			temp = symbolFindByName(line, &size);
 			if(temp == 0)
 			{
 				printf("Error, could not find symbol %s\n", line);
 				return 0;
+			}
+			if(getsize)
+			{
+				temp = size;
 			}
 
 			line = endp+1;

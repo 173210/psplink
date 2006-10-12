@@ -41,6 +41,10 @@
 #define DEBUG_PRINTF(fmt, ...)
 #endif
 
+typedef unsigned int jmp_buf[12];
+int setjmp(jmp_buf jmp);
+int longjmp(jmp_buf jmp, int ret);
+
 int fdprintf(int fd, const char *fmt, ...);
 
 void psplinkReset(void);
@@ -113,6 +117,7 @@ struct GlobalContext
 	int usbgdb;
 	int pid;
 	int rebootkey;
+	jmp_buf parseenv;
 };
 
 #endif

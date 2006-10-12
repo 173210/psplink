@@ -258,10 +258,17 @@ int symbolFindNameByAddressEx(unsigned int addr, char *output, int size)
 	pSym = symbolFindByAddress(addr, &baseaddr);
 	if(pSym)
 	{
-		if((baseaddr + pSym->addr) < addr)
+		unsigned int reladdr;
+
+		reladdr = pSym->addr;
+		if(baseaddr <= reladdr)
+		{
+			reladdr = reladdr - baseaddr;
+		}
+		if((baseaddr + reladdr) < addr)
 		{
 			sprintf(symtemp, "%s+0x%x", pSym->name,
-					addr - (baseaddr + pSym->addr));
+					addr - (baseaddr + reladdr));
 		}
 		else
 		{
@@ -279,7 +286,7 @@ int symbolFindNameByAddressEx(unsigned int addr, char *output, int size)
 	return 1;
 }
 
-unsigned int symbolFindByName(const char *name)
+unsigned int symbolFindByName(const char *name, unsigned int *size)
 {
 	const char *modname = NULL;
 	const char *symname = NULL;
@@ -334,6 +341,10 @@ unsigned int symbolFindByName(const char *name)
 				else
 				{
 					addr = info.text_addr + pEntry[i].addr;
+				}
+				if(size)
+				{
+					*size = pEntry[i].size;
 				}
 				break;
 			}

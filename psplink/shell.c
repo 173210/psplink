@@ -2040,7 +2040,7 @@ static int meminfo_cmd(int argc, char **argv)
 {
 	int i;
 	int pid = 1;
-	int max = 5;
+	int max = 6;
 
 	if(argc > 0)
 	{
@@ -3009,14 +3009,12 @@ static int copymem_cmd(int argc, char **argv)
 static int disasm_cmd(int argc, char **argv)
 {
 	u32 addr;
-	int count = 1;
+	unsigned int count = 1;
 	int i;
 
 	if(argc > 1)
 	{
-		char *endp;
-		count = strtoul(argv[1], &endp, 0);
-		if(*endp != 0)
+		if(!memDecode(argv[1], &count) || (count == 0))
 		{
 			printf("Invalid count argument\n");
 			return CMD_ERROR;
@@ -3036,7 +3034,7 @@ static int disasm_cmd(int argc, char **argv)
 
 		for(i = 0; i < count; i++)
 		{
-			printf("%s\n", disasmInstruction(_lw(addr), addr, NULL));
+			printf("%s\n", disasmInstruction(_lw(addr), addr, NULL, NULL));
 			addr += 4;
 		}
 	}
@@ -3078,7 +3076,7 @@ static int disclear_cmd(int argc, char **argv)
 
 static int disopts_cmd(int argc, char **argv)
 {
-	printf("Disassembler Options: %s\n", disasmGetOpts());
+	disasmPrintOpts();
 
 	return CMD_OK;
 }
@@ -3105,7 +3103,6 @@ static int scrshot_cmd(int argc, char **argv)
 		printf("Error invalid path\n");
 		return CMD_ERROR;
 	}
-
 
 	if((sceDisplayGetFrameBufferInternal(pri, &frame_addr, &frame_width, &pixel_format, &sync) < 0) || (frame_addr == NULL))
 	{
@@ -3611,11 +3608,12 @@ static int symbyaddr_cmd(int argc, char **argv)
 static int symbyname_cmd(int argc, char **argv)
 {
 	u32 addr;
+	u32 size;
 
-	addr = symbolFindByName(argv[0]);
+	addr = symbolFindByName(argv[0], &size);
 	if(addr > 0)
 	{
-		printf("%s = 0x%08X\n", argv[0], addr);
+		printf("%s = 0x%08X size %d\n", argv[0], addr, size);
 	}
 	else
 	{
@@ -4168,7 +4166,14 @@ static int shellParseThread(SceSize args, void *argp)
 		}
 
 		msg = (CommandMsg *) data;
-		msg->res = shellParse(msg->command);
+		if(setjmp(g_context.parseenv) == 0)
+		{
+			msg->res = shellParse(msg->command);
+		}
+		else
+		{
+			msg->res = CMD_ERROR;
+		}
 		sceKernelSetEventFlag(g_command_event, COMMAND_EVENT_DONE);
 	}
 
@@ -4196,17 +4201,15 @@ int psplinkParseCommand(char *command)
 	ret = sceKernelSendMbx(g_command_msg, &msg);
 	if(ret >= 0)
 	{
-		/* Wait 60 seconds for completion */
-		SceUInt timeout = (60*1000*1000);
 		u32 result;
-		ret = sceKernelWaitEventFlag(g_command_event, COMMAND_EVENT_DONE, 0x21, &result, &timeout);
+		ret = sceKernelWaitEventFlag(g_command_event, COMMAND_EVENT_DONE, 0x21, &result, NULL);
 		if(ret >= 0)
 		{
 			ret = msg.res;
 		}
 		else
 		{
-			printf("Error, command did not complete 0x%08X\n", ret);
+			printf("Error waiting for parse event 0x%08X\n", ret);
 			ret = CMD_EXITSHELL;
 		}
 	}

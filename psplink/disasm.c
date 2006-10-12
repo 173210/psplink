@@ -520,13 +520,7 @@ struct Instruction inst[] =
 	{ "vzero.t", 0xD0068000, 0xFFFFFF80, "%zt" },
 	};
 
-static const char *regs[32] =
-{
-    "$zr", "$at", "$v0", "$v1", "$a0", "$a1", "$a2", "$a3",
-    "$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7", 
-    "$s0", "$s1", "$s2", "$s3", "$s4", "$s5", "$s6", "$s7",
-    "$t8", "$t9", "$k0", "$k1", "$gp", "$sp", "$fp", "$ra"
-};
+extern const char *regName[32];
 
 static const char *cop0_regs[32] = 
 {
@@ -550,7 +544,25 @@ static int g_mregs = 0;
 static int g_symaddr = 0;
 static int g_macro = 0;
 static int g_printreal = 0;
+static int g_printregs = 0;
+static int g_regmask = 0;
 static SymResolve g_symresolver = NULL;
+
+struct DisasmOpt
+{
+	char opt;
+	int *value;
+	const char *name;
+};
+
+struct DisasmOpt g_disopts[DISASM_OPT_MAX] = {
+	{ DISASM_OPT_HEXINTS, &g_hexints, "Hex Integers" },
+	{ DISASM_OPT_MREGS, &g_mregs, "Mnemonic Registers" },
+	{ DISASM_OPT_SYMADDR, &g_symaddr, "Symbol Address" },
+	{ DISASM_OPT_MACRO, &g_macro, "Macros" },
+	{ DISASM_OPT_PRINTREAL, &g_printreal, "Print Real Address" },
+	{ DISASM_OPT_PRINTREGS, &g_printregs, "Print Regs" },
+};
 
 void disasmSetHexInts(int hexints)
 {
@@ -587,59 +599,54 @@ void disasmSetOpts(const char *opts, int set)
 	while(*opts)
 	{
 		char ch;
+		int i;
 
 		ch = *opts++;
-		switch(ch)
+		for(i = 0; i < DISASM_OPT_MAX; i++)
 		{
-			case DISASM_OPT_HEXINTS: g_hexints = set;
-									 break;
-			case DISASM_OPT_MREGS: g_mregs = set;
-								   break;
-			case DISASM_OPT_SYMADDR: g_symaddr = set;
-									 break;
-			case DISASM_OPT_MACRO: g_macro = set;
-								   break;
-			case DISASM_OPT_PRINTREAL: g_printreal = set;
-									   break;
-			default: printf("Unknown disassembler option '%c'\n", ch);
-					 break;
-		};
+			if(ch == g_disopts[i].opt)
+			{
+				*g_disopts[i].value = set;
+				break;
+			}
+		}
+		if(i == DISASM_OPT_MAX)
+		{
+			printf("Unknown disassembler option '%c'\n", ch);
+		}
 	}
 }
 
+/*
 const char *disasmGetOpts(void)
 {
-	static char opts[16];
-	int i = 0;
+	static char opts[DISASM_OPT_MAX+1];
+	char *p = opts;
+	int i;
 
-	if(g_hexints)
+	for(i = 0; i < DISASM_OPT_MAX; i++)
 	{
-		opts[i++] = DISASM_OPT_HEXINTS;
+		if(*g_disopts[i].value)
+		{
+			*p++ = g_disopts[i].opt;
+		}
 	}
-
-	if(g_mregs)
-	{
-		opts[i++] = DISASM_OPT_MREGS;
-	}
-
-	if(g_symaddr)
-	{
-		opts[i++] = DISASM_OPT_SYMADDR;
-	}
-
-	if(g_macro)
-	{
-		opts[i++] = DISASM_OPT_MACRO;
-	}
-
-	if(g_printreal)
-	{
-		opts[i++] = DISASM_OPT_PRINTREAL;
-	}
-
-	opts[i] = 0;
+	*p = 0;
 
 	return opts;
+}
+*/
+
+void disasmPrintOpts(void)
+{
+	int i;
+
+	printf("Disassembler Options:\n");
+	for(i = 0; i < DISASM_OPT_MAX; i++)
+	{
+		printf("%c : %-3s - %s \n", g_disopts[i].opt, *g_disopts[i].value ? "on" : "off", 
+				g_disopts[i].name);
+	}
 }
 
 static char *print_cpureg(int reg, char *output)
@@ -648,11 +655,16 @@ static char *print_cpureg(int reg, char *output)
 
 	if(!g_mregs)
 	{
-		len = sprintf(output, "%s", regs[reg]);
+		len = sprintf(output, "$%s", regName[reg]);
 	}
 	else
 	{
 		len = sprintf(output, "$%02d", reg);
+	}
+
+	if(g_printregs)
+	{
+		g_regmask |= (1 << reg);
 	}
 
 	return output + len;
@@ -1020,12 +1032,13 @@ end:
 	*output = 0;
 }
 
-const char *disasmInstruction(unsigned int opcode, unsigned int PC, unsigned int *realregs)
+const char *disasmInstruction(unsigned int opcode, unsigned int PC, unsigned int *realregs, unsigned int *regmask)
 {
 	static char code[256];
 	char addr[128];
 	int size;
 	int i;
+	struct Instruction *ix = NULL;
 
 	sprintf(addr, "0x%08X", PC);
 	if((g_symresolver) && (g_symaddr))
@@ -1038,6 +1051,7 @@ const char *disasmInstruction(unsigned int opcode, unsigned int PC, unsigned int
 		}
 	}
 
+	g_regmask = 0;
 	sprintf(code, "%s: %08X - Unknown", addr, opcode);
 
 	if(!g_macro)
@@ -1047,24 +1061,33 @@ const char *disasmInstruction(unsigned int opcode, unsigned int PC, unsigned int
 		{
 			if((opcode & macro[i].mask) == macro[i].opcode)
 			{
-				char args[128];
-
-				decode_args(opcode, PC, macro[i].fmt, args, realregs);
-				sprintf(code, "%s: %08X - %-10s %s", addr, opcode, macro[i].name, args);
-				return code;
+				ix = &macro[i];
 			}
 		}
 	}
 
-	size = sizeof(inst) / sizeof(struct Instruction);
-	for(i = 0; i < size; i++)
+	if(!ix)
 	{
-		if((opcode & inst[i].mask) == inst[i].opcode)
+		size = sizeof(inst) / sizeof(struct Instruction);
+		for(i = 0; i < size; i++)
 		{
-			char args[128];
+			if((opcode & inst[i].mask) == inst[i].opcode)
+			{
+				ix = &inst[i];
+			}
+		}
+	}
 
-			decode_args(opcode, PC, inst[i].fmt, args, realregs);
-			sprintf(code, "%s: %08X - %-10s %s", addr, opcode, inst[i].name, args);
+	if(ix)
+	{
+		char args[128];
+
+		decode_args(opcode, PC, ix->fmt, args, realregs);
+		sprintf(code, "%s: %08X - %-10s %s", addr, opcode, ix->name, args);
+
+		if(regmask) 
+		{
+			*regmask = g_regmask;
 		}
 	}
 
