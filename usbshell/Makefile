@@ -1,5 +1,5 @@
 TARGET = usbshell
-OBJS = main.o psplink.o USBHostFS.o exports.o
+OBJS = main.o USBHostFS.o exports.o
 
 # Use the kernel's small inbuilt libc
 USE_KERNEL_LIBC = 1
@@ -11,10 +11,11 @@ INCDIR =
 CFLAGS = -Os -G0 -Wall -fno-builtin-printf -I../usbhostfs
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
+LDFLAGS = -L../libpsplink
 
 LIBDIR =
 
-LIBS = 
+LIBS = -lpsplink
 
 PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build_prx.mak

@@ -1,4 +1,5 @@
 all:
+	$(MAKE) -C libpsplink all
 	$(MAKE) -C psplink	all
 	$(MAKE) -C psplink_user all
 	$(MAKE) -C gdbcommon all
@@ -56,6 +57,7 @@ release: all
 	cp psplink_manual.pdf release
 
 clean:
+	$(MAKE) -C libpsplink clean
 	$(MAKE) -C psplink	clean
 	$(MAKE) -C psplink_user clean
 	$(MAKE) -C modnet clean
