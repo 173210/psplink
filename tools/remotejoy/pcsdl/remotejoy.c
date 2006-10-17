@@ -129,9 +129,10 @@ unsigned int g_bitmap[12] = {
 	PSP_CTRL_UP, PSP_CTRL_DOWN, PSP_CTRL_LEFT, PSP_CTRL_RIGHT, 
 };
 
-const char *map_names[8] = {
+const char *map_names[12] = {
 	"cross", "circle", "triangle", "square",
 	"ltrig", "rtrig", "start", "select",
+	"up", "down", "left", "right",
 };
 
 /* Maps the buttons on the joystick to the buttons on the PSP controller */
@@ -402,7 +403,7 @@ int build_map(const char *mapfile, int buttons)
 			}
 
 			butt = atoi(val);
-			for(i = 0; i < 8; i++)
+			for(i = 0; i < 12; i++)
 			{
 				if(strcasecmp(map_names[i], tok) == 0)
 				{
@@ -411,7 +412,7 @@ int build_map(const char *mapfile, int buttons)
 				}
 			}
 
-			if(i == 8)
+			if(i == 12)
 			{
 				if(strcasecmp("analog", tok) == 0)
 				{
