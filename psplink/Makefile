@@ -14,8 +14,6 @@ CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 LDFLAGS=-nodefaultlibs
 
-USB_ONLY=1
-
 ifdef USB_ONLY
 CFLAGS += -DUSB_ONLY
 endif
