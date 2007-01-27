@@ -22,6 +22,7 @@
 #include <pspusbstor.h>
 #include <pspumd.h>
 #include <psputilsforkernel.h>
+#include <pspsyscon.h>
 #include "psplink.h"
 #include "util.h"
 
@@ -40,7 +41,6 @@ static SceUID g_eventflag = -1;
 /* Some function prototypes we will need */
 int sceHprmEnd(void);
 int sceSysregUartIoEnable(int uart);
-int sceSyscon_driver_44439604(int power);
 
 void sioPutchar(int ch)
 {
@@ -110,7 +110,7 @@ static void _sioInit(void)
 	/* Enable UART 4 */
 	sceSysregUartIoEnable(4);
 	/* Enable remote control power */
-	sceSyscon_driver_44439604(1);
+	sceSysconCtrlHRPower(1);
 }
 
 void _EnablePutchar(void)
