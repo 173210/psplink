@@ -64,7 +64,7 @@ int (*g_readcharwithtimeout)(void) = sioReadCharWithTimeout;
 
 typedef struct _CommandMsg
 {
-	struct _CommandMsg *link;
+	SceKernelMsgPacket header;
 	char   *command;
 	int    res;
 } CommandMsg;
@@ -4196,6 +4196,7 @@ int psplinkParseCommand(char *command)
 		return 1;
 	}
 
+	memset(&msg, 0, sizeof(msg));
 	msg.command = command;
 	msg.res = 0;
 	ret = sceKernelSendMbx(g_command_msg, &msg);
