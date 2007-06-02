@@ -1034,7 +1034,7 @@ static PspIoDrv host_driver =
 	"host", 0x10, 0x800, "HOST", &host_funcs
 };
 
-int hostfs_init(void)
+int32_t hostfs_init(void)
 {
 	int ret;
 

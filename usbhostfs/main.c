@@ -459,8 +459,8 @@ int write_data(const void *data, int size)
 }
 
 /* Exchange a HOSTFS command with the PC host */
-int command_xchg(void *outcmd, int outcmdlen, void *incmd, int incmdlen, const void *outdata, 
-		int outlen, void *indata, int inlen)
+int32_t command_xchg(void *outcmd, int32_t outcmdlen, void *incmd, int32_t incmdlen, const void *outdata, 
+		int32_t outlen, void *indata, int32_t inlen)
 {
 	struct HostFsCmd *cmd;
 	struct HostFsCmd *resp;
@@ -485,7 +485,7 @@ int command_xchg(void *outcmd, int outcmdlen, void *incmd, int incmdlen, const v
 			err = write_data(outcmd, outcmdlen);
 			if(err != outcmdlen)
 			{
-				MODPRINTF("Error writing command %08X %d\n", cmd->command, err);
+				MODPRINTF("Error writing command %08X %d\n", (unsigned int)cmd->command, err);
 				break;
 			}
 		}
@@ -495,7 +495,7 @@ int command_xchg(void *outcmd, int outcmdlen, void *incmd, int incmdlen, const v
 			err = write_data(outdata, outlen);
 			if(err != outlen)
 			{
-				MODPRINTF("Error writing command data %08X, %d\n", cmd->command, err);
+				MODPRINTF("Error writing command data %08X, %d\n", (unsigned int)cmd->command, err);
 				break;
 			}
 		}
@@ -505,13 +505,13 @@ int command_xchg(void *outcmd, int outcmdlen, void *incmd, int incmdlen, const v
 			err = read_data(incmd, incmdlen);
 			if(err != incmdlen)
 			{
-				MODPRINTF("Error reading response for %08X %d\n", cmd->command, err);
+				MODPRINTF("Error reading response for %08X %d\n", (unsigned int)cmd->command, err);
 				break;
 			}
 
 			if((resp->magic != HOSTFS_MAGIC) && (resp->command != cmd->command))
 			{
-				MODPRINTF("Invalid response packet magic: %08X, command: %08X\n", resp->magic, resp->command);
+				MODPRINTF("Invalid response packet magic: %08X, command: %08X\n", (unsigned int)resp->magic, (unsigned int)resp->command);
 				break;
 			}
 
@@ -524,7 +524,7 @@ int command_xchg(void *outcmd, int outcmdlen, void *incmd, int incmdlen, const v
 				err = read_data(indata, resp->extralen);
 				if(err != resp->extralen)
 				{
-					MODPRINTF("Error reading input data %08X, %d\n", cmd->command, err);
+					MODPRINTF("Error reading input data %08X, %d\n", (unsigned int)cmd->command, err);
 					break;
 				}
 			}
@@ -617,7 +617,7 @@ int set_ayncreq(void *data, int size)
 }
 
 /* Call to ensure we are connected to the USB host */
-int usb_connected(void)
+int32_t usb_connected(void)
 {	
 	return g_connected;
 }
