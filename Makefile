@@ -1,14 +1,14 @@
 all:
 	$(MAKE) -C libpsplink all
-	$(MAKE) -C psplink	all
+	$(MAKE) -C psplink all
 	$(MAKE) -C psplink_user all
 	$(MAKE) -C gdbcommon all
 	$(MAKE) -C modnet all
 	$(MAKE) -C netshell all
-	$(MAKE) -C netgdb   all
+	$(MAKE) -C netgdb all
 	$(MAKE) -C usbhostfs all
-	$(MAKE) -C usbshell  all
-	$(MAKE) -C usbgdb    all
+	$(MAKE) -C usbshell all
+	$(MAKE) -C usbgdb all
 	$(MAKE) -C conshell all
 	$(MAKE) -C bootstrap all
 	$(MAKE) -C bootstrap kxploit
@@ -56,17 +56,53 @@ release: all
 	cp LICENSE release
 	cp psplink_manual.pdf release
 
-clean:
+clean: clean-tools clean-clients
 	$(MAKE) -C libpsplink clean
-	$(MAKE) -C psplink	clean
+	$(MAKE) -C psplink clean
 	$(MAKE) -C psplink_user clean
 	$(MAKE) -C modnet clean
 	$(MAKE) -C netshell clean
 	$(MAKE) -C usbhostfs clean
 	$(MAKE) -C usbshell clean
 	$(MAKE) -C conshell clean
-	$(MAKE) -C usbgdb   clean
-	$(MAKE) -C netgdb   clean
+	$(MAKE) -C usbgdb clean
+	$(MAKE) -C netgdb clean
 	$(MAKE) -C gdbcommon clean
 	$(MAKE) -C bootstrap clean
 	rm -rf release
+
+all-tools:
+	$(MAKE) -C tools/debugmenu all
+	$(MAKE) -C tools/kprintf all
+	$(MAKE) -C tools/remotejoy all
+
+release-with-tools: release all-tools
+	cp tools/debugmenu/debugmenu.prx release/v1.0/psplink
+	cp tools/kprintf/usbkprintf.prx release/v1.0/psplink
+	cp tools/remotejoy/remotejoy.prx release/v1.0/psplink
+	cp tools/debugmenu/debugmenu.prx release/v1.5/psplink
+	cp tools/kprintf/usbkprintf.prx release/v1.5/psplink
+	cp tools/remotejoy/remotejoy.prx release/v1.5/psplink
+	cp tools/debugmenu/debugmenu.prx release/v1.5_nocorrupt/__SCE__psplink
+	cp tools/kprintf/usbkprintf.prx release/v1.5_nocorrupt/__SCE__psplink
+	cp tools/remotejoy/remotejoy.prx release/v1.5_nocorrupt/__SCE__psplink
+
+clean-tools:
+	$(MAKE) -C tools/debugmenu clean
+	$(MAKE) -C tools/kprintf clean
+	$(MAKE) -C tools/remotejoy clean
+
+all-clients:
+	$(MAKE) -C pcterm all
+	$(MAKE) -C usbhostfs_pc all
+	if ( test -f /usr/include/SDL/SDL.h ); then { $(MAKE) -C tools/remotejoy/pcsdl all; } else { $(MAKE) -C tools/remotejoy/pc all; } fi
+
+install-clients:
+	$(MAKE) -C pcterm install
+	$(MAKE) -C usbhostfs_pc install
+	if ( test -f /usr/include/SDL/SDL.h ); then { $(MAKE) -C tools/remotejoy/pcsdl install; } else { $(MAKE) -C tools/remotejoy/pc install; } fi
+
+clean-clients:
+	$(MAKE) -C pcterm clean
+	$(MAKE) -C usbhostfs_pc clean
+	if ( test -f /usr/include/SDL/SDL.h ); then { $(MAKE) -C tools/remotejoy/pcsdl clean; } else { $(MAKE) -C tools/remotejoy/pc clean; } fi
