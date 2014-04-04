@@ -43,6 +43,8 @@ void ttySetWifiHandler(PspDebugPrintHandler wifiHandler);
 
 int g_currsock = -1;
 int g_servsock = -1;
+int g_size = 0;
+char g_data[4096];
 
 #define SERVER_PORT 10000
 
@@ -50,7 +52,12 @@ int wifiPrint(const char *data, int size)
 {
 	if(g_currsock >= 0)
 	{
-		sceNetInetSend(g_currsock, data, size, 0);
+		while(g_size)
+		{
+			sceKernelDelayThread(4096);
+		}
+		memcpy(g_data, data, size);
+		g_size = size;
 	}
 
 	return size;
@@ -135,17 +142,21 @@ void start_server(const char *szIpAddr)
 
 		while(1)
 		{
-			readbytes = sceNetInetRecv(new, &data, 1, 0);
-			if(readbytes <= 0)
-			{
-				sceNetInetClose(new);
-				g_currsock = -1;
-				printf("Socket %d closed\n", new);
-				break;
+			if(g_size) {
+				if(sceNetInetSend(new, g_data, g_size, 0) < 0)
+				{
+					sceNetInetClose(new);
+					g_currsock = -1;
+					printf("Socket %d closed\n", new);
+					break;
+				}
+				g_size = 0;
 			}
-			else
+
+			readbytes = sceNetInetRecv(new, &data, 1, MSG_DONTWAIT);
+			if(readbytes >= 0)
 			{
-				if((data == 10) || (data == 13))
+				if ((data == 10) || (data == 13))
 				{
 					if(pos > 0)
 					{
@@ -159,18 +170,14 @@ void start_server(const char *szIpAddr)
 							g_currsock = -1;
 							psplinkExitShell();
 						}
-						psplinkPrintPrompt();
 					}
 				}
 				else if(pos < (sizeof(cli) -1))
 				{
 					cli[pos++] = data;
 				}
-				else
-				{
-					/* Do nothing */
-				}
 			}
+			sceKernelDelayThread(4096);
 		}
 	}
 

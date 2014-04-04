@@ -88,10 +88,6 @@ static int  g_currcli_pos = 0;
 static SceUID g_command_msg = -1;
 /* Thread ID for the command line parsing */
 static SceUID g_command_thid = -1;
-/* Semaphore to lock the cli */
-static SceUID g_cli_sema = -1;
-/* Event flag to indicate the end of command parse */
-static SceUID g_command_event = -1;
 /* Indicates the name of the last module we loaded */
 static char g_lastmod[32] = "";
 /* Indicates we are in tty mode */
@@ -4174,7 +4170,7 @@ static int shellParseThread(SceSize args, void *argp)
 		{
 			msg->res = CMD_ERROR;
 		}
-		sceKernelSetEventFlag(g_command_event, COMMAND_EVENT_DONE);
+		print_prompt();
 	}
 
 	return 0;
@@ -4185,37 +4181,14 @@ int psplinkParseCommand(char *command)
 	u32 k1;
 	int ret;
 	CommandMsg msg;
-	SceUInt timeout = (10*1000*1000);
 
 	k1 = psplinkSetK1(0);
-
-	ret = sceKernelWaitSema(g_cli_sema, 1, &timeout);
-	if(ret < 0)
-	{
-		printf("Error, could not wait on cli sema 0x%08X\n", ret);
-		return 1;
-	}
 
 	memset(&msg, 0, sizeof(msg));
 	msg.command = command;
 	msg.res = 0;
 	ret = sceKernelSendMbx(g_command_msg, &msg);
-	if(ret >= 0)
-	{
-		u32 result;
-		ret = sceKernelWaitEventFlag(g_command_event, COMMAND_EVENT_DONE, 0x21, &result, NULL);
-		if(ret >= 0)
-		{
-			ret = msg.res;
-		}
-		else
-		{
-			printf("Error waiting for parse event 0x%08X\n", ret);
-			ret = CMD_EXITSHELL;
-		}
-	}
 
-	sceKernelSignalSema(g_cli_sema, 1);
 	psplinkSetK1(k1);
 
 	return ret;
@@ -4597,20 +4570,6 @@ int shellInit(const char *cliprompt, const char *path, const char *init_dir, con
 	if(g_command_msg < 0)
 	{
 		printf("Error, couldn't create message box 0x%08X\n", g_command_msg);
-		return -1;
-	}
-
-	g_cli_sema = sceKernelCreateSema("PspLinkCliSema", 0, 1, 1, NULL);
-	if(g_cli_sema < 0)
-	{
-		printf("Error, couldn't create cli semaphore 0x%08X\n", g_cli_sema);
-		return -1;
-	}
-
-	g_command_event = sceKernelCreateEventFlag("PspLinkCmdEvent", 0, 0, NULL);
-	if(g_command_event < 0)
-	{
-		printf("Error, couldn't create command event 0x%08X\n", g_command_event);
 		return -1;
 	}
 
